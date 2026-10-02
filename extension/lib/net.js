@@ -28,8 +28,8 @@ function parseBody(text, as) {
   }
 }
 
-export async function fetchDirect(url, { headers = {}, as = 'json' } = {}) {
-  const resp = await fetch(url, { headers, credentials: 'include', signal: AbortSignal.timeout(25000) });
+export async function fetchDirect(url, { headers = {}, as = 'json', timeout = 25000 } = {}) {
+  const resp = await fetch(url, { headers, credentials: 'include', signal: AbortSignal.timeout(timeout) });
   const text = await resp.text();
   if (!resp.ok) throw new FetchError(`HTTP ${resp.status}`, { status: resp.status, mode: 'direct', url, snippet: text.slice(0, 300) });
   return parseBody(text, as);

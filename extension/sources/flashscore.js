@@ -82,26 +82,43 @@ export async function feedsInPage(names, headers, bases) {
 
 let pageBase = null; // dirección que usa flashscore.pe (para empezar por ella)
 
+// Sin extensión (GitHub Actions): directo, con la dirección que funcionó y un
+// corte si Flashscore deja de responder (para no esperar pedido por pedido).
+let directBase = FEED_BASES[0];
+let failures = 0;
+let pausedUntil = 0;
+async function directFeed(name) {
+  if (Date.now() < pausedUntil) throw new FetchError('Flashscore no responde (pausa de 2 minutos)', { mode: 'direct', url: `${directBase}/${name}` });
+  const bases = [directBase, ...FEED_BASES.filter((b) => b !== directBase)];
+  let last;
+  // Solo se prueban otras direcciones si la conocida falla y aún no hay racha de fallos.
+  for (const base of failures ? bases.slice(0, 1) : bases) {
+    try {
+      const text = await fetchDirect(`${base}/${name}`, { headers: HEADERS, as: 'text', timeout: 12000 });
+      directBase = base;
+      failures = 0;
+      return text;
+    } catch (e) {
+      if (e.status) {
+        failures = 0;
+        return null; // la dirección responde: ese feed no existe
+      }
+      last = e;
+    }
+  }
+  if (++failures >= 5) {
+    pausedUntil = Date.now() + 120000;
+    failures = 0;
+  }
+  throw new FetchError(`Flashscore no responde: ${last?.message}`, { mode: 'direct', url: `${directBase}/${name}` });
+}
+
 // Varios feeds a la vez: { nombre: texto o null (sin datos) }.
 async function feeds(names) {
   if (!names.length) return { texts: {}, mode: inExtension ? 'tab' : 'direct' };
   if (!inExtension) {
     const texts = {};
-    for (const name of names) {
-      let last;
-      for (const base of FEED_BASES) {
-        try {
-          texts[name] = await fetchDirect(`${base}/${name}`, { headers: HEADERS, as: 'text' });
-          last = null;
-          break;
-        } catch (e) {
-          last = e;
-          if (e.status) break; // la dirección responde: ese feed no existe
-        }
-      }
-      if (last && !last.status) throw new FetchError(`Flashscore no responde: ${last.message}`, { mode: 'direct', url: `${FEED_BASES[0]}/${name}` });
-      if (last) texts[name] = null;
-    }
+    for (const name of names) texts[name] = await directFeed(name);
     return { texts, mode: 'direct' };
   }
   let r;
