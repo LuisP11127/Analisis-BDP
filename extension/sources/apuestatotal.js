@@ -35,8 +35,23 @@ function toEvent(e) {
 
 // Partidos de fútbol que empiezan en las próximas `hours` horas, priorizando
 // las ligas principales. `limit` acota cuántos se consultan después.
+// El parámetro `t` solo admite ciertos valores; `hPNl` es el que usa el sportsbook.
+const SNAPSHOT_PATHS = ['/api/pulse/snapshot/events?lang=ES-PE&t=hPNl', '/api/pulse/snapshot/events?lang=ES-PE'];
+
+async function snapshot() {
+  let lastError;
+  for (const path of SNAPSHOT_PATHS) {
+    try {
+      return await get(path);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
 export async function getEvents({ hours = 24, includeLive = false } = {}) {
-  const { data, mode } = await get(`/api/pulse/snapshot/events?lang=ES-PE&t=${Math.random().toString(36).slice(2, 6)}`);
+  const { data, mode } = await snapshot();
   const now = Date.now();
   const until = now + hours * 3600000;
   const items = (Array.isArray(data) ? data : [])
