@@ -1,0 +1,64 @@
+name: Prueba de fuentes de datos
+
+# Comprueba si Sofascore, Betano y Apuesta Total responden desde los
+# servidores de GitHub Actions. No falla si un sitio bloquea: el resultado
+# queda en los logs y en el resumen del job.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/probe-sources.yml
+      - scripts/probe-sources.js
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ubicación del runner
+        run: curl -sS -m 15 https://ipinfo.io/json || true
+
+      - name: Peticiones HTTP directas (sin navegador)
+        run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+          TODAY=$(date -u +%F)
+          for u in \
+            "https://www.sofascore.com/" \
+            "https://api.sofascore.com/api/v1/sport/football/scheduled-events/$TODAY" \
+            "https://www.sofascore.com/api/v1/sport/football/scheduled-events/$TODAY" \
+            "https://www.betano.pe/" \
+            "https://www.apuestatotal.com/" \
+            "https://prod20392.kmianko.com/es-pe/spbkv3?operatorToken=logout"; do
+            body=$(mktemp)
+            curl -sS -m 30 -L -A "$UA" -H "Accept-Language: es-PE,es;q=0.9" \
+              -H "Referer: https://www.sofascore.com/" -o "$body" \
+              -w "%{http_code} %{size_download}B %{content_type} <- $u\n" "$u" || echo "ERROR <- $u"
+            head -c 300 "$body" | tr '\n' ' '; echo; echo
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar Playwright
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Prueba con navegador
+        run: node scripts/probe-sources.js
+
+      - name: Resumen
+        if: always()
+        run: cat probe-output/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-output
+          path: probe-output/
