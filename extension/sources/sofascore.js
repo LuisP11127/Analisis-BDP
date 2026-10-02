@@ -11,8 +11,13 @@ const API_TAB = 'https://www.sofascore.com/api/v1';
 async function get(path) {
   try {
     return await fetchData(`${API_DIRECT}${path}`, { modes: ['direct'] });
-  } catch {
-    return fetchData(`${API_TAB}${path}`, { pageUrl: PAGE, modes: ['tab'] });
+  } catch (direct) {
+    try {
+      return await fetchData(`${API_TAB}${path}`, { pageUrl: PAGE, modes: ['tab'] });
+    } catch (tab) {
+      tab.message = `${direct.message} | ${tab.message}`;
+      throw tab;
+    }
   }
 }
 
