@@ -69,6 +69,13 @@ async function fixtures() {
       generated,
       events: [{ ...ev('b1', 'NBA', 'EE. UU.', 'US', 1000, 'Lakers', 'Celtics', 20), sport: 'basketball' }],
     }),
+    'noticias.json': {
+      generated,
+      items: [
+        ['espn', 'Alianza Lima pierde a su arquero por lesión', '', Math.round(at(-10) / 1000), 'soccer'],
+        ['flashscore', 'Universitario recupera a dos titulares', '', Math.round(at(-5) / 1000), 'soccer'],
+      ],
+    },
     [`resultados/${DAY}.json`]: {
       'fs:e1': compactResult({ state: 'finalizado', score: { home: 2, away: 0 } }),
       'fs:e2': compactResult({ state: 'finalizado', score: { home: 0, away: 1 } }),
@@ -290,6 +297,8 @@ async function withoutExtension(browser, errors) {
     await page.waitForSelector('#tab-analisis .summary h2:has-text("red neuronal")', { timeout: 60000 });
     const nnBanner = await page.textContent('#tab-analisis .summary .banner');
     check('el análisis con red neuronal explica su estado', /[1-9]\d* de 200/.test(nnBanner), nnBanner.slice(0, 160));
+    const nnSummary = await page.textContent('#tab-analisis .summary');
+    check('la red neuronal usa noticias de Flashscore, ESPN y FotMob', /Noticias · \d+ noticias/.test(nnSummary), nnSummary.match(/Noticias[^A-Z]*/)?.[0]);
     const compare = await page.textContent('#tab-analisis .compare');
     check('compara el análisis estadístico con el de red neuronal', compare.includes('Estadístico') && compare.includes('Red neuronal') && /por separado/.test(compare), compare.replace(/\s+/g, ' ').slice(0, 200));
     await page.click('#tab-analisis .segmented button:has-text("Estadístico")');

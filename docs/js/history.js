@@ -11,7 +11,7 @@ import * as ext from './ext.js';
 import * as provider from './provider.js';
 import * as store from './storage.js';
 import { addDays, groupBy, limaDateOf, limaToday } from './util.js';
-import { FEATURE_VERSION, FEATURES } from './analysis/features.js';
+import { FEATURE_VERSION, FEATURES, upgradeFeatures } from './analysis/features.js';
 import { settle } from './analysis/markets.js';
 import { parseMarketId } from './analysis/catalog.js';
 import { profitOf } from './analysis/outcomes.js';
@@ -485,14 +485,19 @@ export async function updateResults({ onProgress = () => {} } = {}) {
 
 export async function loadNetwork() {
   const saved = await store.read(MODEL).catch(() => null);
-  return saved ? Corrector.fromJSON(saved) : new Corrector({ inputs: FEATURES.length });
+  // Una red guardada con otras variables no se usa (se reentrena con las filas actualizadas).
+  return saved && saved.featureVersion === FEATURE_VERSION && saved.inputs === FEATURES.length ? Corrector.fromJSON(saved) : new Corrector({ inputs: FEATURES.length });
 }
 
 export async function trainNetwork() {
   const rows = [];
   for (const month of monthsBack(6)) {
     const file = await store.read(rowsPath(month));
-    for (const r of file?.rows || []) if (r.fv === FEATURE_VERSION && r.y >= 0 && r.y <= 1) rows.push(r);
+    for (const r of file?.rows || []) {
+      if (!(r.y >= 0 && r.y <= 1)) continue;
+      const x = upgradeFeatures(r.x, r.fv);
+      if (x) rows.push({ ...r, x });
+    }
   }
   const net = new Corrector({ inputs: FEATURES.length });
   net.train(rows.map((r) => ({ x: r.x, pBase: r.pBase, y: r.y, start: r.start })));

@@ -283,6 +283,10 @@
       const ids = [...last('h'), ...last('a')].map((m) => m.fsId);
       return { lastHome: last('h'), lastAway: last('a'), h2h: null, st: Object.fromEntries(ids.map((id, i) => [id, st(4 + (i % 4), 3 + (i % 3))])) };
     },
+    // Noticias (solo para la red neuronal).
+    'flashscore.getNews': () => ({ mode: 'direct', items: [{ source: 'flashscore', title: 'Arsenal pierde a su capitán por lesión', summary: '', published: new Date(Date.now() - 3600000).toISOString() }] }),
+    'espn.getAllNews': () => ({ mode: 'direct', items: [{ source: 'espn', title: 'Liverpool llega en racha y con su plantel completo', summary: '', published: new Date(Date.now() - 7200000).toISOString() }], errors: [] }),
+    'fotmob.getNews': () => ({ mode: 'direct', items: [{ source: 'fotmob', title: 'Universitario recupera a su goleador', summary: '', published: new Date(Date.now() - 5400000).toISOString() }] }),
     'understat.getTeamStrength': ({ league }) => ({
       mode: 'direct',
       items:

@@ -5,7 +5,12 @@ import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtTime, h, pct } from '../util.js';
 
-const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat' };
+const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat', simulacion: 'Simulación', noticias: 'Noticias' };
+const UNITS = { simulacion: 'selecciones', noticias: 'noticias' };
+const TITLES = {
+  simulacion: 'Mercados sin modelo propio (mitades, córners, marcador exacto...) estimados simulando el partido',
+  noticias: 'Noticias de Flashscore, ESPN y FotMob: solo las usa la red neuronal',
+};
 const MODE = { 'direct-api': 'directo', direct: 'directo', tab: 'pestaña', navigate: 'navegando' };
 const PRICE_SHORT = { apuestatotal: 'AT', betano: 'Betano', sofascore: 'Sofascore' };
 
@@ -18,8 +23,8 @@ const METHODS = [
 function sourceChip(id, s) {
   if (!s) return null;
   if (!s.ok) return h('span', { class: 'chip err', title: s.error || '' }, `${SOURCE_NAMES[id]}: error`);
-  const extra = s.matched != null ? ` · ${s.matched} partidos` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
-  const title = s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '';
+  const extra = s.matched != null ? ` · ${s.matched} ${UNITS[id] || 'partidos'}` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
+  const title = TITLES[id] || (s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '');
   return h('span', { class: 'chip ok', title }, `${SOURCE_NAMES[id]}${extra}${s.published ? ' (publicadas)' : ''}`);
 }
 
@@ -213,7 +218,7 @@ function renderMethod(root, app, a) {
       `${analyzed} partidos analizados · ${a.picks.length} picks · ${a.combos.length} combinadas · ${fmtDateTime(Date.parse(a.created))}`,
       a.skipped ? ` · ${a.skipped} omitidos (ya empezaron)` : '',
     ),
-    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat'].map((id) => sourceChip(id, a.sources[id]))),
+    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat', 'simulacion', ...(a.method === 'red_neuronal' ? ['noticias'] : [])].map((id) => sourceChip(id, a.sources[id]))),
     a.method === 'red_neuronal'
       ? h(
           'div',

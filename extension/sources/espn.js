@@ -3,11 +3,17 @@ import { fetchData } from '../lib/net.js';
 import { toIso } from '../lib/model.js';
 
 const API = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
+const SPORTS_API = 'https://site.api.espn.com/apis/site/v2/sports';
 
 const STATE = { pre: 'pendiente', in: 'en_vivo', post: 'finalizado' };
 
-export async function getNews({ league = 'all' } = {}) {
-  const { data, mode } = await fetchData(`${API}/${league}/news?lang=es&region=pe`, { modes: ['direct'] });
+// Noticias para la red neuronal: fútbol (todas y ligas principales) y las
+// ligas grandes de otros deportes. path: "soccer/all", "basketball/nba"...
+export const NEWS_PATHS = ['soccer/all', 'soccer/per.1', 'soccer/esp.1', 'soccer/eng.1', 'soccer/ita.1', 'soccer/arg.1', 'soccer/uefa.champions', 'basketball/nba', 'hockey/nhl', 'football/nfl', 'baseball/mlb', 'tennis/atp', 'tennis/wta'];
+
+export async function getNews({ league = 'all', path = null } = {}) {
+  const url = path ? `${SPORTS_API}/${path}/news?lang=es&region=pe` : `${API}/${league}/news?lang=es&region=pe`;
+  const { data, mode } = await fetchData(url, { modes: ['direct'] });
   return {
     mode,
     items: (data.articles || []).map((a) => ({
@@ -18,8 +24,23 @@ export async function getNews({ league = 'all' } = {}) {
       url: a.links?.web?.href || null,
       image: a.images?.[0]?.url || null,
       section: data.header || '',
+      sport: path ? path.split('/')[0] : 'soccer',
     })),
   };
+}
+
+// Todas las noticias de NEWS_PATHS (las que fallen se omiten).
+export async function getAllNews() {
+  const items = [];
+  const errors = [];
+  for (const path of NEWS_PATHS) {
+    try {
+      items.push(...(await getNews({ path })).items);
+    } catch (e) {
+      errors.push(`${path}: ${e.message}`);
+    }
+  }
+  return { mode: 'direct', items, errors };
 }
 
 // league: código ESPN, p. ej. "per.1" (Liga 1 Perú), "esp.1", "eng.1", "all".

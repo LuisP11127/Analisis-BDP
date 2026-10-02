@@ -28,7 +28,7 @@ const PAGE_ALLOWED = {
   sofascore: ['getSportEvents', 'getEventDetails', 'getEventResults', 'getMatches'],
   flashscore: ['getMatches', 'getNews', 'getSportDay', 'getTeamFeeds', 'getMatchFeeds'],
   fotmob: ['getMatches', 'getNews'],
-  espn: ['getMatches', 'getNews'],
+  espn: ['getMatches', 'getNews', 'getAllNews'],
   understat: ['getTeamStrength'],
   betano: ['getOdds', 'getEventMarkets'],
   apuestatotal: ['getEventList', 'getMarkets', 'getOdds'],

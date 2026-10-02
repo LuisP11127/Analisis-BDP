@@ -3,6 +3,8 @@
 //   indice.json                     cuándo se generó y cuántos partidos hay
 //   AAAA-MM-DD/<deporte>.json       partidos de hoy y mañana con últimos
 //                                   resultados, H2H, cuotas de Apuesta Total y xG
+//   noticias.json                   noticias de Flashscore, ESPN y FotMob (para la
+//                                   red neuronal; se acumulan 3 días en caché)
 //   resultados/AAAA-MM-DD.json      marcadores finales y por periodo (últimos 7
 //                                   días) para liquidar las apuestas; los partidos
 //                                   analizados (docs/data/historial) llevan además
@@ -11,7 +13,10 @@
 // Uso: node scripts/collect-data.mjs [salida] (por defecto "site")
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getH2H, getMatchFeeds, getSportDay, SPORT_IDS } from '../extension/sources/flashscore.js';
+import { getH2H, getMatchFeeds, getNews as flashscoreNews, getSportDay, SPORT_IDS } from '../extension/sources/flashscore.js';
+import { getAllNews as espnNews } from '../extension/sources/espn.js';
+import { getNews as fotmobNews } from '../extension/sources/fotmob.js';
+import { compactNews } from '../docs/js/analysis/news.js';
 import { getEventList, getMarkets } from '../extension/sources/apuestatotal.js';
 import { getTeamStrength } from '../extension/sources/understat.js';
 import { basicNorm, bestByName, countryCode, matchEvent } from '../docs/js/analysis/matching.js';
@@ -311,6 +316,35 @@ async function main() {
   );
   log(`Registros completos: ${records} de ${analyzed.size} partidos analizados`);
 
+  // 4c) Noticias (solo para la red neuronal): se acumulan 3 días en caché.
+  const newsFile = path.resolve('.cache/noticias.json');
+  let news = [];
+  try {
+    news = JSON.parse(await fs.readFile(newsFile, 'utf8'));
+  } catch {
+    // sin caché
+  }
+  for (const [name, fn] of [
+    ['Flashscore', flashscoreNews],
+    ['ESPN', espnNews],
+    ['FotMob', fotmobNews],
+  ]) {
+    try {
+      const { items } = await fn();
+      news.push(...items.map(compactNews));
+      log(`Noticias ${name}: ${items.length}`);
+    } catch (e) {
+      log(`Noticias ${name}: ${e.message}`);
+    }
+  }
+  const seenNews = new Set();
+  const since = Date.now() / 1000 - 3 * 86400;
+  news = news
+    .filter((n) => n[1] && (n[3] == null || n[3] >= since) && !seenNews.has(n[1]) && seenNews.add(n[1]))
+    .sort((a, b) => (b[3] || 0) - (a[3] || 0))
+    .slice(0, 1500);
+  await writeJson(newsFile, news);
+
   // 5) Archivos.
   const index = { generated: new Date().toISOString(), today, days: {} };
   for (const [date, bySport] of Object.entries(upcoming)) {
@@ -327,6 +361,7 @@ async function main() {
     }
   }
   for (const [date, map] of Object.entries(results)) await writeJson(path.join(OUT, 'resultados', `${date}.json`), map);
+  await writeJson(path.join(OUT, 'noticias.json'), { generated: index.generated, items: news });
   await writeJson(path.join(OUT, 'indice.json'), index);
 
   const total = (d) => Object.values(index.days[d] || {}).reduce((s, x) => s + x.events, 0);

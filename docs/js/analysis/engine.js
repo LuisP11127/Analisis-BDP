@@ -31,6 +31,7 @@ import { allowedMarkets, predict } from './models.js';
 import { buildCombos, DEFAULT_SETTINGS, selectPicks } from './picks.js';
 import { estimate, fitTennisGames, simParams } from './simulate.js';
 import { xgFromTeamStats } from './teamstats.js';
+import { newsFeatures, prepareNews } from './news.js';
 
 // Ligas de Understat según el id de torneo de Sofascore.
 const UNDERSTAT_LEAGUES = { 17: 'EPL', 8: 'La_liga', 35: 'Bundesliga', 23: 'Serie_A', 34: 'Ligue_1' };
@@ -212,6 +213,36 @@ async function understatXg(events, sources, progress) {
     }
   }
   return out;
+}
+
+// Noticias de Flashscore, ESPN y FotMob (con la extensión, al momento; sin
+// ella, las publicadas cada 2 horas). Solo las usa la red neuronal.
+async function loadArticles(withExt, sources, progress) {
+  progress('Noticias: Flashscore, ESPN y FotMob', 0.84);
+  const articles = [];
+  const used = [];
+  if (withExt) {
+    for (const [source, fn] of [
+      ['flashscore', 'getNews'],
+      ['espn', 'getAllNews'],
+      ['fotmob', 'getNews'],
+    ]) {
+      try {
+        const { items } = await ext.call(source, fn, {}, { timeout: 60000 });
+        articles.push(...items);
+        if (items.length) used.push(source);
+      } catch {
+        // fuente de noticias no disponible
+      }
+    }
+  }
+  if (!articles.length) {
+    articles.push(...(await provider.loadNews()));
+    if (articles.length) used.push('publicadas');
+  }
+  articles.splice(0, articles.length, ...prepareNews(articles));
+  sources.noticias = articles.length ? { ok: true, matched: articles.length, via: used.join(', ') } : { ok: false, error: 'Sin noticias disponibles' };
+  return articles;
 }
 
 const halfLines = (offers, market) => [...new Set(offers.filter((o) => o.market === market && o.line != null).map((o) => o.line))];
@@ -424,6 +455,17 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
     sources.apuestatotal = { ok: true, matched: (at?.ok ? at.matched : 0) + usedPublished, published: true };
   }
   if (auto.some((e) => xg.has(e.id))) sources.understat ||= { ok: true, matched: auto.filter((e) => xg.has(e.id)).length };
+
+  // Noticias de cada equipo (para las variables de la red neuronal).
+  const articles = pending.length ? await loadArticles(withExt, sources, onProgress) : [];
+  let withNews = 0;
+  for (const ev of pending) {
+    const news = newsFeatures(ev, articles);
+    if (!news) continue;
+    details[ev.id] = { ...(details[ev.id] || {}), news };
+    if (news.home.n || news.away.n) withNews++;
+  }
+  if (sources.noticias) sources.noticias.events = withNews;
 
   const created = new Date().toISOString();
   const date = pending.length ? limaDateOf(Math.min(...pending.map((e) => e.start))) : null;
