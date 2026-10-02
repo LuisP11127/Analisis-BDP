@@ -26,11 +26,11 @@ const API = {
 // Funciones que puede pedir la página web: { action: 'call', params: { source, fn, args } }.
 const PAGE_ALLOWED = {
   sofascore: ['getSportEvents', 'getEventDetails', 'getEventResults', 'getMatches'],
-  flashscore: ['getMatches', 'getNews'],
+  flashscore: ['getMatches', 'getNews', 'getSportDay', 'getTeamFeeds', 'getMatchFeeds'],
   fotmob: ['getMatches', 'getNews'],
-  espn: ['getMatches', 'getNews'],
+  espn: ['getMatches', 'getNews', 'getAllNews'],
   understat: ['getTeamStrength'],
-  betano: ['getOdds'],
+  betano: ['getOdds', 'getEventMarkets'],
   apuestatotal: ['getEventList', 'getMarkets', 'getOdds'],
   github: ['status', 'getFile', 'putFile', 'getPublicConfig'],
 };

@@ -69,6 +69,13 @@ async function fixtures() {
       generated,
       events: [{ ...ev('b1', 'NBA', 'EE. UU.', 'US', 1000, 'Lakers', 'Celtics', 20), sport: 'basketball' }],
     }),
+    'noticias.json': {
+      generated,
+      items: [
+        ['espn', 'Alianza Lima pierde a su arquero por lesión', '', Math.round(at(-10) / 1000), 'soccer'],
+        ['flashscore', 'Universitario recupera a dos titulares', '', Math.round(at(-5) / 1000), 'soccer'],
+      ],
+    },
     [`resultados/${DAY}.json`]: {
       'fs:e1': compactResult({ state: 'finalizado', score: { home: 2, away: 0 } }),
       'fs:e2': compactResult({ state: 'finalizado', score: { home: 0, away: 1 } }),
@@ -143,8 +150,9 @@ async function withoutExtension(browser, errors) {
   // Análisis sin extensión
   await page.click('.league:has-text("Premier League") .league-head input');
   await page.click('.league:has-text("Liga 1") .league-head input');
-  check('sin extensión se puede analizar', !(await page.$eval('#run-stats', (b) => b.disabled)));
-  await page.click('#run-stats');
+  check('sin extensión se puede analizar', !(await page.$eval('#run-both', (b) => b.disabled)));
+  check('en el celular los botones usan nombres cortos', (await page.innerText('#run-both')).trim() === 'Ambos');
+  await page.click('#run-both');
   await page.waitForSelector('#tab-analisis .summary h2', { timeout: 30000 });
   await page.waitForSelector('.chip:has-text("Guardado en el historial")', { timeout: 30000 });
   const summary = await page.textContent('#tab-analisis .summary');
@@ -152,6 +160,11 @@ async function withoutExtension(browser, errors) {
   const cards = await page.$$('#tab-analisis .card');
   check('hay picks con datos automáticos', cards.length > 0, `${cards.length} tarjetas`);
   check('guarda el análisis en GitHub', repo.has(`docs/data/historial/${DAY}.json`) && repo.has('docs/data/historial/index.json'), [...repo.keys()].join(', '));
+  const saved = JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.map((a) => a.method);
+  check('"Ambos" guarda los dos análisis por separado', saved.sort().join() === 'estadistico,red_neuronal', saved.join(', '));
+  check('"Ambos" compara los dos con los mismos partidos', (await page.textContent('#tab-analisis .compare')).includes('Coinciden'));
+  await page.click('#tab-analisis .segmented button:has-text("Red neuronal")');
+  check('muestra el análisis con red neuronal', (await page.textContent('#tab-analisis .summary h2')) === 'Análisis con red neuronal');
   await page.screenshot({ path: path.join(OUT, '7-celular-analisis.png'), fullPage: false });
 
   // Liquidación con los resultados publicados
@@ -171,7 +184,11 @@ async function withoutExtension(browser, errors) {
   await page.waitForSelector('.day-body .status-pill');
   const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
   check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
-  check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses[0].picks.every((p) => p.status !== 'pending'));
+  check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.every((a) => a.picks.every((p) => p.status !== 'pending')));
+  const index = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY];
+  check('el resumen guarda los resultados de cada método', index.methods.estadistico.won + index.methods.estadistico.lost > 0 && index.methods.red_neuronal.won + index.methods.red_neuronal.lost > 0, JSON.stringify(index.methods).slice(0, 160));
+  await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
+  check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
   await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });
   await page.click('.tabs button[data-tab="partidos"]');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -191,7 +208,7 @@ async function withoutExtension(browser, errors) {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: URL });
     const page = await context.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text())); // 404: datos publicados que no existen en la prueba
 
     // 1) Partidos
     await page.goto(URL);
@@ -224,7 +241,18 @@ async function withoutExtension(browser, errors) {
     const summary = await page.textContent('#tab-analisis .summary');
     check('analiza los 11 partidos', summary.includes('11 partidos analizados'), summary.slice(0, 120));
     check('Apuesta Total emparejada', /Apuesta Total · \d+ partidos/.test(summary), summary.match(/Apuesta Total[^A-Z]*/)?.[0]);
-    check('muestra el error de Betano sin romper el análisis', summary.includes('Betano: error'));
+    check('Betano emparejada aunque falle en otros deportes', /Betano · \d+ partidos/.test(summary), summary.match(/Betano[^A-Z]*/)?.[0]);
+    const log = await page.evaluate(() => window.__BDP_MOCK_LOG__);
+    check('abre la página de cada partido de Betano (todos los mercados)', log.includes('betano.getEventMarkets'));
+    check('suma las estadísticas de equipo de Flashscore a los partidos de Sofascore', log.includes('flashscore.getTeamFeeds') && /Flashscore · \d+ partidos/.test(summary), summary.match(/Flashscore[^A-Z]*/)?.[0]);
+    // Filas de entrenamiento guardadas en el navegador: incluyen los mercados nuevos.
+    const rowMarkets = await page.evaluate(async () => {
+      const st = await import(new URL('js/storage.js', location.href).href);
+      const out = new Set();
+      for (const p of await st.localPaths()) if (p.includes('entrenamiento')) for (const r of (await st.read(p))?.rows || []) out.add(r.market);
+      return [...out];
+    });
+    check('analiza los mercados nuevos (córners, 1.er tiempo, descanso/final)', ['OU.corners', '1X2@h1', 'OU.cards'].every((m) => rowMarkets.includes(m)), rowMarkets.join(' '));
     const levels = await page.$$eval('#tab-analisis .card', (cards) => cards.map((c) => c.className));
     check(
       'hay picks por nivel y combinadas',
@@ -260,15 +288,30 @@ async function withoutExtension(browser, errors) {
     check('marca ganadas y perdidas', pills.includes('Ganada') && pills.includes('Perdida') && !pills.includes('Pendiente'), `${pills.length} apuestas`);
     const table = await page.textContent('.panel table');
     check('calcula aciertos y ganancia por nivel', /%/.test(table), table.replace(/\s+/g, ' ').slice(0, 160));
-    const netPanel = await page.textContent('.panel:has(h3:text-is("Red neuronal"))');
-    check('la red neuronal registra los resultados para aprender', /105/.test(netPanel), netPanel.replace(/\s+/g, ' ').slice(0, 200));
+    const netPanel = await page.textContent('.panel:has(h3:text-is("Entrenamiento de la red neuronal"))');
+    check('la red neuronal registra los resultados para aprender', /Faltan resultados: [1-9]\d* de 200/.test(netPanel), netPanel.replace(/\s+/g, ' ').slice(0, 200));
     await page.screenshot({ path: path.join(OUT, '3-historial.png'), fullPage: true });
 
     // 5) Análisis con red neuronal
     await page.click('#run-nn');
     await page.waitForSelector('#tab-analisis .summary h2:has-text("red neuronal")', { timeout: 60000 });
     const nnBanner = await page.textContent('#tab-analisis .summary .banner');
-    check('el análisis con red neuronal explica su estado', /105 de 200/.test(nnBanner), nnBanner.slice(0, 160));
+    check('el análisis con red neuronal explica su estado', /[1-9]\d* de 200/.test(nnBanner), nnBanner.slice(0, 160));
+    const nnSummary = await page.textContent('#tab-analisis .summary');
+    check('la red neuronal usa noticias de Flashscore, ESPN y FotMob', /Noticias · \d+ noticias/.test(nnSummary), nnSummary.match(/Noticias[^A-Z]*/)?.[0]);
+    const compare = await page.textContent('#tab-analisis .compare');
+    check('compara el análisis estadístico con el de red neuronal', compare.includes('Estadístico') && compare.includes('Red neuronal') && /por separado/.test(compare), compare.replace(/\s+/g, ' ').slice(0, 200));
+    await page.click('#tab-analisis .segmented button:has-text("Estadístico")');
+    check('se puede volver a ver el análisis estadístico', (await page.textContent('#tab-analisis .summary h2')) === 'Análisis estadístico');
+    await page.screenshot({ path: path.join(OUT, '3b-comparacion.png'), fullPage: false });
+    await page.click('.tabs button[data-tab="historial"]');
+    await page.waitForSelector('.day-line');
+    const lines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
+    check('el historial sigue cada método por separado', lines.join(',') === 'Estadístico,Red neuronal', lines.join(', '));
+    await page.waitForSelector('.day-body .method-tag'); // el día quedó abierto desde el paso 4
+    await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
+    const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
+    check('resultados por nivel de cada método', panels.includes('Análisis estadístico') && panels.includes('Análisis con red neuronal'), panels.join(', '));
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);
 

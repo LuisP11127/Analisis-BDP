@@ -10,13 +10,13 @@ Sofascore (cualquier día) y Betano.
 
 | Fuente | Qué aporta | ¿Funciona desde servidores de GitHub? |
 |---|---|---|
-| Sofascore | Partidos de todos los deportes, forma, últimos resultados, H2H, bajas y lesiones, votos, cuotas de referencia y resultados finales | No, solo desde tu navegador |
-| Flashscore | Partidos y resultados del día (hora de Lima), noticias | Sí |
+| Sofascore | Partidos de todos los deportes, forma, últimos resultados, H2H, bajas y lesiones, votos, cuotas de referencia, estadísticas de los últimos partidos de cada equipo y, al liquidar, estadísticas e incidencias del partido | No, solo desde tu navegador |
+| Flashscore | Partidos y resultados del día (hora de Lima), H2H, estadísticas de los últimos partidos de cada equipo, incidencias y estadísticas del partido terminado, noticias. Con la extensión se lee desde una pestaña de flashscore.pe (por la misma vía que usa la página, funciona desde cualquier red) | Sí |
 | FotMob | Partidos por liga, noticias destacadas | Sí |
-| ESPN | Noticias en español, resultados de Liga 1 | Sí |
+| ESPN | Noticias en español (fútbol y ligas grandes de otros deportes), resultados de Liga 1 | Sí |
 | Understat | xG (goles esperados) de las 5 grandes ligas | Sí |
-| Betano | Cuotas | No, solo desde Perú |
-| Apuesta Total | Cuotas: 1X2, doble oportunidad, total de goles, ambos anotan; en otros deportes ganador, total y hándicap | Sí |
+| Betano | Cuotas: la lista de cada deporte y, abriendo la página de cada partido, todos sus mercados (goles, córners, tarjetas, mitades, combinados...) | No, solo desde Perú |
+| Apuesta Total | Cuotas: todos los tipos de mercado de cada deporte (resultado, totales, hándicap, mitades, cuartos, sets, córners, combinados...) | Sí |
 | GitHub | Guarda el historial y la red neuronal en el repositorio (opcional, con token) | — |
 
 ## Instalación (una sola vez)
@@ -60,7 +60,8 @@ Haz clic en el ícono de la extensión: se abre la página **Diagnóstico de fue
 1. Pulsa **Probar todas**. Para Sofascore y Betano puede abrirse una pestaña del sitio
    en segundo plano unos segundos; se cierra sola.
 2. Si Betano falla con una verificación, abre <https://www.betano.pe/> una vez en una
-   pestaña normal y vuelve a probar.
+   pestaña normal y vuelve a probar. El diagnóstico de Betano también abre la página
+   de un partido e informa cuántos mercados encontró en total.
 3. Pulsa **Copiar reporte** y compártelo para ajustar lo que haga falta.
 
 ## Permisos

@@ -1,0 +1,866 @@
+Deporte	Mercado	Formato de selecciones
+Fútbol	Resultado del partido	1 (Local) · X (Empate) · 2 (Visitante)
+Fútbol	Goles totales Más/Menos	Más de N / Menos de N
+Fútbol	Doble oportunidad	Local o Empate · Local o Visitante · Visitante o Empate
+Fútbol	Ambos equipos anotan	Sí · No
+Fútbol	Más/Menos Córners	Más de N / Menos de N
+Fútbol	Tarjetas Totales Más/Menos	Más de N / Menos de N
+Fútbol	Resultado Primer Tiempo	Local · Empate · Visitante
+Fútbol	Más/Menos Goles en Primer Tiempo	Más de N / Menos de N
+Fútbol	Córners en Primer Tiempo Más/Menos	Más de N / Menos de N
+Fútbol	Total de Tarjetas (Más/Menos) Primer Tiempo	Más de N / Menos de N
+Fútbol	Local - Goles totales Más/Menos	Más de N / Menos de N
+Fútbol	Visitante - Goles totales Más/Menos	Más de N / Menos de N
+Fútbol	[Jugador] Tiros al Arco	1+ · 2+ · 3+ · 4+ · 5+
+Fútbol	Anotar en cualquier momento	— (selecciones no visibles al consultar)
+Fútbol	Ambos equipos anotan o Más de 2.5	Sí · No (2-0, 1-0, 0-0, 0-1 o 0-2)
+Fútbol	Apuesta sin Empate	Local · Visitante
+Fútbol	Hándicap Resultado del Partido	— (selecciones no visibles al consultar)
+Fútbol	Primer Tiempo/Tiempo Completo	Local / Local · Local / Empate · Local / Visitante · Empate / Local · Empate / Empate · Empate / Visitante · Visitante / Local · Visitante / Empate · Visitante / Visitante
+Fútbol	Marcador Correcto	1 - 0 · 2 - 0 · 2 - 1 · 3 - 0 · 3 - 1 · 3 - 2 · 4 - 0 · 4 - 1 · 4 - 2 · 4 - 3 · 5 - 0 · 5 - 1 … (+21; 33 opciones en total)
+Fútbol	Próximo gol (Gol 1)	Local · Sin Goles · Visitante
+Fútbol	Más/Menos Goles en Primer Tiempo Local	Más de N / Menos de N
+Fútbol	Más/Menos Goles en Primer Tiempo Visitante	Más de N / Menos de N
+Fútbol	Más/Menos Goles en Segundo Tiempo	Más de N / Menos de N
+Fútbol	Total de [Jugador]	0-2 · 0-3 · 0-4 · 1-2 · 1-3 · 1-4 · 1-5 · 2-4 · 2-5 · 2-6 · 3-4 · 3-5 … (+2; 14 opciones en total)
+Fútbol	Forma de anotación de gol (Gol 1)	Tiro · Cabezazo · Penal · Autogol · Tiro libre · Sin Goles
+Fútbol	Total de goles par/impar	Impar · Par
+Fútbol	Primer equipo en anotar 2 Goles	— (selecciones no visibles al consultar)
+Fútbol	Local Total de goles	— (selecciones no visibles al consultar)
+Fútbol	Local Más/Menos Córners	Más de N / Menos de N
+Fútbol	Visitante Más/Menos Córners	Más de N / Menos de N
+Fútbol	Total de tarjetas rojas	Más de N / Menos de N
+Fútbol	Ambos equipos reciben una tarjeta	Sí · No
+Fútbol	Ambos equipos reciben 2 o más tarjetas	Sí · No
+Fútbol	Tiros al Arco	Más de N / Menos de N
+Fútbol	Local Tiros al Arco	Más de N / Menos de N
+Fútbol	Visitante Tiros al Arco	Más de N / Menos de N
+Fútbol	Remates totales	Más de N / Menos de N
+Fútbol	Primer Goleador	[Jugador]
+Fútbol	Último en Marcar	[Jugador]
+Fútbol	Jugador que anota +2 goles	[Jugador]
+Fútbol	Triplete del Jugador	[Jugador]
+Fútbol	Jugador que anota o da una asistencia	[Jugador]
+Fútbol	[Jugador] Asistencias totales	1+ · 2+ · 3+
+Fútbol	[Jugador] Atajadas de Arquero	2+ · 3+ · 4+ · 5+ · 6+
+Fútbol	Recibir una tarjeta	[Jugador]
+Fútbol	Recibe una tarjeta roja	[Jugador]
+Fútbol	[Jugador] Remates totales	3+ · 4+ · 5+ · 6+ · 7+ · 8+ · 9+ · 10+
+Fútbol	[Jugador] Total de pases	35+ · 38+ · 41+ · 44+ · 47+ · 50+ · 53+
+Fútbol	[Jugador] Tackles totales	1+ · 2+ · 3+ · 4+ · 5+
+Fútbol	[Jugador] Tiros Al Arco - Primer Tiempo	1+ · 2+ · 3+ · 4+
+Fútbol	[Jugador] Remates totales - Primer Tiempo	1+ · 2+ · 3+ · 4+ · 5+ · 6+ · 7+
+Fútbol	[Jugador] Fueras de juego	1+ · 2+ · 3+
+Fútbol	Anota desde fuera del área	[Jugador]
+Fútbol	Anotar en cualquier momento - Primer Tiempo	[Jugador]
+Fútbol	[Jugador] Faltas Cometidas	1+ · 2+ · 3+ · 4+ · 5+ · 6+ · 7+
+Fútbol	[Jugador] Faltas ganadas	3+ · 4+ · 5+ · 6+ · 7+ · 8+ · 9+
+Fútbol	El jugador marca en ambos tiempos	[Jugador]
+Fútbol	Córners cronometrados Más/Menos (00:00 - 09:59)	Más de N / Menos de N
+Fútbol	Local Córners cronometrados Más/Menos (00:00 - 09:59)	Más de N / Menos de N
+Fútbol	Visitante Córners cronometrados Más/Menos (00:00 - 09:59)	Más de N / Menos de N
+Fútbol	Primer Tiempo Equipo con más Córners	Local · Empate · Visitante
+Fútbol	Primer Tiempo Local Más/Menos Córners	Más de N / Menos de N
+Fútbol	Primer Tiempo Visitante Más/Menos Córners	Más de N / Menos de N
+Fútbol	Córners del Primer Tiempo - Triples	— (selecciones no visibles al consultar)
+Fútbol	Córners en Segundo Tiempo Más/Menos	Más de N / Menos de N
+Fútbol	Equipo con más Córners	Local · Empate · Visitante
+Fútbol	Asiático (Más/Menos) Total de Córners	Más de N / Menos de N
+Fútbol	Asiático (Más/Menos) - Córners Totales en el Primer Tiempo	Más de N / Menos de N
+Fútbol	Hándicap de Córners - Dobles	Local -1.5 · Visitante +1.5
+Fútbol	Hándicap de Córners - Triples	Local -2 · Empate -2 · Visitante +2
+Fútbol	Tiempo con Más Córners	Primer Tiempo · Empate · Segundo Tiempo
+Fútbol	Total de Córners	0-5 · 6-8 · 9-11 · 12-14 · 15+
+Fútbol	Rangos de Córner	0 · 1-3 · 4-6 · 7-9 · 10-12 · 13-15 · 16-18 · 19+
+Fútbol	Córners Marcador Correcto	6 - 4 · 5 - 4 · 5 - 3 · 6 - 3 · 5 - 5 · 7 - 3 · 7 - 4 · 4 - 4 · 6 - 5 · 4 - 3 · 7 - 5 · 4 - 5 … (+47; 59 opciones en total)
+Fútbol	Local Tarjetas Totales Más/Menos	Más de N / Menos de N
+Fútbol	Visitante Tarjetas Totales Más/Menos	Más de N / Menos de N
+Fútbol	Hándicap - Tarjetas	Local +0.5 · Visitante -0.5, etc
+Fútbol	Equipo con más tarjetas	Local · Empate · Visitante
+Fútbol	Local Tarjeta roja	Sí · No
+Fútbol	Visitante Tarjeta roja	Sí · No
+Fútbol	Carrera a X Tarjetas	— (selecciones no visibles al consultar)
+Fútbol	Ambos equipos reciben una tarjeta en ambos tiempos	Sí
+Fútbol	Local Segundo Tiempo Tarjetas Totales Mas/Menos	Más de N / Menos de N
+Fútbol	Visitante Segundo Tiempo Tarjetas Totales Mas/Menos	Más de N / Menos de N
+Fútbol	Tarjeta roja Primer Tiempo	Sí · No
+Fútbol	Tarjeta roja y Penal concedido	Sí · No
+Fútbol	Tarjeta roja o Penal concedido	Sí
+Fútbol	Próximo equipo en recibir la tarjeta roja	Local · Sin tarjetas rojas · Visitante
+Fútbol	Local Puntos de Tarjetas en 1er Tiempo	0-1 · 2+
+Fútbol	Visitante Puntos de Tarjetas en 1er Tiempo	0-1 · 2+
+Fútbol	Último equipo con tarjeta	Local · Sin Amonestaciones · Visitante
+Fútbol	Rangos de Tarjetas	0 · 1-2 · 3-4 · 5-6 · 7-8 · 9-10 · 11+
+Fútbol	Tarjetas de medio tiempo/tiempo completo	Local / Local · Local / Empate · Local / Visitante · Empate / Local · Empate / Empate · Empate / Visitante · Visitante / Local · Visitante / Empate · Visitante / Visitante
+Fútbol	Tarjetas Marcador Correcto	1 - 0 · 2 - 0 · 2 - 1 · 3 - 1 · 3 - 2 · 4 - 1 · 4 - 2 · 4 - 3 · 5 - 2 · 5 - 3 · 5 - 4 · 1 - 1 … (+20; 32 opciones en total)
+Fútbol	Local Remates totales	Más de N / Menos de N
+Fútbol	Visitante Remates totales	Más de N / Menos de N
+Fútbol	Rangos de Tiros al Arco	0 · 1-3 · 4-6 · 7-9 · 10-12 · 13-15 · 16+
+Fútbol	Total de Faltas Cometidas	Más de N / Menos de N
+Fútbol	Local Total de Faltas Cometidas	Más de N / Menos de N
+Fútbol	Visitante Total de Faltas Cometidas	Más de N / Menos de N
+Fútbol	Total de Offsides	Más de N / Menos de N
+Fútbol	Local Total de Offsides	Más de N / Menos de N
+Fútbol	Visitante Total de Offsides	Más de N / Menos de N
+Fútbol	Palo	Más de N / Menos de N
+Fútbol	Total de Saques de meta	Más de N / Menos de N
+Fútbol	Local Total de Saques de meta	Más de N / Menos de N
+Fútbol	Visitante Total de Saques de meta	Más de N / Menos de N
+Fútbol	Total de Saques de banda	Más de N / Menos de N
+Fútbol	Local Total de Saques de banda	Más de N / Menos de N
+Fútbol	Visitante Total de Saques de banda	Más de N / Menos de N
+Fútbol	Total de pases	Más de N / Menos de N
+Fútbol	Local Total de pases	Más de N / Menos de N
+Fútbol	Visitante Total de pases	Más de N / Menos de N
+Fútbol	Tackles totales	Más de N / Menos de N
+Fútbol	Local Tackles totales	Más de N / Menos de N
+Fútbol	Visitante Tackles totales	Más de N / Menos de N
+Fútbol	Primer Offside	Local · Visitante
+Fútbol	Primer Tiempo - Doble Oportunidad	Local o Empate · Local o Visitante · Visitante o Empate
+Fútbol	Hándicap Primer Tiempo	— (selecciones no visibles al consultar)
+Fútbol	Gana cualquiera de los tiempos	Local · Visitante
+Fútbol	Resultado Primer tiempo o Tiempo Completo	Local · Empate · Visitante
+Fútbol	Primer Tiempo/Tiempo Completo - Doble oportunidad	Local o Empate / Local o Empate · Local o Empate / Local o Visitante · Local o Empate / Visitante o Empate · Local o Visitante / Local o Empate · Local o Visitante / Local o Visitante · Local o Visitante / Visitante o Empate · Visitante o Empate / Local o Empate · Visitante o Empate / Local o Visitante · Visitante o Empate / Visitante o Empate
+Fútbol	Próximo gol en Primer Tiempo (Gol 1)	Local · Sin Goles · Visitante
+Fútbol	Ambos Equipos Anotan en el Primer Tiempo	Sí · No
+Fútbol	Marcador correcto en el primer tiempo	1 - 0 · 2 - 0 · 2 - 1 · 3 - 0 · 3 - 1 · 3 - 2 · 4 - 0 · 4 - 1 · 0 - 0 · 1 - 1 · 2 - 2 · 0 - 1 … (+5; 17 opciones en total)
+Fútbol	Apuesta sin Empate Medio Tiempo	Local · Visitante
+Fútbol	Gol anotado en ambos tiempos	Sí · No
+Fútbol	Ambos Equipos Anotan en el Primer Tiempo/Segundo Tiempo	Sí y Sí · Sí y No · No y Sí · No y No
+Fútbol	Tiempo con Más Goles	Primer Tiempo · Segundo Tiempo · Empate
+Fútbol	Local Gana Ambos Tiempos	Sí · No
+Fútbol	Visitante Gana Ambos Tiempos	Sí · No
+Fútbol	Resultado Segundo Tiempo	Local · Empate · Visitante
+Fútbol	Segundo Tiempo - Doble Oportunidad	Local o Empate · Local o Visitante · Visitante o Empate
+Fútbol	Ambos equipos anotan en el Segundo Tiempo	Sí · No
+Fútbol	Primer Tiempo Local Total de Goles Exactos	0 · 1 · 2+
+Fútbol	Primer Tiempo Visitante Total de Goles Exactos	0 · 1 · 2+
+Fútbol	Segundo Tiempo - Más/Menos Total de Goles Local	Más de N / Menos de N
+Fútbol	Segundo Tiempo - Más/Menos Total de Goles Visitante	Más de N / Menos de N
+Fútbol	Total de goles en el Primer Tiempo	0 · 1 · 2 · 3 · 4+
+Fútbol	Rango de Total de goles Primer Tiempo	0-1 · 0-2 · 1-2 · 2-3
+Fútbol	Medio Tiempo/Tiempo Completo y Más/Menos Goles	Local / Local y Más 1.5 · Local / Local y Menos N · Local / Empate y Más 1.5 · Empate / Local y Más 1.5 · Empate / Local y Menos N · Empate / Empate y Más 1.5 · Empate / Empate y Menos N · Empate / Visitante y Más 1.5 · Empate / Visitante y Menos N · Visitante / Empate y Más 1.5 … (28 variantes)
+Fútbol	Resultado del partido con Más/Menos ({X})	Local y Más 1.5 · Local y Menos 1.5 · Visitante y Más 1.5 · Visitante y Menos 1.5 · Empate y Más 1.5 · Empate y Menos 1.5
+Fútbol	Doble Oportunidad con Más/Menos ({X})	Local o Visitante y Más 1.5 · Local o Visitante y Menos 1.5 · Local o Empate y Más 1.5 · Local o Empate y Menos 1.5 · Visitante o Empate y Más 1.5 · Visitante o Empate y Menos 1.5
+Fútbol	Ambos Anotan y Más/Menos ({X})	Sí y Más de 2.5 · No y Más de 2.5 · Sí y Menos 2.5 · No y Menos 2.5
+Fútbol	Resultado del partido / Ambos Equipos Anotan	Local / Sí · Local / No · Empate / Sí · Empate / No · Visitante / Sí · Visitante / No
+Fútbol	Doble oportunidad / Ambos equipos anotan	Local o Visitante y Sí · Local o Visitante y No · Local o Empate y Sí · Local o Empate y No · Visitante o Empate y Sí · Visitante o Empate y No
+Fútbol	Qué ocurrirá primero en el partido - Primer Tiempo	Saque de banda · Tiro libre · Saque de meta · Córner · Gol anotado
+Fútbol	Penal concedido	Sí · No
+Fútbol	Tiempo del Primer Gol Menos/Más 28 minutos	Más 28 Minutos · MENOS DE 27:59 MINUTOS · Sin Goles
+Fútbol	Local anota en ambos tiempos	Sí · No
+Fútbol	Visitante anota en ambos tiempos	Sí · No
+Fútbol	Autogol	Sí · No
+Fútbol	Margen del Triunfo	Local gana por exactamente 1 gol · Local Gana por 2 goles exactamente · Local Gana por 3 goles o más · Empate · Visitante gana por exactamente 1 gol · Visitante Gana por 2 goles exactamente · Visitante Gana por 3 goles o más
+Fútbol	Penal concedido Primer Tiempo	Sí · No
+Fútbol	Equipo que Anota un Penal	Local · Visitante
+Fútbol	Equipo que falla un penal	Local · Visitante
+Fútbol	Local Penal concedido	Sí
+Fútbol	Visitante Penal concedido	Sí
+Fútbol	Dos penales concedidos	Sí
+Fútbol	Ambos equipos ganan un penal	Sí
+Fútbol	Curso del juego	Local anota primero y gana · Local anota primero y empata · Local Anota primero y pierde · Visitante anota primero y gana · Visitante anota primero y empata · Visitante Anota primero y pierde · Sin Goles
+Fútbol	Local Gana luego de ir perdiendo	Sí · No
+Fútbol	Visitante Gana luego de ir perdiendo	Sí · No
+Fútbol	Resultado del partido o Ambos equipos anotan	Local o GG · Local o NG · Empate o GG · Empate o NG · Visitante o GG · Visitante o NG
+Fútbol	Resultado del partido o Goles totales Más/Menos 2.5	Local o Menos 2.5 · Visitante o Menos 2.5 · Empate o Más 2.5 · Local o Más 2.5 · Empate o Menos 2.5 · Visitante o Más 2.5
+Fútbol	Marcador correcto (múltiple)	(1-0) (2-0) o (3-0) · (0-1) (0-2) o (0-3) · (4-0) (5-0) o (6-0) · (0-4) (0-5) o (0-6) · (2-1) (3-1) o (4-1) · (1-2) (1-3) o (1-4) · (3-2) (4-2) (4-3) o (5-1) · (2-3) (2-4) (3-4) o (1-5) · Local Gana con cuaquier otro marcador · Visitante Gana con cuaquier otro marcador · Empate con goles · Sin Goles
+Fútbol	Marcador Correcto - Sin Perder	1 - 0 · 2 - 0 · 2 - 1 · 3 - 0 · 3 - 1 · 3 - 2 · 4 - 0 · 4 - 1 · 4 - 2 · 4 - 3 · 5 - 0 · 5 - 1 … (+15; 27 opciones en total)
+Fútbol	Hándicap Asiático (Resultado actual 0 - 0)	Local {h} · Visitante {h} · Local 0.0 · Visitante 0.0
+Fútbol	Asiático (Más/Menos) Total de goles	Más de N / Menos de N
+Fútbol	Hándicap Asiático - Primer Tiempo (Resultado actual 0 - 0)	Local -0.5 · Visitante +0.5 · Local 0.0 · Visitante 0.0
+Fútbol	Asiático (Más/Menos) - Total de goles en el Primer Tiempo	Más de N / Menos de N
+Fútbol	Primer gol antes 32:00	Gol antes del minuto 32 · Ningún gol antes del minuto 32
+Fútbol	Gol anotado después del minuto 70:00	Gol luego del minuto 70 · No hay gol después del minuto 70
+Fútbol	Próximo gol antes de 10:00 (Gol 1)	— (selecciones no visibles al consultar)
+Fútbol	Local Próximo gol antes de 10:00 (Gol 1)	— (selecciones no visibles al consultar)
+Fútbol	Visitante Próximo gol antes de 10:00 (Gol 1)	— (selecciones no visibles al consultar)
+Fútbol	Resultado por minuto 00:00 - {X}	Local · Empate · Visitante
+Fútbol	Rango de resultados por minuto ({X})	Local · Empate · Visitante
+Fútbol	Goles cronometrados Más/Menos ({X})	Más de N / Menos de N
+Fútbol	Hora del próximo gol (Gol 1)	00:00 - 09:59 · 10:00 - 19:59 · 20:00 - 29:59 · 30:00 - 39:59 · 40:00 - 49:59 · 50:00 - 59:59 · 60:00 - 69:59 · 70:00 - 79:59 · 80:00 - 90+ · Sin Goles
+Fútbol	Hora del próximo gol Local (Gol 1)	00:00 - 09:59 · 10:00 - 19:59 · 20:00 - 29:59 · 30:00 - 39:59 · 40:00 - 49:59 · 50:00 - 59:59 · 60:00 - 69:59 · 70:00 - 79:59 · 80:00 - 90+ · Sin Goles
+Fútbol	Hora del próximo gol Visitante (Gol 1)	00:00 - 09:59 · 10:00 - 19:59 · 20:00 - 29:59 · 30:00 - 39:59 · 40:00 - 49:59 · 50:00 - 59:59 · 60:00 - 69:59 · 70:00 - 79:59 · 80:00 - 90+ · Sin Goles
+Fútbol	Total de Goles Exactos	0 · 1 · 2 · 3 · 4 · 5 · 6 · 7+
+Fútbol	Gana el resto del Partido [0 - 0]	Local · Empate · Visitante
+Fútbol	Primer Tiempo/Tiempo Completo Córners	Local / Local · Local / Empate · Local / Visitante · Empate / Local · Empate / Empate · Empate / Visitante · Visitante / Local · Visitante / Empate · Visitante / Visitante
+Fútbol	Apuesta sin Empate Segundo Tiempo	Local · Visitante
+Fútbol	Más de 1.5 goles anotados en cada tiempo	Sí · No
+Fútbol	Menos de 1.5 Goles Anotados en Ambos Tiempos	Sí · No
+Básquet	Hándicap	— (selecciones no visibles al consultar)
+Básquet	Total de Puntos	Más de N / Menos de N
+Básquet	Total de Puntos Local	Más de N / Menos de N
+Básquet	Total de Puntos Visitante	Más de N / Menos de N
+Básquet	Resultado - Fin Tiempo Reg.	Local · Empate · Visitante
+Básquet	Ganador del partido y Más/Menos	Local y Más de 172.5 · Local y Menos 172.5 · Visitante y Más de 172.5 · Visitante y Menos 172.5
+Básquet	Primer Tiempo/Tiempo Completo	Local/Local · Empate/Local · Visitante/Local · Local/Visitante · Empate/Visitante · Visitante/Visitante
+Básquet	Carrera a X Puntos (Punto X)	— (selecciones no visibles al consultar)
+Básquet	Rango total de puntos 3-way (166 - 179)	0 - 165 · 166 - 179 · 180+
+Básquet	Rango total de puntos 10-Way	101-110 · 111-120 · 121-130 · 131-140 · 141-150 · 151-160 · 161-170 · 171-180 · 181+
+Básquet	Margen del Triunfo 3-Way	Local Gana por 6+ · Ningún Equipo Gana por 6+ · Visitante Gana por 6+
+Básquet	Margen del Triunfo 14-Way	Local Gana por 1-2 · Local Gana por 3-6 · Local Gana por 7-9 · Local Gana por 10-13 · Local Gana por 14-16 · Local Gana por 17-20 · Local Gana por 21+ · Visitante Gana por 1-2 · Visitante Gana por 3-6 · Visitante Gana por 7-9 · Visitante Gana por 10-13 · Visitante Gana por 14-16 … (+2; 14 opciones en total)
+Básquet	Margen del Triunfo 12-Way	Local Gana por 1-5 · Local Gana por 6-10 · Local Gana por 11-15 · Local Gana por 16-20 · Local Gana por 21-25 · Local Gana por 26+ · Visitante Gana por 1-5 · Visitante Gana por 6-10 · Visitante Gana por 11-15 · Visitante Gana por 16-20 · Visitante Gana por 21-25 · Visitante Gana por 26+
+Básquet	Margen del Triunfo 7-Way	1-5 · 6-10 · 11-15 · 16-20 · 21-25 · 26-30 · 31+
+Básquet	El partido irá a Tiempo Suplementario	Sí · No
+Básquet	Total de Puntos [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Asistencias totales [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de rebotes [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de Rebotes Ofensivos [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de Rebotes Defensivos [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de Tiros de tres puntos anotados [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de tiros de 2 puntos anotados [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de tiros libres anotados [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Double-double [Jugador]	— (selecciones no visibles al consultar)
+Básquet	[Jugador] Total de Puntos, Rebotes y Asistencias	— (selecciones no visibles al consultar)
+Básquet	Total de Puntos, Rebotes y Asistencias [Jugador]	— (selecciones no visibles al consultar)
+Básquet	[Jugador] Total de Rebotes y asistencias	— (selecciones no visibles al consultar)
+Básquet	Total de Rebotes y asistencias [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de Puntos y Rebotes [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Total de puntos y asistencias [Jugador]	— (selecciones no visibles al consultar)
+Básquet	Más puntos en el partido	[Jugador]
+Básquet	Más rebotes en el partido	[Jugador]
+Básquet	Más asistencias en un partido	[Jugador]
+Básquet	Más tiros de 3 puntos anotados	[Jugador]
+Básquet	Mejor anotador de Tiros de Dos Puntos en un partido	[Jugador]
+Básquet	Mejor anotador de Tiros Libres en un partido	[Jugador]
+Básquet	Total de Puntos H2H [Jugador]	[Jugador]
+Básquet	Total de rebotes H2H [Jugador]	[Jugador]
+Básquet	Asistencias totales H2H [Jugador]	[Jugador]
+Básquet	Total de Tiros de tres puntos anotados H2H [Jugador]	[Jugador]
+Básquet	Forma del primer punto	Tiro libre · Tiro de dos puntos · Tiro de tres puntos
+Básquet	1er Periodo - Resultado	Local · Empate · Visitante
+Básquet	1er Periodo - Ganador	Local · Visitante
+Básquet	1er Periodo - Hándicap	Local {h} · Visitante {h}
+Básquet	1er Periodo - Total de Puntos	— (selecciones no visibles al consultar)
+Básquet	1er Periodo - Total de Puntos Local	Más de N / Menos de N
+Básquet	1er Periodo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	1er Periodo - Carrera a X Puntos	— (selecciones no visibles al consultar)
+Básquet	1er Periodo - Margen del Triunfo	Local Gana por 3+ · Ningún Equipo Gana por 3+ · Visitante Gana por 3+
+Básquet	1er Periodo - Total de Puntos Impar/Par	Impar · Par
+Básquet	2do Periodo - Resultado	Local · Empate · Visitante
+Básquet	2do Periodo - Ganador	Local · Visitante
+Básquet	2do Periodo - Hándicap	Local -2.5 · Visitante +2.5
+Básquet	2do Periodo - Total de Puntos	— (selecciones no visibles al consultar)
+Básquet	2do Periodo - Total de Puntos Local	Más de N / Menos de N
+Básquet	2do Periodo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	2do Periodo - Carrera a X Puntos	— (selecciones no visibles al consultar)
+Básquet	2do Periodo - Margen del Triunfo	Local Gana por 3+ · Ningún Equipo Gana por 3+ · Visitante Gana por 3+
+Básquet	2do Periodo - Total de Puntos Impar/Par	Impar · Par
+Básquet	3er Periodo - Resultado	Local · Empate · Visitante
+Básquet	3er Periodo - Ganador	Local · Visitante
+Básquet	3er Periodo - Hándicap	Local -3.5 · Visitante +3.5
+Básquet	3er Periodo - Total de Puntos	— (selecciones no visibles al consultar)
+Básquet	3er Periodo - Total de Puntos Local	Más de N / Menos de N
+Básquet	3er Periodo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	3er Periodo - Carrera a X Puntos	— (selecciones no visibles al consultar)
+Básquet	3er Periodo - Margen del Triunfo	Local Gana por 3+ · Ningún Equipo Gana por 3+ · Visitante Gana por 3+
+Básquet	3er Periodo - Total de Puntos Impar/Par	Impar · Par
+Básquet	4to Periodo - Resultado	Local · Empate · Visitante
+Básquet	4to Periodo - Ganador	Local · Visitante
+Básquet	4to Periodo - Hándicap	Local -2.5 · Visitante +2.5
+Básquet	4to Periodo - Total de Puntos	— (selecciones no visibles al consultar)
+Básquet	4to Periodo - Total de Puntos Local	Más de N / Menos de N
+Básquet	4to Periodo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	4to Periodo - Carrera a X Puntos	— (selecciones no visibles al consultar)
+Básquet	4to Periodo - Margen del Triunfo	Local Gana por 3+ · Ningún Equipo Gana por 3+ · Visitante Gana por 3+
+Básquet	4to Periodo - Total de Puntos Impar/Par	Impar · Par
+Básquet	Gana todos los Cuartos	Local · Ninguno · Visitante
+Básquet	Equipo con la Mayor Puntuación en un Cuarto	Local · Empate · Visitante
+Básquet	Cuarto con mayor puntuación	1er Periodo · 2do Periodo · 3er Periodo · 4to Periodo · Empate
+Básquet	Primer Tiempo - Resultado	Local · Empate · Visitante
+Básquet	Primer Tiempo - Ganador	Local · Visitante
+Básquet	Primer Tiempo - Hándicap	Local {h} · Visitante {h}
+Básquet	Primer Tiempo - Total de Puntos	Más de N / Menos de N
+Básquet	Primer Tiempo - Total de Puntos Local	Más de N / Menos de N
+Básquet	Primer Tiempo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	Primer Tiempo - Total de Puntos Impar/Par	Impar · Par
+Básquet	Segundo Tiempo - Resultado	Local · Empate · Visitante
+Básquet	Segundo Tiempo - Ganador	Local · Visitante
+Básquet	Segundo Tiempo - Hándicap	Local -5.5 · Visitante +5.5
+Básquet	Segundo Tiempo - Total de Puntos	Más de N / Menos de N
+Básquet	Segundo Tiempo - Total de Puntos Local	Más de N / Menos de N
+Básquet	Segundo Tiempo - Total de Puntos Visitante	Más de N / Menos de N
+Básquet	Ganar todos los medios tiempos	Local · Ninguno · Visitante
+Básquet	Tiempo - Equipo con mayor puntuación	Local · Empate · Visitante
+Básquet	Medio tiempo con más puntos anotados	Primer Tiempo · Empate · Segundo Tiempo
+Básquet	Total de Tiros de tres puntos anotados	Más de N / Menos de N
+Básquet	Tiros de tres puntos anotados - Local	Más de N / Menos de N
+Básquet	Tiros de tres puntos anotados - Visitante	Más de N / Menos de N
+Básquet	Equipo con más triples anotados	Local · Empate · Visitante
+Básquet	Total de rebotes en el partido	Más de N / Menos de N
+Básquet	Total de rebotes del equipo - Local	Más de N / Menos de N
+Básquet	Total de rebotes del equipo - Visitante	Más de N / Menos de N
+Básquet	Equipo con Más Rebotes	Local · Empate · Visitante
+Básquet	Total de asistencias en el partido	Más de N / Menos de N
+Básquet	Total de asistencias del equipo - Local	Más de N / Menos de N
+Básquet	Total de asistencias del equipo - Visitante	Más de N / Menos de N
+Básquet	Equipo con Más Asistencias	Local · Empate · Visitante
+Básquet	Total de pérdidas de balón en el partido	Más de N / Menos de N
+Básquet	Total de Pérdidas de Balón del Equipo - Local	Más de N / Menos de N
+Básquet	Total de Pérdidas de Balón del Equipo - Visitante	Más de N / Menos de N
+Básquet	Equipo con más turnovers (Pérdidas de balón)	Local · Empate · Visitante
+Básquet	Total de Lanzamientos libres anotados en el partido	Más de N / Menos de N
+Básquet	Total de Lanzamientos libres anotados por el Equipo - Local	Más de N / Menos de N
+Básquet	Total de Lanzamientos libres anotados por el Equipo - Visitante	Más de N / Menos de N
+Básquet	Total de Tiros de 2 puntos anotados	Más de N / Menos de N
+Básquet	Total de Tiros de 2 puntos anotados por el equipo - Local	Más de N / Menos de N
+Básquet	Total de Tiros de 2 puntos anotados por el equipo - Visitante	Más de N / Menos de N
+Básquet	Equipo con más Tiros de Dos Puntos Anotados	Local · Empate · Visitante
+Básquet	Equipo con más Tiros Libres Anotados	Local · Empate · Visitante
+Básquet	Total de rebotes ofensivos en el partido	Más de N / Menos de N
+Básquet	Total de rebotes ofensivos del equipo - Local	Más de N / Menos de N
+Básquet	Total de rebotes ofensivos del equipo - Visitante	Más de N / Menos de N
+Básquet	Total de rebotes defensivos en el partido	Más de N / Menos de N
+Básquet	Total de rebotes defensivos del equipo - Local	Más de N / Menos de N
+Básquet	Total de rebotes defensivos del equipo - Visitante	Más de N / Menos de N
+Básquet	Equipo con más Rebotes Defensivos	Local · Empate · Visitante
+Básquet	Equipo con más Rebotes Ofensivos	Local · Empate · Visitante
+Básquet	Forma del último punto	Tiro libre · Tiro de dos puntos · Tiro de tres puntos
+Básquet	Último equipo en anotar	Local · Visitante
+Básquet	Bocina Anuncia Ganador del Juego	Sí · No
+Básquet	Total de Puntos - Impar/Par	Impar · Par
+Básquet	Total de Puntos Local - Impar/Par	Impar · Par
+Básquet	Total de Puntos Visitante - Impar/Par	Impar · Par
+Tenis	Ganador	Local · Visitante
+Tenis	Ganador del Set (Set 1)	— (selecciones no visibles al consultar)
+Tenis	Juegos	Más de N / Menos de N
+Tenis	Total de Games Hándicap	Local {h} · Visitante {h}
+Tenis	Apuesta de Set	2 - 0 · 2 - 1 · 0 - 2 · 1 - 2
+Tenis	Ganador y Total de Juegos	Local y Más de N · Local y Menos N · Visitante y Más de N · Visitante y Menos N
+Tenis	Ambos Jugadores Ganan un Set	Sí · No
+Tenis	Local Gana un Set	Sí · No
+Tenis	Visitante Gana un Set	Sí · No
+Tenis	Total de Aces	Más de 14.5 · Menos 14.5 · 13+ · 14+ · 15+ · 16+ · 17+ · 18+
+Tenis	Local Aces	Más de 7.5 · Menos 7.5 · 7+ · 8+ · 9+ · 10+
+Tenis	Visitante Aces	Más de 6.5 · Menos 6.5 · 6+ · 7+ · 8+ · 9+
+Tenis	Aces & Faltas Dobles	Más de 18.5 · Menos 18.5 · 16+ · 17+ · 18+ · 19+ · 20+ · 21+ · 22+
+Tenis	Aces - Set 1	Más de N / Menos de N
+Tenis	Aces & Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Carrera a 2 Aces	— (selecciones no visibles al consultar)
+Tenis	Local Total de Aces - Set 1	Más de N / Menos de N
+Tenis	Visitante Total de Aces - Set 1	Más de N / Menos de N
+Tenis	Más Aces	Local · Empate · Visitante
+Tenis	Primer Ace	Local · Visitante
+Tenis	Local Total de Aces y Faltas Dobles	Más de 9.5 · Menos 9.5 · 8+ · 9+ · 10+ · 11+ · 12+
+Tenis	Visitante Total de Aces y Faltas Dobles	Más de 9.5 · Menos 9.5 · 8+ · 9+ · 10+ · 11+ · 12+
+Tenis	Local Total de Aces y Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Visitante Total de Aces y Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Faltas Dobles	Más de 4.5 · Menos 4.5 · 4+ · 5+ · 6+ · 7+ · 8+ · 9+
+Tenis	Local Faltas Dobles	Más de 1.5 · Menos 1.5 · 1+ · 2+ · 3+ · 4+
+Tenis	Visitante Faltas Dobles	Más de 2.5 · Menos 2.5 · 2+ · 3+ · 4+ · 5+ · 6+ · 7+
+Tenis	Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Local Total de Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Visitante Total de Faltas Dobles - Set 1	Más de N / Menos de N
+Tenis	Carrera a 2 Faltas Dobles	— (selecciones no visibles al consultar)
+Tenis	Más Faltas Dobles	Local · Empate · Visitante
+Tenis	Primera Falta Doble	Local · Visitante
+Tenis	Duración	Más de N / Menos de N
+Tenis	Duración (Set 1)	Más de N / Menos de N
+Tenis	Setcast	Local - Local · Visitante - Visitante · Visitante - Local - Local · Local - Visitante - Local · Visitante - Local - Visitante · Local - Visitante - Visitante
+Tenis	Hándicap de partido (Set)	Local {h} · Visitante {h}
+Tenis	Cantidad de sets en el partido	2 · 3
+Tenis	Ganador del Set y Total de Juegos del Set (Set {X})	Local y Más de N · Local y Menos N · Visitante y Más de N · Visitante y Menos N
+Tenis	Hándicap de Games (Set {X})	Local {h} · Visitante {h}
+Tenis	Total de Juegos por Set (Set {X})	Más de N / Menos de N
+Tenis	Juegos/Set (Par/Impar) (Set {X})	Impar · Par
+Tenis	Puntuación del set (Set {X})	6 - 4 · 3 - 6 · 6 - 3 · 7 - 6 · 4 - 6 · 6 - 7 · 6 - 2 · 7 - 5 · 2 - 6 · 5 - 7 · 6 - 1 · 1 - 6 … (+2; 14 opciones en total)
+Tenis	Marcador correcto del 1er set (Múltiple)	6-0, 6-1 o 6-2 · 6-3 o 6-4 · 7-5 o 7-6 · 0-6, 1-6 o 2-6 · 3-6 o 4-6 · 5-7 o 6-7
+Tenis	Set termina 6:0 o 0:6	Sí · No
+Tenis	Rango de Juegos - 3	0-16 · 17-23 · 24+
+Tenis	Rango de Juegos - 5	0-14 · 15-18 · 19-22 · 23-26 · 27+
+Tenis	Rango de Juegos - 7	0-14 · 15-16 · 17-18 · 19-20 · 21-22 · 23-24 · 25+
+Tenis	Local Total de Games Primer Set	Más de N / Menos de N
+Tenis	Visitante Total de Games Primer Set	Más de N / Menos de N
+Tenis	Local Games ganados totales	Más de N / Menos de N
+Tenis	Visitante Games ganados totales	Más de N / Menos de N
+Tenis	Margen del Triunfo en el Juego	Local gana por 1-2 Games · Local gana por 3-4 Games · Local gana por 5-6 Games · Local gana por 7+ Games · Visitante gana por 1-2 Games · Visitante gana por 3-4 Games · Visitante gana por 5-6 Games · Visitante gana por 7+ Games · Empate
+Tenis	Puntuación luego de 2 Juegos (Set {X})	2-0 · 1-1 · 0-2
+Tenis	Puntuación luego de 4 Juegos (Set {X})	4-0 · 3-1 · 2-2 · 1-3 · 0-4
+Tenis	Puntuación luego de 6 Juegos (Set {X})	6-0 · 5-1 · 4-2 · 3-3 · 2-4 · 1-5 · 0-6
+Tenis	Primer break del servicio	Local · Visitante
+Tenis	Total de breaks de servicio	Más de N / Menos de N
+Tenis	Local Total de breaks de servicio	Más de N / Menos de N
+Tenis	Visitante Total de breaks de servicio	Más de N / Menos de N
+Tenis	Más quiebres de servicio	Local · Visitante
+Tenis	Más quiebres de servicio Triple	Local · Empate · Visitante
+Tenis	Doble resultado, set y partido	Local Gana el primer set y el partido · Local Gana el primer set y pierde el partido · Visitante Gana el primer set y el partido · Visitante Gana el primer set y pierde el partido
+Tenis	Ambos jugadores ganan un set x resultado del partido	Sí/ Local · Sí/ Visitante · No/ Local · No/ Visitante
+Tenis	Puntuación después de 2 sets	2-0 · 1-1 · 0-2
+Tenis	Local Gana luego de ir perdiendo (sets)	Sí · No
+Tenis	Visitante Gana luego de ir perdiendo (sets)	Sí · No
+Tenis	(Local) Ganador del primer juego de servicio	Local · Visitante
+Tenis	(Visitante) Ganador del primer juego de servicio	Visitante · Local
+Tenis	Set con la mayoría de los Juegos (los dos primeros)	Primer set · Empate · Segundo set
+Tenis	Total de Tie Breaks	Más de N / Menos de N
+Hockey sobre hielo	Resultado - Fin Tiempo Reg.	1 (Local) · X (Empate) · 2 (Visitante)
+Hockey sobre hielo	Jugador que anota	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Total de goles (Tiempo Reg.)	Más de N / Menos de N
+Hockey sobre hielo	Hándicap	Local {h} · Visitante {h}
+Hockey sobre hielo	Periodo 1 - Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Periodo 1 - Resultado	Local · Empate · Visitante
+Hockey sobre hielo	Ambos equipos anotan 2+ Goles	Sí · No
+Hockey sobre hielo	Local Total de goles (Tiempo Reg.)	Más de N / Menos de N
+Hockey sobre hielo	Visitante Total de goles (Tiempo Reg.)	Más de N / Menos de N
+Hockey sobre hielo	Próximo gol (Gol 1)	Local · Visitante · Sin Goles
+Hockey sobre hielo	Resultado & Total de goles (Tiempo Reg.) ({X})	Local & Más de 5.5 · Local & Menos 5.5 · Empate & Más de 5.5 · Empate & Menos 5.5 · Visitante & Más de 5.5 · Visitante & Menos 5.5
+Hockey sobre hielo	Jugador que anota +2 goles	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Ross Johnston] Puntos	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Jamie Benn] Asistencias	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Jugador que Anota un gol - Periodo 1	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Jugador que Anota un gol - Periodo 2	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Jugador que Anota un gol - Periodo 3	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Jugador que anota cualquiera/O	[Jugador]
+Hockey sobre hielo	Primer Goleador - Local	[Jugador]
+Hockey sobre hielo	Primer Goleador - Visitante	[Jugador]
+Hockey sobre hielo	Último en Marcar - Local	[Jugador]
+Hockey sobre hielo	Último en Marcar - Visitante	[Jugador]
+Hockey sobre hielo	[Jugador] Tiros a portería	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Jugador] Total de tiros bloqueados	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Jugador] Salvadas Totales	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Jugador] Total de goles en contra	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Consigue una blanqueada [Jake Oettinger]	— (selecciones no visibles al consultar)
+Hockey sobre hielo	[Jugador] Anota un punto de Powerplay	— (selecciones no visibles al consultar)
+Hockey sobre hielo	Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Local Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Visitante Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Ambos equipos anotan	Sí · No
+Hockey sobre hielo	Ambos equipos anotan 3+ Goles	Sí · No
+Hockey sobre hielo	Total de Goles Exactos	0-1 · 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9+
+Hockey sobre hielo	Total de Goles Exactos (Tiempo Reg.)	0 · 1 · 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9+
+Hockey sobre hielo	Local Total de Goles Exactos	0 · 1 · 2 · 3+
+Hockey sobre hielo	Local Total de Goles Exactos (Tiempo Reg.)	0 · 1 · 2 · 3+
+Hockey sobre hielo	Visitante Total de Goles Exactos	0 · 1 · 2 · 3+
+Hockey sobre hielo	Visitante Total de Goles Exactos (Tiempo Reg.)	0 · 1 · 2 · 3+
+Hockey sobre hielo	Periodo 1 - Próximo gol (Gol 1)	Local · Sin Goles · Visitante
+Hockey sobre hielo	Periodo 1 - Local Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Periodo 1 - Visitante Total de goles	Más de N / Menos de N
+Hockey sobre hielo	Periodo 1 - Ambos equipos anotan	Sí · No
+Hockey sobre hielo	Periodo 1 - Total de Goles Exactos	0 · 1 · 2 · 3 · 4+
+Hockey sobre hielo	Ambos equipos anotan & Total de goles (Tiempo Reg.)	Sí & Más de N · Sí & Menos N · No & Más de N · No & Menos N
+Hockey sobre hielo	Primer equipo en anotar & Resultado - Fin Tiempo Reg.	Local & Local · Local & Empate · Local & Visitante · Visitante & Local · Visitante & Empate · Visitante & Visitante · Sin Goles
+Hockey sobre hielo	Primer equipo en anotar & Ganador	Local &Local · Local & Visitante · Visitante & Local · Visitante & Visitante
+Hockey sobre hielo	Al menos 1 Gol en todos los periodos	Sí · No
+Hockey sobre hielo	Total de goles en todos los periodos Más de	Sí 1.5 · No 1.5 · Sí 2.5 · No 2.5
+Hockey sobre hielo	Total de goles en todos los periodos Menos	Sí 2.5 · No 2.5 · Sí 3.5 · No 3.5
+Hockey sobre hielo	Gol anotado entre 00:00 - 09:59	Sí · No
+Hockey sobre hielo	Local Total de goles Impar/Par (Tiempo Reg.)	Impar · Par
+Hockey sobre hielo	Visitante Total de goles Impar/Par (Tiempo Reg.)	Impar · Par
+Hockey sobre hielo	[Jugador] Ambos anotan 1+ Goles	Sí
+Hockey sobre hielo	[Jugador] Ambos anotan 2+ Goles	Sí
+Hockey sobre hielo	[Jugador] Ambos registran 1+ Asistencias	Sí
+Hockey sobre hielo	[Jugador] Ambos registran 2+ Asistencias	Sí
+Hockey sobre hielo	[Jugador] Ambos tendrán 4+ Tiros a portería	Sí
+Hockey sobre hielo	[Jugador] Ambos tendrán 5+ Tiros a portería	Sí
+Hockey sobre hielo	[Jugador] Ambos 1+ Puntos en Powerplay	Sí
+Hockey sobre hielo	[Jugador] Ambos 2+ Puntos en Powerplay	Sí
+Hockey sobre hielo	Periodo 1 - Hándicap	Local {h} · Visitante {h}
+Hockey sobre hielo	Periodo 1 - Doble oportunidad	Local/Empate · Local/Visitante · Visitante/Empate
+Hockey sobre hielo	Periodo 1 - Primer equipo en anotar Apuesta sin Empate	Local · Visitante
+Hockey sobre hielo	Periodo 1 - Marcador Correcto	0-0 · 1-0 · 1-1 · 0-1 · Cualquier otro · 2-0 · 2-1 · 1-2 · 0-2 · 2-2
+Hockey sobre hielo	Período con mayor puntuación	Primer Periodo · Segundo Periodo · Tercer Periodo · Empate
+Hockey sobre hielo	Local Gana todos los periodos	Sí · No
+Hockey sobre hielo	Visitante Gana todos los periodos	Sí · No
+Hockey sobre hielo	Cualquier equipo Gana todos los periodos	Sí · No
+Hockey sobre hielo	Local Gana cualquier periodo	Sí · No
+Hockey sobre hielo	Visitante Gana cualquier periodo	Sí · No
+Hockey sobre hielo	Local Anota en todos los períodos	Sí · No
+Hockey sobre hielo	Visitante Anota en todos los períodos	Sí · No
+Hockey sobre hielo	Periodo 1 - Total de goles Impar/Par	Impar · Par
+Hockey sobre hielo	Tiempo Extra - Sí/No	Sí · No
+Hockey sobre hielo	Doble oportunidad (Tiempo Reg.)	Local/Empate · Local/Visitante · Visitante/Empate
+Hockey sobre hielo	Apuesta sin Empate (Tiempo Reg.)	Local · Visitante
+Hockey sobre hielo	Margen del Triunfo (Tiempo Reg.)	Local gana por exactamente 1 gol · Local gana por exactamente 2 goles · Local gana por 3 o más goles · Empate · Visitante gana por exactamente 1 gol · Visitante gana por exactamente 2 goles · Visitante gana por 3 o más goles
+Hockey sobre hielo	Local Gana a cero	Sí · No
+Hockey sobre hielo	Visitante Gana a cero	Sí · No
+Hockey sobre hielo	Cualquier equipo Gana a cero	Sí · No
+Hockey sobre hielo	Resultado & Ambos equipos anotan (Tiempo Reg.)	Local & Sí · Local & No · Empate & Sí · Empate & No · Visitante & Sí · Visitante & No
+Hockey sobre hielo	Ganador & Local Total de goles	Local & Local Más de N · Local & Local Menos N · Visitante & Local Más de N · Visitante & Local Menos N
+Hockey sobre hielo	Ganador & Visitante Total de goles	Local & Visitante Más de N · Local & Visitante Menos N · Visitante & Visitante Más de N · Visitante & Visitante Menos N
+Hockey sobre hielo	Marcador Correcto	3 - 2 · 2 - 3 · 4 - 3 · 3 - 4 · 4 - 1 · 5 - 2 · 4 - 2 · 2 - 1 · 1 - 2 · 3 - 1 · 5 - 4 · 2 - 4 … (+46; 58 opciones en total)
+Hockey sobre hielo	Marcador Correcto (Tiempo Reg.)	2 - 2 · 3 - 3 · 4 - 1 · 5 - 2 · 4 - 2 · 3 - 2 · 3 - 1 · 4 - 4 · 1 - 1 · 2 - 3 · 4 - 3 · 2 - 4 … (+51; 63 opciones en total)
+Hockey sobre hielo	Total de goles Impar/Par (Tiempo Reg.)	Impar · Par
+Hockey sobre hielo	Total de Goles en Powerplay	Más de N / Menos de N
+Hockey sobre hielo	Total de goles - Shorthanded	Más de N / Menos de N
+Hockey sobre hielo	Total de tiros a portería	Más de N / Menos de N
+Hockey sobre hielo	Local Tiros a portería	Más de N / Menos de N
+Hockey sobre hielo	Visitante Tiros a portería	Más de N / Menos de N
+Hockey sobre hielo	Equipo con más Tiros a Portería	Local · Empate · Visitante
+Hockey sobre hielo	Total de Minutos de penalización	Más de N / Menos de N
+Hockey sobre hielo	Local Minutos de penalización	Más de N / Menos de N
+Hockey sobre hielo	Visitante Minutos de penalización	Más de N / Menos de N
+Hockey sobre hielo	Total de goles a portería vacía	Más de N / Menos de N
+Hockey sobre hielo	Periodo 1 - Resultado & Resultado - Fin Tiempo Reg.	Local & Local · Local & Empate · Local & Visitante · Empate & Local · Empate & Empate · Empate & Visitante · Visitante & Local · Visitante & Empate · Visitante & Visitante
+Tenis de mesa	Ganador - Partido	Local · Visitante
+Tenis de mesa	Ganador del juego (Juego 1)	Local · Visitante
+Tenis de mesa	Total de Puntos	Más de N / Menos de N
+Tenis de mesa	Hándicap Asiático Puntos del Resultado del Partido	Local -4.5 · Visitante +4.5
+Tenis de mesa	Puntos de Game totales (Juego 1)	Más de N / Menos de N
+Tenis de mesa	Puntos de Game totales - Impar/Par (Juego 1)	Impar · Par
+Tenis de mesa	Marcador Correcto	3 - 1 · 3 - 0 · 3 - 2 · 2 - 3 · 1 - 3 · 0 - 3
+Béisbol	[Jugador] Ponches	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Total de hits	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Total Player Hits + Runs + RBIs	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Jonrones	— (selecciones no visibles al consultar)
+Béisbol	Hándicap	Local {h} · Visitante {h}
+Béisbol	Total de Runs	Más de N / Menos de N
+Béisbol	Inning 1 - Total de Runs	Más de N / Menos de N
+Béisbol	Ganador de 5 entradas completas (Apuesta sin Empate)	Local · Visitante
+Béisbol	5 entradas completas - Total de Runs	Más de N / Menos de N
+Béisbol	Local Total de Runs	Más de N / Menos de N
+Béisbol	Visitante Total de Runs	Más de N / Menos de N
+Béisbol	Resultado - Fin Tiempo Reg.	1 (Local) · X (Empate) · 2 (Visitante)
+Béisbol	[Jugador] Ponches	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Outs	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Hits permitidos	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Caminatas concedidas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Carreras Ganadas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Carreras Limpias permitidas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Total de Runs	— (selecciones no visibles al consultar)
+Béisbol	[Jugador]Carreras	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Bases	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Bases Robadas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] RBI	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Sencillos	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Dobles	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Triples	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Ponches	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Ponches del bateador	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Caminatas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Caminatas obtenidas	— (selecciones no visibles al consultar)
+Béisbol	[Jugador] Caminatas	— (selecciones no visibles al consultar)
+Béisbol	Jonrones - cualquiera/O	Ben Rice o Junior Caminero · Junior Caminero o Victor Mesa Jr. · Ben Rice o Victor Mesa Jr. · Jonathan Aranda o Junior Caminero · Ben Rice o Jonathan Aranda · Jonathan Aranda o Victor Mesa Jr. · Luis Garcia Jr. o Spencer Jones · Spencer Jones o Trent Grisham · Luis Garcia Jr. o Trent Grisham · Cody Bellinger o Spencer Jones · Cody Bellinger o Luis Garcia Jr. · Cody Bellinger o Trent Grisham
+Béisbol	3-way Total Runs	Más de N · Menos N · Exactamente 6.0 · Exactamente 7.0 · Exactamente 8.0
+Béisbol	3 entradas completas - Total de Runs	Más de N / Menos de N
+Béisbol	3 entradas completas - Local Total de Runs	Más de N / Menos de N
+Béisbol	3 entradas completas - Visitante Total de Runs	Más de N / Menos de N
+Béisbol	5 entradas completas - Local Total de Runs	Más de N / Menos de N
+Béisbol	5 entradas completas - Visitante Total de Runs	Más de N / Menos de N
+Béisbol	7 entradas completas - Total de Runs	Más de N / Menos de N
+Béisbol	7 entradas completas - Local Total de Runs	Más de N / Menos de N
+Béisbol	7 entradas completas - Visitante Total de Runs	Más de N / Menos de N
+Béisbol	Rango de Runs totales	0-4 · 5-6 · 7-8 · 9-10 · 11-13 · 14+
+Béisbol	Carrera a X Runs (Run {X})	Visitante · Local
+Béisbol	Inning 1 Local Carreras Más/Menos	Más de N / Menos de N
+Béisbol	Inning 1 - Visitante Total de Runs	Más de N / Menos de N
+Béisbol	Hándicap - Triple (incluido Entradas Adicionales)	Local -1 · Empate -1 · Visitante +1
+Béisbol	3 entradas completas - Hándicap	Local {h} · Visitante {h}
+Béisbol	3 entradas completas - Hándicap - Triple	Local -1 · Empate -1 · Visitante +1
+Béisbol	5 entradas completas - Hándicap	Local {h} · Visitante {h}
+Béisbol	5 entradas completas - Hándicap - Triple	Local -1 · Empate -1 · Visitante +1
+Béisbol	7 entradas completas - Hándicap	Local -1.5 · Visitante +1.5
+Béisbol	7 entradas completas - Hándicap - Triple	Local -1 · Empate -1 · Visitante +1
+Béisbol	[Jugador] Ponches 6+ & Su equipo gana	Sí
+Béisbol	[Jugador] Ponches 6+ & El partido queda en menos 6.5	Sí 6.5
+Béisbol	[Jugador] Ambos anotan Outs 20+	Sí
+Béisbol	[Jugador] Jonrones 1+ & Su equipo gana	Sí
+Béisbol	3 entradas completas - Resultado	Local · Empate · Visitante
+Béisbol	Ganador de 3 entradas completas (Apuesta sin Empate)	Local · Visitante
+Béisbol	7 entradas completas - Resultado	Local · Empate · Visitante
+Béisbol	Ganador de 7 entradas completas (Apuesta sin Empate)	Local · Visitante
+Béisbol	Entrada de mayor puntuación en el tiempo Regular	1 · 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9 · Equal
+Béisbol	Team with highest scoring Inning EOR	Local · Empate · Visitante
+Béisbol	Local Sencillos	Más de N / Menos de N
+Béisbol	Visitante Sencillos	Más de N / Menos de N
+Béisbol	Local Dobles	Más de N / Menos de N
+Béisbol	Visitante Dobles	Más de N / Menos de N
+Béisbol	Entradas Extra	Sí · No
+Béisbol	Margen del Triunfo (incluido Entradas Adicionales)	Local gana por exactamente 1 run · Local gana por exactamente 2 runs · Local gana por 3 o más runs · Visitante gana por exactamente 1 run · Visitante gana por exactamente 2 runs · Visitante gana por 3 o más runs
+Béisbol	Total Scoreless Innings	Más de N / Menos de N
+Béisbol	Primer equipo en anotar	Local · Visitante
+Béisbol	Último equipo en anotar	Local · Visitante
+Béisbol	Ganador & Total de Runs (incluido Entradas Adicionales)	Local y Más de N · Local y Menos N · Visitante y Más de N · Visitante y Menos N
+Béisbol	Total de Runs - Impar/Par	Impar · Par
+Béisbol	Impar/Par Local Total de Runs	Impar · Par
+Béisbol	Impar/Par Visitante Total de Runs	Impar · Par
+Béisbol	3 entradas completas Total de Runs - Impar/Par	Impar · Par
+Béisbol	5 entradas completas Total de Runs - Impar/Par	Impar · Par
+Béisbol	7 entradas completas Total de Runs - Impar/Par	Impar · Par
+Béisbol	Inning 1 - 3-way Total Runs	Más de 1.0 · Menos 1.0 · Exactamente 1.0
+Béisbol	Inning 1 - Doble oportunidad	Local/Empate · Visitante/Empate · Local/Visitante
+Béisbol	3 entradas completas - Margen del Triunfo	Local gana por exactamente 1 run · Local gana por exactamente 2 runs · Local gana por 3 o más runs · Empate · Visitante gana por exactamente 1 run · Visitante gana por exactamente 2 runs · Visitante gana por 3 o más runs
+Béisbol	3 entradas completas - Marcador Correcto	0-0 · 1-0 · 0-1 · 3+-0 · 2-0 · 0-3+ · 0-2 · 1-1 · 3+-1 · 1-3+ · 2-1 · 1-2 … (+4; 16 opciones en total)
+Béisbol	3 entradas completas - Doble oportunidad	Local/Empate · Visitante/Empate · Local/Visitante
+Béisbol	3 entradas completas - 3-way Total Runs	Más de 2.0 · Menos 2.0 · Exactamente 2.0
+Béisbol	5 entradas completas - Margen del Triunfo	Local gana por exactamente 1 run · Local gana por exactamente 2 runs · Local gana por 3 o más runs · Empate · Visitante gana por exactamente 1 run · Visitante gana por exactamente 2 runs · Visitante gana por 3 o más runs
+Béisbol	5 entradas completas - Marcador Correcto	0-0 · 1-0 · 0-1 · 1-1 · 2-0 · 0-2 · 5+-0 · 2-1 · 3-0 · 1-2 · 5+-1 · 2-2 … (+24; 36 opciones en total)
+Béisbol	5 entradas completas - Doble oportunidad	Local/Empate · Visitante/Empate · Local/Visitante
+Béisbol	5 entradas completas - Resultado	Local · Empate · Visitante
+Béisbol	5 entradas completas - 3-way Total Runs	Más de 3.0 · Menos 3.0 · Exactamente 3.0
+Béisbol	7 entradas completas - Margen del Triunfo	Local gana por exactamente 1 run · Local gana por exactamente 2 runs · Local gana por 3 o más runs · Empate · Visitante gana por exactamente 1 run · Visitante gana por exactamente 2 runs · Visitante gana por 3 o más runs
+Béisbol	7 entradas completas - Marcador Correcto	2-1 · 1-1 · 1-0 · 1-2 · 0-1 · 2-2 · 2-0 · 3-1 · 3-0 · 1-3 · 2-3 · 0-2 … (+52; 64 opciones en total)
+Béisbol	7 entradas completas - Doble oportunidad	Local/Empate · Visitante/Empate · Local/Visitante
+Béisbol	7 entradas completas - 3-way Total Runs	Más de 5.0 · Menos 5.0 · Exactamente 5.0
+Béisbol	Margen del Triunfo	Local Gana por 1-2 · Local Gana por 3-4 · Local Gana por 5+ · Visitante Gana por 1-2 · Visitante Gana por 3-4 · Visitante Gana por 5+
+Béisbol	Marcador Correcto	3-2 · 2-1 · 4-3 · 3-1 · 2-3 · 1-2 · 4-2 · 3-4 · 5-4 · 2-4 · 1-0 · 1-3 … (+79; 91 opciones en total)
+Béisbol	Inning 1 - Marcador Correcto	0-0 · 1-0 · 0-1 · 2+-0 · 0-2+ · 1-1 · 2+-1 · 1-2+ · 2+-2+
+Béisbol	Equipo líder después del Inning {X}	Local · Empate · Visitante
+Béisbol	Cualquier equipo Gana por 5+ Puntos	Sí · No
+Béisbol	Local Total de entradas ganadas	Más de N / Menos de N
+Béisbol	Visitante Total de entradas ganadas	Más de N / Menos de N
+Béisbol	Total Tied Innings	Más de N / Menos de N
+Béisbol	Total de entradas en las que ambos equipos han anotado	Más de N / Menos de N
+Béisbol	[Jugador] Total de Hits+Runs+RBIs	Más de N / Menos de N
+Balonmano	Resultado del partido	1 (Local) · X (Empate) · 2 (Visitante)
+Balonmano	Hándicap	Local {h} · Visitante {h}
+Balonmano	Total de goles	Más de N / Menos de N
+Balonmano	Resultado Primer Tiempo	Local · Empate · Visitante
+Balonmano	Resultado del partido con Más/Menos (60.5)	Local y Más de 60.5 · Local y Menos 60.5 · Empate y Más de 60.5 · Empate y Menos 60.5 · Visitante y Más de 60.5 · Visitante y Menos 60.5
+Balonmano	Cualquiera de los arqueros anota	Sí · No
+Balonmano	Total de Goles del Jugador [Jugador]	Más de N / Menos de N
+Balonmano	Primer Tiempo - Hándicap	Local {h} · Visitante {h}
+Balonmano	Local Total de goles	Más de N / Menos de N
+Balonmano	Visitante Total de goles	Más de N / Menos de N
+Balonmano	Primer Tiempo - Total de goles	Más de N / Menos de N
+Balonmano	Primer Tiempo - Visitante Total de goles	Más de N / Menos de N
+Balonmano	Primer Tiempo - Apuesta sin Empate	Local · Visitante
+Balonmano	Primer Tiempo - Doble oportunidad	Local/Empate · Local/Visitante · Visitante/Empate
+Balonmano	Primer Tiempo/Tiempo Completo	Local/Local · Local/Empate · Local/Visitante · Empate/Local · Empate/Empate · Empate/Visitante · Visitante/Local · Visitante/Empate · Visitante/Visitante
+Balonmano	Tiempo con puntuación más alta	Primer Tiempo · Empate · Segundo Tiempo
+Balonmano	Primer Tiempo - Local Total de goles	Más de N / Menos de N
+Balonmano	Resultado Segundo Tiempo	Local · Empate · Visitante
+Balonmano	Segundo Tiempo - Apuesta sin Empate	Local · Visitante
+Balonmano	Segundo Tiempo - Doble oportunidad	Local/Empate · Local/Visitante · Visitante/Empate
+Balonmano	Apuesta sin Empate	Local · Visitante
+Balonmano	Total de goles par/impar	Impar · Par
+Balonmano	Margen del Triunfo	Local gana por 1-5 goles · Visitante gana por 1-5 goles · Local gana por 6-10 goles · Visitante gana por 6-10 goles · Local gana por 11 o más goles · Visitante gana por 11 o más goles
+Balonmano	Total de Goles Primer Tiempo (Impar/Par)	Impar · Par
+Balonmano	Total de Goles Segundo Tiempo Impar/Par	Impar · Par
+Fútbol americano	Hándicap	Local {h} · Visitante {h}
+Fútbol americano	Total de Puntos	Más de N / Menos de N
+Fútbol americano	[Jugador] Anotadores en Cualquier Momento	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Touchdowns de pase totales	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Touchdowns Anotados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Yardas Netas Totales de Pase	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Yardas de Recepción	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de Recepciones	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de yardas de carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de yardas de carrera y de recepción	— (selecciones no visibles al consultar)
+Fútbol americano	Local Total de Puntos	Más de N / Menos de N
+Fútbol americano	Visitante Total de Puntos	Más de N / Menos de N
+Fútbol americano	Resultado del 1er Drive	Touchdown · Intento de Gol de Campo · Punt · Turnover
+Fútbol americano	Primer Tiempo - Ganador	Local · Visitante
+Fútbol americano	Primer Tiempo - Hándicap	Local {h} · Visitante {h}
+Fútbol americano	Primer Tiempo - Total de Puntos	Más de N / Menos de N
+Fútbol americano	[Jugador] Yardas Netas Totales de Pase	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de yardas de recepción	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de yardas de carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de Intentos de Carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Gol de campo Anotado	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Número Total de Balones Sueltos	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Pase Completado más Largo	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Recepción más larga	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Yardas de Pases + de Carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Pases Completados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de puntos extra anotados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Balones Sueltos Perdidos Totales	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador]Total Puntos de Kick	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de Touchdowns de Recepción	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de yardas de carrera y de recepción	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de Recepciones	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Touchdowns de pase totales	— (selecciones no visibles al consultar)
+Fútbol americano	Touchdown - Anotadores en cualquier momento cualquiera/O	[Jugadores]
+Fútbol americano	Combinados 2+ Touchdown	[Jugadores]
+Fútbol americano	Combinados 3+ Touchdown	[Jugadores]
+Fútbol americano	[Jugador]Total de Touchdowns de Recepción	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador]Total de Rushing Touchdowns	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de intentos de pase	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de pases completados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador]Total de Intercepciones	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador]Total de Yardas de Pases + de Carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de Intentos de Carrera	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de puntos extra anotados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total de goles de campo anotados	— (selecciones no visibles al consultar)
+Fútbol americano	[Jugador] Total Puntos de Kick	— (selecciones no visibles al consultar)
+Fútbol americano	Ambos equipos anotan - [Jugador]	10+ · 15+ · 20+ · 25+ · 30+ · 35+
+Fútbol americano	Total de Touchdowns	Más de N / Menos de N
+Fútbol americano	Local Touchdowns Anotados	Más de N / Menos de N
+Fútbol americano	Visitante Touchdowns Anotados	Más de N / Menos de N
+Fútbol americano	Total Net Passing Yards	Más de N / Menos de N
+Fútbol americano	Touchdowns de pase totales	Más de N / Menos de N
+Fútbol americano	Total de yardas de carrera	Más de N / Menos de N
+Fútbol americano	Local Yardas de Carrera	Más de N / Menos de N
+Fútbol americano	Visitante Yardas de Carrera	Más de N / Menos de N
+Fútbol americano	Total de Rushing Touchdowns	Más de N / Menos de N
+Fútbol americano	Local Touchdowns por carrera	Más de N / Menos de N
+Fútbol americano	Visitante Touchdowns por carrera	Más de N / Menos de N
+Fútbol americano	Total de Intentos de Carrera	Más de N / Menos de N
+Fútbol americano	Local Intentos de Carrera	Más de N / Menos de N
+Fútbol americano	Visitante Intentos de Carrera	Más de N / Menos de N
+Fútbol americano	Total de yardas de carrera y de recepción	Más de N / Menos de N
+Fútbol americano	Local Yardas de Corrida y de Recepción	Más de N / Menos de N
+Fútbol americano	Visitante Yardas de Corrida y de Recepción	Más de N / Menos de N
+Fútbol americano	Total de yardas de recepción	Más de N / Menos de N
+Fútbol americano	Local Yardas de Recepción	Más de N / Menos de N
+Fútbol americano	Visitante Yardas de Recepción	Más de N / Menos de N
+Fútbol americano	Total de Touchdowns de Recepción	Más de N / Menos de N
+Fútbol americano	Local Touchdowns de Recepción	Más de N / Menos de N
+Fútbol americano	Visitante Touchdowns de Recepción	Más de N / Menos de N
+Fútbol americano	Local Recepciones	Más de N / Menos de N
+Fútbol americano	Visitante Recepciones	Más de N / Menos de N
+Fútbol americano	Primer Tiempo - Local Total de Puntos	Más de N / Menos de N
+Fútbol americano	Primer Tiempo - Visitante Total de Puntos	Más de N / Menos de N
+Fútbol americano	Primer Tiempo - Resultado	Local · Empate · Visitante
+Fútbol americano	Segundo Tiempo - Ganador	Local · Visitante
+Fútbol americano	Segundo Tiempo - Hándicap	Local {h} · Visitante {h}
+Fútbol americano	Segundo Tiempo - Local Total de Puntos	Más de N / Menos de N
+Fútbol americano	Segundo Tiempo - Visitante Total de Puntos	Más de N / Menos de N
+Fútbol americano	Segundo Tiempo - Resultado	Local · Empate · Visitante
+Fútbol americano	Cuarto {X} Ganador	Local · Visitante
+Fútbol americano	Cuarto {X} Resultado	Local · Empate · Visitante
+Fútbol americano	Cuarto {X} Hándicap	Local {h} · Visitante {h}
+Fútbol americano	Cuarto {X} Total de Puntos	Más de N / Menos de N
+Fútbol americano	Primer cuarto - Local Total de Puntos	Más de N / Menos de N
+Fútbol americano	Primer cuarto - Visitante Total de Puntos	Más de N / Menos de N
+Fútbol americano	Equipo que Gana Ambos Tiempos	Ningún Equipo · Local · Visitante
+Fútbol americano	Equipo que gana cada cuarto	Ningún Equipo · Local · Visitante
+Fútbol americano	Marcador en cada Cuarto	Sí · No
+Fútbol americano	Local - Marcador en cada Cuarto	Sí · No
+Fútbol americano	Visitante - Marcador en cada Cuarto	Sí · No
+Fútbol americano	Total de Puntos - Impar/Par (inc. Tiempo Extra)	Impar · Par
+Fútbol americano	Conversión exitosa de 2 puntos	Sí · No
+Fútbol americano	Seguridad Anotada	Sí · No
+Fútbol americano	Equipos especiales o Touchdown defensivo anotado	Sí · No
+Fútbol americano	Primer equipo en anotar	Local · Visitante · Sin Goles
+Fútbol americano	Último equipo en anotar	Local · Visitante · Sin Goles
+Fútbol americano	Forma de la primera anotación (3-way)	Any Other Score · Touchdown · Tiro de campo
+Fútbol americano	Forma de la primera anotación (6-way)	Local - Touchdown · Local - Tiro de campo · Local - Any Other Score · Visitante - Touchdown · Visitante - Tiro de campo · Visitante - Any Other Score
+Fútbol americano	Local - Resultado del 1er Drive	Intento de Gol de Campo · Touchdown · Punt · Turnover
+Fútbol americano	Visitante - Resultado del 1er Drive	Intento de Gol de Campo · Touchdown · Punt · Turnover
+Fútbol americano	[Local/Visitante] Gana & Partido sobrepasa 39.5	Sí 39.5
+Fútbol americano	Total de Recepciones	Más de N / Menos de N
+Vóley	Ganador	Local · Visitante
+Vóley	Sets Hándicap	Local {h} · Visitante {h}
+Vóley	Marcador Correcto del Set	3 - 0 · 3 - 1 · 3 - 2 · 2 - 3 · 1 - 3 · 0 - 3
+Vóley	Visitante Gana un set	Sí · No
+Vóley	Visitante gana exactamente 1 Set	Sí · No
+Vóley	Visitante gana exactamente 2 Sets	Sí · No
+Dardos	Ganador	Local · Visitante
+Dardos	Hándicap de Etapa - Set 1	Local {h} · Visitante {h}
+Dardos	Marcador correcto de set 1 (en etapas)	3 - 1 · 3 - 0 · 3 - 2 · 2 - 3 · 1 - 3 · 0 - 3
+Dardos	Total de etapas en el set 1	Más de N / Menos de N
+Dardos	Más 180s	Local · Empate · Visitante
+Dardos	Total de 180s	Más de N / Menos de N
+Dardos	Local 180s	Más de N / Menos de N
+Dardos	Hándicap 180s	Local -2.5 · Visitante +2.5
+Dardos	Visitante 180s	Más de N / Menos de N
+Dardos	Más alto Checkout	Local · Visitante
+Dardos	Highest Checkout Score	Más de N / Menos de N
+Dardos	Set 1 Ganador	Local · Visitante
+Dardos	Hándicap de set	Local {h} · Visitante {h}
+Dardos	Total de sets del partido (Más/Menos)	Más de N / Menos de N
+Dardos	Marcador Correcto (en sets)	3 - 0 · 3 - 1 · 3 - 2 · 2 - 3 · 1 - 3 · 0 - 3
+Esports	Ganador	Local · Visitante
+Esports	Ganador del Mapa (Mapa {X})	Local · Visitante
+Esports	Hándicap de partido	Local {h} · Visitante {h}
+Esports	Mapas totales	Más de N / Menos de N
+Esports	Marcador Correcto	2 - 1 · 1 - 2 · 2 - 0 · 0 - 2
+Esports	Resultado - Fin Tiempo Reg. (Mapa {X})	Local · Empate · Visitante
+Esports	Resultado del Primer Tiempo (Mapa {X})	Local · Empate · Visitante
+Esports	Resultado Segundo Tiempo (Mapa {X})	Local · Empate · Visitante
+Esports	Hándicap de rondas – Primera mitad (Mapa {X})	Local {h} · Visitante {h}
+Esports	Local (Mapa 1) Primer Tiempo Total de Rondas  (y variantes)	Más de N / Menos de N
+Esports	Total de Rondas (Mapa {X})	Más de N / Menos de N
+Esports	Hándicap de rondas (Mapa {X})	Local {h} · Visitante {h}
+Esports	Local Total de Rondas (Mapa 1)  (y variantes)	Más de N / Menos de N
+Esports	Resultado correcto en el primer tiempo (Mapa {X})	4-8 · 5-7 · 6-6 · 7-5 · 8-4 · 9-3 · 3-9 · 0-12 · 1-11 · 2-10 · 10-02 · 11-01 … (+1; 13 opciones en total)
+Esports	Marcador Exacto del Mapa (Mapa {X})	12 - 12 · 13 - 9 · 13 - 10 · 13 - 11 · 13 - 8 · 13 - 7 · 11 - 13 · 10 - 13 · 13 - 6 · 9 - 13 · 8 - 13 · 13 - 5 … (+13; 25 opciones en total)
+Esports	Ganador de la ronda de Pistolas (Mapa {X})	Local · Visitante
+Esports	Carrera a rondas 5 (Mapa 1)  (y variantes)	Local · Visitante
+Esports	Ganador de la Ronda (Mapa {X})	Local · Visitante
+Esports	Rondas Totales Par/Impar (Mapa {X})	Impar · Par
+Esports	[Local/Visitante] Gana al Menos un Mapa	Sí · No
+Esports	Resultado Exacto de las Rondas de Pistola (Mapa {X})	1 - 1 · 2 - 0 · 0 - 2
+Esports	Cantidad de Mapas Par/Impar	Impar · Par
+Esports	Tiempo Extra (Mapa {X})	Sí · No
+Esports	Ganador del Mapa & Total de Rondas (Mapa {X})	Local & Más de N · Local & Menos N · Visitante & Más de N · Visitante & Menos N
+Esports	Ganador del partido & Ganador del Mapa (Mapa {X})	Local & Visitante · Local & Local · Visitante & Local · Visitante & Visitante
+Esports	Ganador del Mapa & Ganador de la Primera Mitad (Mapa {X})	Local & Local · Local & Empate · Local & Visitante · Visitante & Local · Visitante & Empate · Visitante & Visitante
+Esports	Ganador del Mapa & Ganador de la primera ronda de pistola (Mapa {X})	Local & Local · Local & Visitante · Visitante & Local · Visitante & Visitante
+Motorsport · Fórmula 1	Ganador	[Jugador]
+Motorsport · Fórmula 1	Termina en el Podio	[Jugador]
+Motorsport · Fórmula 1	Vuelta más rápida	[Jugador]
+Motorsport · Fórmula 1	Termina entre los 6 primeros	[Jugador]
+Motorsport · Fórmula 1	Termina entre los 2 primeros	[Jugador]
+Motorsport · Fórmula 1	Final con puntos	[Jugador]
+Motorsport · Fórmula 1	Auto Ganador	Mercedes · Red Bull · McLaren · Ferrari · Audi · Racing Bulls · Alpine · Williams · Haas · Aston Martin · Cadillac
+Motorsport · Fórmula 1	Margen del Triunfo	Menos 5 segundos · 5 - 10 segundos · Más de 10 segundos
+Motorsport · Fórmula 1	Auto que hace la vuelta más rápida	Mercedes · Red Bull · McLaren · Ferrari · Racing Bulls · Alpine · Williams · Haas · Audi · Aston Martin · Cadillac
+Motorsport · Fórmula 1	Cualquier piloto que gane la carrera, primera posición y vuelta más rápida	Sí · No
+Motorsport · Fórmula 1	Equipo más rápido en la parada en boxes	Mercedes · Ferrari · McLaren · Racing Bulls · Audi · Red Bull · Williams · Aston Martin · Alpine · Haas · Cadillac
+Motorsport · Fórmula 1	Último clasificado de la carrera	[Jugador]
+Motorsport · Fórmula 1	[Jugador] a clasificar	Sí · No
+Motorsport · Fórmula 1	[Jugador] Cantidad de pilotos clasificados	2 · 1 · 0
+Motorsport · Fórmula 1	Coche de Seguridad	Sí · No
+Motorsport · Fórmula 1	Coche de Seguridad Virtual	Sí · No
+Motorsport · Fórmula 1	Bandera roja durante la carrera	Sí · No
+Motorsport · Fórmula 1	Primer piloto en hacer una parada en boxes	[Jugador]
+Motorsport · Fórmula 1	Primer Piloto que se retira	Lance Stroll · Fernando Alonso · Sin retiros · Valtteri Bottas · Esteban Ocon · Carlos Sainz · Alex Albon · Oliver Bearman · Nico Hulkenberg · Oscar Piastri · Gabriel Bortoleto · Sergio Perez … (+11; 23 opciones en total)
+Motorsport · Fórmula 1	Retiro del Primer Constructor	[Jugador]
+Motorsport · Fórmula 1	Ganador de la carrera & Vuelta más rápida	[Jugador]
+Motorsport · Fórmula 1	Ganador de la clasificación/Ganador de la carrera Double	[Jugador]
+Motorsport · Fórmula 1	Cantidad de Pilotos Clasificados	Más de N / Menos de N
+Motorsport · MotoGP	Ganador absoluto	[Jugador]
+Motorsport · Moto2	Ganador	[Jugador]
+Críquet	Ganador	India · Australia · Sudáfrica · Inglaterra · Nueva Zelanda · Pakistán · Indias Occidentales · Sri Lanka · Bangladesh · Afganistán · Zimbabue · EE. UU. … (+7; 19 opciones en total)
+MMA	Ganador	Local · Visitante
+MMA	Forma del Triunfo [Jugador]	Local por KO, TKO o descalificación · Local Por Sumisión · Local por decisión o Decisión Técnica · Empate o Empate Técnico · Visitante por KO, TKO o descalificación · Visitante Por Sumisión · Visitante por decisión o Decisión Técnica
+MMA	Local por KO, TKO, descalificación o sumisión	Sí · No
+MMA	Local por decisión o Decisión Técnica	Sí · No
+MMA	Visitante por KO, TKO, descalificación o sumisión	Sí · No
+MMA	Visitante por decisión o Decisión Técnica	Sí · No
+MMA	Apuesta de ronda  (y variantes)	Local Gana en ronda 1 por KO, TKO o descalificación · Local Gana en ronda 2 por KO, TKO o descalificación · Local Gana en ronda 3 por KO, TKO o descalificación · Local Gana en ronda 4 por KO, TKO o descalificación · Local Gana en ronda 5 por KO, TKO o descalificación · Local Gana en ronda 1 Por Sumisión · Local Gana en ronda 2 Por Sumisión · Local Gana en ronda 3 Por Sumisión · Local Gana en ronda 4 Por Sumisión · Local Gana en ronda 5 Por Sumisión · Local por decisión o Decisión Técnica · Empate o Empate Técnico … (+31; 43 opciones en total)
+MMA	Más/Menos Total de Rondas	Más de N / Menos de N
+MMA	¿Llegará la lucha hasta el final?	Sí · No
+MMA	En qué minuto terminará la pelea	minuto 1 · minuto 2 · minuto 3 · minuto 4 · minuto 5 · minuto 6 · minuto 7 · minuto 8 · minuto 9 · minuto 10 · minuto 11 · minuto 12 … (+14; 26 opciones en total)
+MMA	En qué minuto terminará la pelea - Local	minuto 1 · minuto 2 · minuto 3 · minuto 4 · minuto 5 · minuto 6 · minuto 7 · minuto 8 · minuto 9 · minuto 10 · minuto 11 · minuto 12 … (+14; 26 opciones en total)
+MMA	En qué minuto terminará la pelea - Visitante	minuto 1 · minuto 2 · minuto 3 · minuto 4 · minuto 5 · minuto 6 · minuto 7 · minuto 8 · minuto 9 · minuto 10 · minuto 11 · minuto 12 … (+14; 26 opciones en total)
+MMA	Ganador & Total de Rondas	Local y Más de N · Local y Menos N · Visitante y Más de N · Visitante y Menos N
+MMA	Ronda ganadora - Impar/Par	Impar · Par · Pelea llega hasta el final
+MMA	Especiales del partido	Ganador: Local & Ronda ganadora - Impar/Par : Impar · Ganador: Local & Ronda ganadora - Impar/Par : Par · Ganador: Local & En qué minuto terminará la pelea: Intervalo 2do - 4to · Ganador: Local & En qué minuto terminará la pelea: Intervalo 6th - 8th · Ganador: Local & En qué minuto terminará la pelea: Intervalo 12.º - 14.º · Ganador: Local & En qué minuto terminará la pelea: Intervalo 16.º - 18.º · Ganador: Local & En qué minuto terminará la pelea: Intervalo 22avo - 24.º · Ganador: Visitante & Ronda ganadora - Impar/Par : Impar · Ganador: Visitante & Ronda ganadora - Impar/Par : Par · Ganador: Visitante & En qué minuto terminará la pelea: Intervalo 2do - 4to · Ganador: Visitante & En qué minuto terminará la pelea: Intervalo 6th - 8th · Ganador: Visitante & En qué minuto terminará la pelea: Intervalo 12.º - 14.º … (+5; 17 opciones en total)
+Rugby Union	Hándicap	Local {h} · Visitante {h}
+Rugby Union	Doble oportunidad	1X · 2X · 12
+Rugby Union	Apuesta sin Empate	Local · Visitante
+Rugby Union	Primer Tiempo/Tiempo Completo	1/1 · 1/X · 1/2 · X/1 · X/X · X/2 · 2/2 · 2/X · 2/1
+Rugby Union	Resultado Primer Tiempo	Local · Empate · Visitante
+Rugby Union	Hándicap Primer Tiempo	Local {h} · Visitante {h}
+Rugby Union	Primer Tiempo - Doble Oportunidad	1X · 12 · 2X
+Rugby Union	Apuesta sin Empate Medio Tiempo	Local · Visitante
+Rugby Union	Tiempo con puntuación más alta	Primer Tiempo · Empate · Segundo Tiempo
+Rugby Union	Primer Tiempo - Total de puntos impar/par	Impar · Par
+Rugby Union	Total de puntos impar/par	Impar · Par
+Rugby League	Resultado del Partido	1 (Local) · X (Empate) · 2 (Visitante)
+Rugby League	Apuesta sin Empate	Local · Visitante
+Rugby League	Hándicap	Local {h} · Visitante {h}
+Rugby League	Más/Menos Total de Puntos	Más de N / Menos de N
+Rugby League	Resultado del partido con Más/Menos	1 y Más de 42.5 · 1 y Menos 42.5 · 2 y Más de 42.5 · 2 y Menos 42.5 · X y Más de 42.5 · X y Menos 42.5
+Rugby League	Doble oportunidad	1X · 2X · 12
+Rugby League	Primer Tiempo/Tiempo Completo	1/1 · 1/2 · 1/X · 2/2 · 2/1 · 2/X · X/1 · X/2 · X/X
+Rugby League	Rango de puntos	0-27 · 28-34 · 35-41 · 42-48 · 49-55 · 56-62 · 63+
+Rugby League	Más/Menos Local Total de Puntos	Más de N / Menos de N
+Rugby League	Más/Menos Visitante Total de Puntos	Más de N / Menos de N
+Rugby League	Primer Tiempo - Total de Puntos	Más de N / Menos de N
+Rugby League	Primer Tiempo Rango de puntos	0-6 · 7-13 · 14-20 · 21-27 · 28-34 · 35-41 · 42+
+Rugby League	Primer Tiempo - Total de Puntos Local	Más de N / Menos de N
+Rugby League	Primer Tiempo - Total de Puntos Visitante	Más de N / Menos de N
+Rugby League	Hándicap Primer Tiempo	Local {h} · Visitante {h}
+Rugby League	Primer Tiempo - Doble Oportunidad	1X · 12 · 2X
+Rugby League	Apuesta sin Empate Medio Tiempo	Local · Visitante
+Futsal	Resultado del partido	1 (Local) · X (Empate) · 2 (Visitante)
+Futsal	Total de goles	Más de N / Menos de N
+Bádminton	Ganador - Partido	Local · Visitante
+Bádminton	Ganador del Set (Set 1)	Local · Visitante
+Bádminton	Total de Puntos	Más de N / Menos de N
+Bádminton	Puntos del hándicap	Local -12.5 · Visitante +12.5
+Bádminton	Cantidad de sets en el partido	2 Sets · 3 Sets
+Bádminton	Cantidad de sets para superar el límite de puntuación	0 Sets · 1 Sets · 2 Sets
+Bádminton	Total de Puntos (Set 1)	Más de N / Menos de N
+Bádminton	Puntos del hándicap (Set 1)	Local {h} · Visitante {h}
+Bádminton	Set 1 Ganador de puntos (Punto 5)	Local · Visitante
+Bádminton	Impar/Par, Total de Puntos por Set (Set 1)	Impar · Par
+Waterpolo	Resultado del partido	1 (Local) · X (Empate) · 2 (Visitante)
+Waterpolo	Total de goles	Más de N / Menos de N
+Waterpolo	Hándicap	Local +4.5 · Visitante -4.5
+Snooker	Campeón	[Jugador]
+Ciclismo	Ganador	[Jugador]
+Ciclismo	Encuentros ([Jugador])	[Jugador]
+Floorball	Resultado - Fin Tiempo Reg.	Local · Empate · Visitante

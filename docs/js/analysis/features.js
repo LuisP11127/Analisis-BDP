@@ -4,8 +4,12 @@
 // con otra versión se ignoran al entrenar).
 import { clamp, logit } from '../util.js';
 import { sideOf } from './markets.js';
+import { sentiment } from './news.js';
+import { marketGroupOf } from './picks.js';
 
-export const FEATURE_VERSION = 1;
+// 2: noticias, tipo de mercado y simulación (las filas de la versión 1 se
+// completan con ceros al entrenar: ver upgradeFeatures).
+export const FEATURE_VERSION = 2;
 
 export const FEATURES = [
   'logitBase', // probabilidad del análisis estadístico (escala logit)
@@ -35,7 +39,33 @@ export const FEATURES = [
   'sGoals',
   'sPoints',
   'sOther',
+  // Versión 2
+  'newsAvail', // hay noticias cargadas (Flashscore, ESPN, FotMob)
+  'sideNewsMentions', // menciones del lado elegido frente al rival
+  'sideNewsInjuries', // noticias de lesiones/sanciones del rival menos las propias
+  'sideNewsSentiment', // tono de las noticias (positivo − negativo)
+  'newsInjuriesTotal', // noticias de lesiones de ambos (para totales)
+  'fPeriod', // mercado de un periodo (mitad, cuarto, set...)
+  'fStat', // mercado de estadísticas (córners, tarjetas...)
+  'fScore', // marcador exacto / margen
+  'fCombo', // combinado de la casa
+  'fOther', // otros (primer gol, par/impar...)
+  'viaSim', // probabilidad del modelo por simulación
+  'qualityMarket', // confianza del modelo en ese mercado
 ];
+
+const V1_LENGTH = 27;
+
+// Filas antiguas: se completan las variables nuevas (sin noticias, mercado principal).
+export function upgradeFeatures(x, fv) {
+  if (fv === FEATURE_VERSION) return x;
+  if (fv === 1 && x?.length === V1_LENGTH) {
+    const extra = new Array(FEATURES.length - V1_LENGTH).fill(0);
+    extra[extra.length - 1] = x[6]; // qualityMarket = calidad del modelo
+    return [...x, ...extra];
+  }
+  return null;
+}
 
 function votesFor(c, side, votes) {
   if (!votes) return null;
@@ -73,6 +103,10 @@ export function buildFeatures(c, ctx) {
 
   const sport = ctx.sport;
   const model = ctx.cfg?.model;
+  const news = d.news || null;
+  const nh = news?.home;
+  const na = news?.away;
+  const group = marketGroupOf(c.family);
   const x = [
     clamp(base, -6, 6),
     c.pModel != null ? clamp(logit(c.pModel) - base, -4, 4) : 0,
@@ -101,6 +135,18 @@ export function buildFeatures(c, ctx) {
     model === 'goals' && sport !== 'football' ? 1 : 0,
     model === 'points' && sport !== 'basketball' ? 1 : 0,
     model !== 'goals' && model !== 'points' && sport !== 'tennis' ? 1 : 0,
+    news ? 1 : 0,
+    news ? side * clamp(Math.log1p(nh.n) - Math.log1p(na.n), -3, 3) : 0,
+    news ? side * clamp((na.injuries - nh.injuries) / 2, -2, 2) : 0,
+    news ? side * (sentiment(nh) - sentiment(na)) : 0,
+    news ? clamp(Math.log1p(nh.injuries + na.injuries), 0, 3) : 0,
+    group === 'periodos' ? 1 : 0,
+    group === 'estadisticas' ? 1 : 0,
+    group === 'marcador' ? 1 : 0,
+    group === 'combinados' ? 1 : 0,
+    group === 'otros' ? 1 : 0,
+    c.via === 'simulación' ? 1 : 0,
+    ctx.quality ?? m?.quality ?? 0,
   ];
   return x.map((v) => Math.round(v * 1000) / 1000);
 }

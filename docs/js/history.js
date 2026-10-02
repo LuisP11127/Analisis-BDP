@@ -11,8 +11,12 @@ import * as ext from './ext.js';
 import * as provider from './provider.js';
 import * as store from './storage.js';
 import { addDays, groupBy, limaDateOf, limaToday } from './util.js';
-import { FEATURE_VERSION, FEATURES } from './analysis/features.js';
+import { FEATURE_VERSION, FEATURES, upgradeFeatures } from './analysis/features.js';
 import { settle } from './analysis/markets.js';
+import { parseMarketId } from './analysis/catalog.js';
+import { profitOf } from './analysis/outcomes.js';
+import { mergeRecords, recordFromSofascore } from './analysis/records.js';
+import { flashscoreRecords } from './flashscore-link.js';
 import { Corrector } from './analysis/neural.js';
 import { LEVELS } from './analysis/picks.js';
 
@@ -22,8 +26,10 @@ export const dayPath = (date) => `data/historial/${date}.json`;
 export const rowsPath = (month) => `data/entrenamiento/${month}.json`;
 
 const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal' };
+const SUMMARY_VERSION = 2; // resúmenes por método (los anteriores se recalculan)
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
+const NO_DATA_MS = 96 * 3600000; // terminado sin los datos de esa apuesta (p. ej. córners): nula tras 4 días
 
 // ---- Guardar un análisis ----
 
@@ -35,6 +41,7 @@ function storedLeg(c, events) {
     start: c.start,
     match: events[c.eventId] ? `${events[c.eventId].home} vs ${events[c.eventId].away}` : '',
     url: events[c.eventId]?.url || null,
+    ...(events[c.eventId]?.fsId ? { fsId: events[c.eventId].fsId } : {}),
     market: c.market,
     sel: c.sel,
     line: c.line,
@@ -49,6 +56,7 @@ export function compactAnalysis(result) {
     id: result.id,
     method: result.method,
     created: result.created,
+    run: result.run || result.created,
     date: result.date,
     settings: result.settings,
     network: result.network,
@@ -78,8 +86,20 @@ export function compactAnalysis(result) {
   };
 }
 
+// Filas para la red: por partido, las selecciones con probabilidad en la zona
+// donde salen picks y combinadas (las de cuota muy alta no aportan), hasta 60.
+const ROWS_PER_EVENT = 60;
+function rowCandidates(candidates) {
+  const out = [];
+  for (const list of groupBy(candidates, (c) => c.eventId).values()) {
+    const useful = list.filter((c) => c.pBase >= 0.4 && c.pBase <= 0.97);
+    out.push(...(useful.length > ROWS_PER_EVENT ? useful.sort((a, b) => b.pBase - a.pBase).slice(0, ROWS_PER_EVENT) : useful));
+  }
+  return out;
+}
+
 export function trainingRows(result) {
-  return result.candidates.map((c) => ({
+  return rowCandidates(result.candidates).map((c) => ({
     key: `${c.eventId}|${c.key}`,
     date: result.date,
     eventId: c.eventId,
@@ -106,16 +126,23 @@ function mergeRows(oldRows = [], newRows = []) {
   return [...map.values()];
 }
 
-export async function saveAnalysis(result) {
-  const stored = compactAnalysis(result);
-  const day = (await store.read(dayPath(result.date))) || { date: result.date, analyses: [] };
-  day.analyses = day.analyses.filter((a) => a.id !== stored.id).concat(stored);
-  await store.write(dayPath(result.date), day, `Historial: análisis ${METHOD_NAME[result.method]} del ${result.date}`);
+// Guarda uno o varios análisis del mismo día (p. ej. estadístico y red
+// neuronal hechos juntos) con un solo cambio por archivo.
+export async function saveAnalysis(input) {
+  const results = (Array.isArray(input) ? input : [input]).filter(Boolean);
+  if (!results.length) return null;
+  const { date } = results[0];
+  const stored = results.map(compactAnalysis);
+  const ids = new Set(stored.map((a) => a.id));
+  const day = (await store.read(dayPath(date))) || { date, analyses: [] };
+  day.analyses = day.analyses.filter((a) => !ids.has(a.id)).concat(stored);
+  const names = results.map((r) => METHOD_NAME[r.method]).join(' y ');
+  await store.write(dayPath(date), day, `Historial: análisis ${names} del ${date}`);
 
-  for (const [month, rows] of groupBy(trainingRows(result), (r) => r.date.slice(0, 7))) {
+  for (const [month, rows] of groupBy(results.flatMap(trainingRows), (r) => r.date.slice(0, 7))) {
     const file = (await store.read(rowsPath(month))) || { rows: [] };
     file.rows = mergeRows(file.rows, rows);
-    await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${result.date}`);
+    await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${date}`);
   }
   await refreshIndex([day]);
   return day;
@@ -125,50 +152,105 @@ export async function saveAnalysis(result) {
 
 const emptyStats = () => ({ n: 0, won: 0, lost: 0, void: 0, pending: 0, profit: 0, staked: 0 });
 
+// Medias apuestas (líneas asiáticas .25/.75): cuentan como acierto o fallo y
+// la ganancia es la mitad.
 function addResult(stats, status, odds) {
   stats.n++;
-  if (status === 'won') {
-    stats.won++;
-    stats.profit += odds - 1;
+  if (status === 'won' || status === 'half_won') stats.won++;
+  else if (status === 'lost' || status === 'half_lost') stats.lost++;
+  else if (status === 'void') stats.void++;
+  else {
+    stats.pending++;
+    return;
+  }
+  if (status !== 'void') {
+    stats.profit += profitOf(status, odds);
     stats.staked++;
-  } else if (status === 'lost') {
-    stats.lost++;
-    stats.profit -= 1;
-    stats.staked++;
-  } else if (status === 'void') stats.void++;
-  else stats.pending++;
+  }
 }
 
+// ¿La apuesta necesita más que el marcador final (periodos, estadísticas, minutos)?
+export function needsRecord(market) {
+  const spec = parseMarketId(market);
+  if (!spec) return false;
+  if (['AND', 'OR'].includes(spec.t)) return true;
+  return spec.stat !== 'score' || !['ft', 'reg'].includes(spec.scope) || !['1X2', 'ML', 'DC', 'OU', 'BTTS', 'HCP', 'CS', 'MRG', 'OE', 'CNT'].includes(spec.t);
+}
+
+const comboKey = (k) => `${k.source}|${k.legs.map((l) => `${l.eventId}|${l.key}`).sort().join(',')}`;
+
+// Picks y combinadas de cada método sin repetir: si el mismo pick sale en
+// varios análisis del día, cuenta una sola vez (el del análisis más reciente).
+export function latestByMethod(day) {
+  const out = new Map(); // método -> { picks: Map, combos: Map }
+  const list = (day.analyses || []).slice().sort((a, b) => String(a.created).localeCompare(String(b.created)));
+  for (const a of list) {
+    if (!out.has(a.method)) out.set(a.method, { picks: new Map(), combos: new Map() });
+    const m = out.get(a.method);
+    for (const p of a.picks) m.picks.set(`${p.eventId}|${p.key}`, p);
+    for (const k of a.combos || []) m.combos.set(comboKey(k), k);
+  }
+  return out;
+}
+
+const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats() });
+
+// Resumen de un día: por método (methods) y la suma de ambos.
 export function daySummary(day) {
-  const out = { ...emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats() };
-  for (const a of day.analyses || []) {
-    out.byMethod[a.method] ||= emptyStats();
-    for (const p of a.picks) {
+  const out = { ...emptyStats(), v: SUMMARY_VERSION, byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
+  for (const [method, { picks, combos }] of latestByMethod(day)) {
+    const m = (out.methods[method] = methodStats());
+    for (const p of picks.values()) {
+      addResult(m, p.status, p.odds);
+      addResult((m.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
       addResult(out, p.status, p.odds);
       addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
-      addResult(out.byMethod[a.method], p.status, p.odds);
     }
-    for (const k of a.combos || []) addResult(out.combos, k.status, k.odds);
+    for (const k of combos.values()) {
+      addResult(m.combos, k.status, k.odds);
+      addResult(out.combos, k.status, k.odds);
+    }
+    const { byLevel: _levels, combos: _combos, ...plain } = m;
+    out.byMethod[method] = plain;
   }
   out.pendingAll = out.pending + out.combos.pending;
   return out;
 }
 
-export async function loadIndex() {
-  return (await store.read(INDEX)) || { days: {}, updated: null };
+// Recalcula los resúmenes de versiones anteriores desde el archivo de cada día.
+async function upgradeIndex(index) {
+  let changed = false;
+  for (const date of Object.keys(index.days || {})) {
+    if (index.days[date].v === SUMMARY_VERSION) continue;
+    const day = await store.read(dayPath(date));
+    if (!day) continue;
+    index.days[date] = daySummary(day);
+    changed = true;
+  }
+  return changed;
+}
+
+export async function loadIndex({ upgrade = false } = {}) {
+  const index = (await store.read(INDEX)) || { days: {}, updated: null };
+  if (upgrade && (await upgradeIndex(index)) && store.canWrite()) {
+    index.updated = new Date().toISOString();
+    await store.write(INDEX, index, 'Historial: resumen por método').catch(() => {});
+  }
+  return index;
 }
 
 async function refreshIndex(days) {
   const index = await loadIndex();
+  await upgradeIndex(index);
   for (const day of days) index.days[day.date] = daySummary(day);
   index.updated = new Date().toISOString();
   await store.write(INDEX, index, 'Historial: actualizar resumen');
   return index;
 }
 
-// Totales de todos los días: por nivel, por método y combinadas.
+// Totales de todos los días: por método (con sus niveles y combinadas) y en conjunto.
 export function totals(index) {
-  const out = { all: emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats() };
+  const out = { all: emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
   const add = (a, b) => {
     for (const k of Object.keys(emptyStats())) a[k] += b[k] || 0;
   };
@@ -177,9 +259,17 @@ export function totals(index) {
     add(out.combos, s.combos || {});
     for (const [k, v] of Object.entries(s.byLevel || {})) add((out.byLevel[k] ||= emptyStats()), v);
     for (const [k, v] of Object.entries(s.byMethod || {})) add((out.byMethod[k] ||= emptyStats()), v);
+    for (const [method, m] of Object.entries(s.methods || {})) {
+      const t = (out.methods[method] ||= methodStats());
+      add(t, m);
+      add(t.combos, m.combos || {});
+      for (const [k, v] of Object.entries(m.byLevel || {})) add((t.byLevel[k] ||= emptyStats()), v);
+    }
   }
   return out;
 }
+
+export const emptyMethodStats = methodStats;
 
 export const hitRate = (s) => (s.won + s.lost ? s.won / (s.won + s.lost) : null);
 export const roi = (s) => (s.staked ? s.profit / s.staked : null);
@@ -187,27 +277,45 @@ export { LEVELS };
 
 // ---- Actualizar resultados ----
 
+// Estado de una apuesta con el resultado; si el partido terminó pero no hay
+// datos para esa apuesta (p. ej. sin estadísticas de córners), se anula
+// pasado el plazo.
+export function legStatus(leg, res, now) {
+  const status = settle(leg, { ...res, final: now - leg.start > CANCEL_FINAL_MS }, leg.sport);
+  if (status) return { status };
+  if (res?.state === 'finalizado' && now - leg.start > NO_DATA_MS) return { status: 'void', noData: true };
+  return null;
+}
+
 function resolveLeg(leg, results, now) {
   if (leg.status !== 'pending') return false;
   const res = results[leg.eventId];
   if (!res) return false;
-  const status = settle(leg, { ...res, final: now - leg.start > CANCEL_FINAL_MS }, leg.sport);
-  if (!status) return false;
-  leg.status = status;
+  const r = legStatus(leg, res, now);
+  if (!r) return false;
+  leg.status = r.status;
+  if (r.noData) leg.noData = true;
   leg.score = res.score;
   return true;
 }
 
-function comboStatus(combo) {
+// Combinada: perdida si falla una; las medias apuestas multiplican su parte
+// (media ganada: (cuota + 1) / 2; media perdida: 1/2).
+export function comboStatus(combo) {
   const st = combo.legs.map((l) => l.status);
   if (st.includes('lost')) return 'lost';
   if (st.includes('pending')) return 'pending';
-  return st.includes('won') ? 'won' : 'void';
+  return st.some((x) => x === 'won' || x === 'half_won' || x === 'half_lost') ? 'won' : 'void';
 }
 
-// Odds de la combinada sin las selecciones anuladas.
-function comboOdds(combo) {
-  return combo.legs.filter((l) => l.status !== 'void').reduce((x, l) => x * l.price, 1);
+// Cuota final de la combinada: sin las anuladas y con las medias apuestas.
+export function comboOdds(combo) {
+  return combo.legs.reduce((x, l) => {
+    if (l.status === 'void') return x;
+    if (l.status === 'half_won') return (x * (l.price + 1)) / 2;
+    if (l.status === 'half_lost') return x / 2;
+    return x * l.price;
+  }, 1);
 }
 
 const monthsBack = (n) => {
@@ -257,7 +365,18 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   }
 
   const results = {};
+  const fsRecords = {}; // registros de Flashscore de partidos de Sofascore
   const list = [...ids];
+  // Partidos con apuestas que necesitan estadísticas o incidencias, y su deporte.
+  const detailIds = new Set();
+  const sports = new Map();
+  for (const day of dayFiles)
+    for (const a of day.analyses)
+      for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) {
+        sports.set(leg.eventId, leg.sport);
+        if (due(leg) && needsRecord(leg.market)) detailIds.add(leg.eventId);
+      }
+  for (const { file } of rowFiles) for (const r of file.rows) if (r.y == null && needsRecord(r.market)) (detailIds.add(r.eventId), sports.set(r.eventId, r.sport));
   // Partidos automáticos (Flashscore): resultados publicados cada 2 horas.
   const auto = list.filter(provider.isAuto);
   const starts = new Map();
@@ -265,18 +384,51 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   for (const { file } of rowFiles) for (const r of file.rows) starts.set(r.eventId, r.start);
   const dates = new Set(auto.filter((id) => Number.isFinite(starts.get(id))).flatMap((id) => [limaDateOf(starts.get(id)), limaDateOf(starts.get(id) + 86400000)]));
   if (auto.length) onProgress('Resultados publicados', 0.1);
+  // Los partidos de Sofascore también pueden tener el registro de Flashscore
+  // (GitHub Actions los cruza por nombre).
+  const sofa = list.filter((id) => !provider.isAuto(id));
+  for (const id of sofa) if (Number.isFinite(starts.get(id))) [0, 1].forEach((d) => dates.add(limaDateOf(starts.get(id) + d * 86400000)));
   for (const date of dates) {
     const published = await provider.loadResults(date, { force: true });
-    for (const id of auto) if (published[id] && results[id]?.state !== 'finalizado') results[id] = published[id];
+    for (const id of list) {
+      const p = published[id];
+      if (!p) continue;
+      if (provider.isAuto(id)) {
+        if (results[id]?.state !== 'finalizado') results[id] = p;
+      } else if (p.record) fsRecords[id] ||= { ...p.record, state: p.state };
+    }
   }
-  // Partidos de Sofascore: con la extensión.
-  const sofa = list.filter((id) => !provider.isAuto(id));
-  if (sofa.length && !ext.available()) skipped = sofa.length;
+  // Partidos de Sofascore: con la extensión (y sus estadísticas e incidencias
+  // si alguna apuesta las necesita).
+  if (sofa.length && !ext.available()) skipped = sofa.filter((id) => !fsRecords[id]).length;
   for (let i = 0; ext.available() && i < sofa.length; i += 10) {
     onProgress(`Sofascore: resultados ${Math.min(i + 10, sofa.length)} de ${sofa.length}`, 0.1 + (0.6 * i) / Math.max(1, sofa.length));
     const chunk = sofa.slice(i, i + 10);
-    const r = await ext.call('sofascore', 'getEventResults', { ids: chunk, urls: Object.fromEntries(chunk.map((id) => [id, urls[id]])) }, { timeout: 300000 });
-    Object.assign(results, r.items);
+    const detail = chunk.filter((id) => detailIds.has(id));
+    const r = await ext.call('sofascore', 'getEventResults', { ids: chunk, urls: Object.fromEntries(chunk.map((id) => [id, urls[id]])), detail }, { timeout: 300000 });
+    for (const [id, res] of Object.entries(r.items || {})) {
+      const { raw, ...rest } = res;
+      results[id] = rest;
+      if (raw) results[id].record = recordFromSofascore({ sport: sports.get(id), ...raw });
+    }
+  }
+  // Con la extensión: registros de Flashscore de los partidos de Sofascore que
+  // los necesitan y que GitHub Actions no publicó (historial solo en el navegador).
+  if (ext.available()) {
+    const legs = [];
+    for (const day of dayFiles) for (const a of day.analyses) for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) if (due(leg) && !provider.isAuto(leg.eventId) && detailIds.has(leg.eventId) && !fsRecords[leg.eventId]) legs.push(leg);
+    if (legs.length) {
+      onProgress('Flashscore: estadísticas de los partidos', 0.72);
+      for (const [id, rec] of await flashscoreRecords(legs)) fsRecords[id] = rec;
+    }
+  }
+  // Sofascore + Flashscore: se juntan los dos registros del partido.
+  for (const id of sofa) {
+    if (!fsRecords[id]) continue;
+    const res = results[id] || { state: fsRecords[id].state, score: null };
+    const fsRec = { ...fsRecords[id], state: res.state === 'finalizado' ? 'finalizado' : fsRecords[id].state };
+    results[id] = { ...res, state: res.state || fsRec.state, record: mergeRecords(res.record || null, fsRec) };
+    if (!results[id].record.final && res.score) results[id].record.final = [res.score.home, res.score.away];
   }
 
   onProgress('Liquidando apuestas', 0.75);
@@ -308,9 +460,11 @@ export async function updateResults({ onProgress = () => {} } = {}) {
       if (r.y != null) continue;
       const res = results[r.eventId];
       if (!res) continue;
-      const status = settle(r, { ...res, final: now - r.start > CANCEL_FINAL_MS }, r.sport);
-      if (!status) continue;
-      r.y = status === 'won' ? 1 : status === 'lost' ? 0 : -1;
+      const st = legStatus(r, res, now);
+      if (!st) continue;
+      const status = st.status;
+      // Media ganada/perdida: 0.75 / 0.25 (la red aprende la probabilidad de ganar).
+      r.y = { won: 1, lost: 0, half_won: 0.75, half_lost: 0.25 }[status] ?? -1;
       changed = true;
       newRows++;
     }
@@ -331,14 +485,19 @@ export async function updateResults({ onProgress = () => {} } = {}) {
 
 export async function loadNetwork() {
   const saved = await store.read(MODEL).catch(() => null);
-  return saved ? Corrector.fromJSON(saved) : new Corrector({ inputs: FEATURES.length });
+  // Una red guardada con otras variables no se usa (se reentrena con las filas actualizadas).
+  return saved && saved.featureVersion === FEATURE_VERSION && saved.inputs === FEATURES.length ? Corrector.fromJSON(saved) : new Corrector({ inputs: FEATURES.length });
 }
 
 export async function trainNetwork() {
   const rows = [];
   for (const month of monthsBack(6)) {
     const file = await store.read(rowsPath(month));
-    for (const r of file?.rows || []) if (r.fv === FEATURE_VERSION && (r.y === 0 || r.y === 1)) rows.push(r);
+    for (const r of file?.rows || []) {
+      if (!(r.y >= 0 && r.y <= 1)) continue;
+      const x = upgradeFeatures(r.x, r.fv);
+      if (x) rows.push({ ...r, x });
+    }
   }
   const net = new Corrector({ inputs: FEATURES.length });
   net.train(rows.map((r) => ({ x: r.x, pBase: r.pBase, y: r.y, start: r.start })));

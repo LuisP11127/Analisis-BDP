@@ -148,6 +148,21 @@
     return [{ name: 'Home/Away', group: null, live: false, choices: [{ name: '1', price: odd(pHome) }, { name: '2', price: odd(1 - pHome) }] }];
   }
 
+  // Mercados de Betano de la página del partido (nombres reales de Betano).
+  function betanoMarkets(e) {
+    const f = fairFootball(e);
+    const h1 = { h: f.h * 0.75, d: 0.42, a: f.a * 0.75 };
+    const n = h1.h + h1.d + h1.a;
+    return [
+      { name: 'Resultado Final', selections: [{ name: '1', price: odd(f.h, 1.05) }, { name: 'X', price: odd(f.d, 1.05) }, { name: '2', price: odd(f.a, 1.05) }] },
+      { name: 'Total de Córners', selections: [{ name: 'Más de 9.5', price: 1.88 }, { name: 'Menos de 9.5', price: 1.88 }] },
+      { name: 'Primer Tiempo - Resultado', selections: ['h', 'd', 'a'].map((k, i) => ({ name: ['1', 'X', '2'][i], price: odd(h1[k] / n, 1.06) })) },
+      { name: 'Descanso/Final', selections: [{ name: '1/1', price: odd(f.h * 0.55, 1.2) }, { name: 'X/X', price: odd(f.d * 0.6, 1.2) }, { name: '2/2', price: odd(f.a * 0.55, 1.2) }] },
+      { name: 'Total de tarjetas', selections: [{ name: 'Más de 4.5', price: 1.9 }, { name: 'Menos de 4.5', price: 1.86 }] },
+      { name: 'Goleador en cualquier momento', selections: [{ name: 'Jugador Y', price: 3.1 }] },
+    ];
+  }
+
   function atMarkets(e) {
     const H = e.home.atName;
     const A = e.away.atName;
@@ -239,9 +254,39 @@
       items: Object.fromEntries(eventIds.map((id) => [id, atMarkets(byId.get(Number(id.slice(2))))])),
       errors: [],
     }),
-    'betano.getOdds': () => {
-      throw new Error('No se encontraron cuotas en Betano');
+    // Betano: solo fútbol (en los otros deportes falla, para probar que no rompe
+    // el análisis). La lista trae el resultado; la página de cada partido, todo.
+    'betano.getOdds': ({ sport }) => {
+      if (sport !== 'football') throw new Error('No se encontraron cuotas en Betano');
+      return {
+        mode: 'tab',
+        items: events
+          .filter((e) => e.sport === 'football')
+          .map((e) => ({ eventId: `b${e.id}`, start: e.start, home: e.home.name, away: e.away.name, url: `https://www.betano.pe/cuotas-de-partido/x/${e.id}/`, markets: betanoMarkets(e).slice(0, 1) })),
+      };
     },
+    'betano.getEventMarkets': ({ urls }) => ({
+      mode: 'tab',
+      items: Object.fromEntries(Object.entries(urls).map(([key, url]) => [key, betanoMarkets(byId.get(Number(url.match(/(\d+)\/$/)[1])))])),
+      notes: [],
+    }),
+    // Flashscore (con la extensión): los mismos partidos, para sumar estadísticas de equipo.
+    'flashscore.getSportDay': ({ sport }) => ({
+      mode: 'direct',
+      items: events
+        .filter((e) => e.sport === sport)
+        .map((e) => ({ id: `fs:m${e.id}`, sport, start: e.start, state: 'pendiente', home: { id: `t${e.home.id}`, name: e.home.name }, away: { id: `t${e.away.id}`, name: e.away.name }, score: null })),
+    }),
+    'flashscore.getTeamFeeds': () => {
+      const st = (c1, c2) => `SE÷Partido¬~SG÷Córneres¬SH÷${c1}¬SI÷${c2}¬~SG÷Tarjetas amarillas¬SH÷2¬SI÷3¬~SG÷Tarjetas rojas¬SH÷0¬SI÷0¬~`;
+      const last = (k) => Array.from({ length: 6 }, (_, i) => ({ fsId: `x${k}${i}`, home: i % 2 === 0, start: Date.now() - (i + 1) * 7 * 864e5, gf: 1, ga: 1, r: 'D' }));
+      const ids = [...last('h'), ...last('a')].map((m) => m.fsId);
+      return { lastHome: last('h'), lastAway: last('a'), h2h: null, st: Object.fromEntries(ids.map((id, i) => [id, st(4 + (i % 4), 3 + (i % 3))])) };
+    },
+    // Noticias (solo para la red neuronal).
+    'flashscore.getNews': () => ({ mode: 'direct', items: [{ source: 'flashscore', title: 'Arsenal pierde a su capitán por lesión', summary: '', published: new Date(Date.now() - 3600000).toISOString() }] }),
+    'espn.getAllNews': () => ({ mode: 'direct', items: [{ source: 'espn', title: 'Liverpool llega en racha y con su plantel completo', summary: '', published: new Date(Date.now() - 7200000).toISOString() }], errors: [] }),
+    'fotmob.getNews': () => ({ mode: 'direct', items: [{ source: 'fotmob', title: 'Universitario recupera a su goleador', summary: '', published: new Date(Date.now() - 5400000).toISOString() }] }),
     'understat.getTeamStrength': ({ league }) => ({
       mode: 'direct',
       items:

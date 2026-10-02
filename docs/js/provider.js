@@ -2,6 +2,7 @@
 // (partidos y resultados de Flashscore, cuotas de Apuesta Total, xG de
 // Understat). Funcionan en cualquier dispositivo, sin la extensión.
 import { expandDay, expandResult } from './data-format.js';
+import { expandNews } from './analysis/news.js';
 import { addDays, limaDateOf } from './util.js';
 
 const BASE = 'data/fuente';
@@ -74,6 +75,20 @@ export async function detailsFor(events) {
 }
 
 // Resultados finales de un día: { id: { state, score, winner } }.
+// Noticias publicadas (Flashscore, ESPN, FotMob) para la red neuronal.
+let news = null;
+export async function loadNews({ force = false } = {}) {
+  if (fresh(news, force)) return news.data;
+  let data = [];
+  try {
+    data = ((await getJson('noticias.json'))?.items || []).map(expandNews);
+  } catch {
+    // sin noticias publicadas
+  }
+  news = { at: Date.now(), data };
+  return data;
+}
+
 export async function loadResults(date, { force = false } = {}) {
   if (fresh(results.get(date), force)) return results.get(date).data;
   let data = {};

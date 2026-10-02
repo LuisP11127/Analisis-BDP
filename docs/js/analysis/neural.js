@@ -129,7 +129,7 @@ export class Corrector {
   // rows: [{ x, pBase, y (0/1), start }]. Devuelve métricas del entrenamiento.
   train(rows, { epochs = 300, lr = 0.01, l2 = 0.003, valFraction = 0.2 } = {}) {
     const data = rows
-      .filter((r) => (r.y === 0 || r.y === 1) && r.x?.length === this.inputs && r.pBase > 0 && r.pBase < 1)
+      .filter((r) => r.y >= 0 && r.y <= 1 && r.x?.length === this.inputs && r.pBase > 0 && r.pBase < 1)
       .sort((a, b) => (a.start || 0) - (b.start || 0))
       .slice(-15000);
     if (data.length < MIN_SAMPLES) {

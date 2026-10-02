@@ -4,9 +4,9 @@ import * as gh from './github.js';
 import * as provider from './provider.js';
 import * as store from './storage.js';
 import * as history from './history.js';
-import { analyze } from './analysis/engine.js';
-import { DEFAULT_SETTINGS } from './analysis/picks.js';
-import { addDays, limaToday } from './util.js';
+import { analyzeMany } from './analysis/engine.js';
+import { DEFAULT_SETTINGS, MARKET_GROUPS } from './analysis/picks.js';
+import { addDays, h, limaToday } from './util.js';
 import { PartidosView } from './views/partidos.js';
 import { analysisText, renderAnalisis } from './views/analisis.js';
 import { renderHistorial } from './views/historial.js';
@@ -43,8 +43,9 @@ const app = {
     search: '',
     onlyPending: true,
     expanded: new Set(),
-    analysis: null,
-    analysisSaved: false,
+    analyses: { estadistico: null, red_neuronal: null }, // último análisis de cada método
+    analysisView: 'estadistico', // método que se ve en la pestaña Análisis
+    histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' o un método
     index: null,
     network: null,
     openDays: new Set(),
@@ -99,11 +100,19 @@ function chip(cls, text, title) {
   return el;
 }
 
+// Versión de la extensión con todos los mercados de Betano y Flashscore.
+const EXT_LATEST = '0.4.1';
+function extOutdated(v) {
+  if (!v || /prueba/.test(v)) return false;
+  const [a, b] = String(v).split('.').map(Number);
+  const [x, y] = EXT_LATEST.split('.').map(Number);
+  return a < x || (a === x && b < y);
+}
+
 function renderHeader() {
   const n = app.state.selected.size;
   $('#sel-count').textContent = `${n} ${n === 1 ? 'partido marcado' : 'partidos marcados'}`;
-  $('#run-stats').disabled = !app.canAnalyze();
-  $('#run-nn').disabled = !app.canAnalyze();
+  for (const id of ['#run-stats', '#run-nn', '#run-both']) $(id).disabled = !app.canAnalyze();
   $('#date').value = app.state.date;
   const { mode } = app.storage;
   $('#ext-status').replaceChildren(
@@ -115,7 +124,11 @@ function renderHeader() {
             mode === 'local' ? 'Navegador' : 'Solo lectura',
             'El historial se guarda solo en este navegador. Pega tu token de GitHub en ⚙ Ajustes para verlo en cualquier dispositivo.',
           ),
-      app.extOk ? chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`) : null,
+      app.extOk
+        ? extOutdated(app.extVersion)
+          ? chip('warn', 'Extensión: actualizar', `Conector v${app.extVersion}: actualízalo (versión ${EXT_LATEST}) para leer todos los mercados de Betano y las estadísticas de Flashscore. Ver extension/README.md`)
+          : chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`)
+        : null,
     ].filter(Boolean),
   );
 }
@@ -221,41 +234,49 @@ app.setDate = setDate;
 
 app.canSave = () => store.canWrite();
 
-app.saveCurrentAnalysis = async () => {
-  const a = app.state.analysis;
-  if (!a || !store.canWrite()) return;
+// Guarda en el historial los análisis que aún no se guardaron.
+app.saveAnalyses = async (list = Object.values(app.state.analyses)) => {
+  const pending = list.filter((a) => a && !a.saved && a.candidates.length);
+  if (!pending.length || !store.canWrite()) return;
   try {
-    await history.saveAnalysis(a);
-    app.state.analysisSaved = true;
+    await history.saveAnalysis(pending);
+    for (const a of pending) a.saved = true;
     app.state.index = await history.loadIndex();
-    app.state.dayCache.delete(a.date);
-    toast(store.isGithub() ? 'Análisis guardado en GitHub' : 'Análisis guardado en este navegador');
+    const { date } = pending[0];
+    app.state.dayCache.delete(date);
+    if (app.state.openDays.has(date)) loadDay(date); // el día abierto en Historial se vuelve a leer
+    const what = pending.length > 1 ? 'Análisis estadístico y de red neuronal guardados' : 'Análisis guardado';
+    toast(`${what} ${store.isGithub() ? 'en GitHub' : 'en este navegador'}`);
   } catch (e) {
     toast(`No se pudo guardar: ${e.message}`, 6000);
   }
   render();
 };
 
-async function runAnalysis(method) {
+const RUN_TITLE = { estadistico: 'Análisis estadístico', red_neuronal: 'Análisis con red neuronal', ambos: 'Análisis estadístico y con red neuronal' };
+
+// methods: ['estadistico'], ['red_neuronal'] o ambos. Los datos se piden una
+// sola vez y cada método se guarda por separado en el historial.
+async function runAnalysis(methods) {
   const events = [...app.state.selected.values()];
   if (!events.length) return;
-  const title = method === 'red_neuronal' ? 'Análisis con red neuronal' : 'Análisis estadístico';
+  const title = RUN_TITLE[methods.length > 1 ? 'ambos' : methods[0]];
   busy(title, 'Preparando…', 0);
   try {
-    if (method === 'red_neuronal' && !app.state.network) app.state.network = await history.loadNetwork();
-    const result = await analyze(events, {
-      method,
+    if (methods.includes('red_neuronal') && !app.state.network) app.state.network = await history.loadNetwork();
+    const results = await analyzeMany(events, {
+      methods,
       settings: app.state.settings,
-      network: method === 'red_neuronal' ? app.state.network : null,
+      network: app.state.network,
       onProgress: (text, fraction) => busy(title, text, fraction),
     });
-    app.state.analysis = result;
-    app.state.analysisSaved = false;
+    Object.assign(app.state.analyses, results);
+    app.state.analysisView = methods[0];
     idle();
     showTab('analisis');
-    if (store.canWrite() && result.candidates.length) {
+    if (store.canWrite()) {
       busy('Guardando en el historial…', '', 1);
-      await app.saveCurrentAnalysis();
+      await app.saveAnalyses(Object.values(results));
     }
   } catch (e) {
     toast(`El análisis falló: ${e.message}`, 7000);
@@ -264,9 +285,19 @@ async function runAnalysis(method) {
   }
 }
 
+app.setHistMethod = (method) => {
+  app.state.histMethod = method;
+  render();
+};
+
+app.setAnalysisView = (method) => {
+  app.state.analysisView = method;
+  render();
+};
+
 app.copyAnalysis = async () => {
   try {
-    await navigator.clipboard.writeText(analysisText(app.state.analysis));
+    await navigator.clipboard.writeText(analysisText(app.state.analyses[app.state.analysisView]));
     toast('Picks copiados');
   } catch {
     toast('No se pudo copiar');
@@ -277,7 +308,7 @@ app.copyAnalysis = async () => {
 
 app.reloadHistory = async () => {
   try {
-    app.state.index = await history.loadIndex();
+    app.state.index = await history.loadIndex({ upgrade: true });
     app.state.network = await history.loadNetwork();
     app.state.dayCache.clear();
     if (store.isGithub()) {
@@ -367,6 +398,11 @@ function openSettings() {
   f.comboTargets.value = s.comboTargets.join(', ');
   f.comboMinProb.value = Math.round(s.comboMinProb * 100);
   f.comboMaxLegs.value = s.comboMaxLegs;
+  const groups = s.marketGroups || DEFAULT_SETTINGS.marketGroups;
+  $('#market-groups').replaceChildren(
+    ...MARKET_GROUPS.map((g) => h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'marketGroup', value: g.id, checked: groups.includes(g.id) }), ` ${g.name}`)),
+  );
+  f.betanoAllMarkets.checked = s.betanoAllMarkets !== false;
   f.ghToken.value = '';
   renderGithubStatus();
   $('#settings').showModal();
@@ -431,7 +467,13 @@ function closeSettings(action) {
       comboTargets: targets.length ? targets : DEFAULT_SETTINGS.comboTargets,
       comboMinProb: Number(f.comboMinProb.value) / 100,
       comboMaxLegs: Math.round(Number(f.comboMaxLegs.value)),
+      marketGroups: [...f.querySelectorAll('input[name=marketGroup]:checked')].map((x) => x.value),
+      betanoAllMarkets: f.betanoAllMarkets.checked,
     };
+    if (!next.marketGroups.length) {
+      toast('Elige al menos un tipo de mercado para los picks', 6000);
+      return;
+    }
     if (!(next.alta > next.moderadaAlta && next.moderadaAlta > next.moderada)) {
       toast('Los niveles deben ir de mayor a menor: alta > moderada-alta > moderada', 6000);
       return;
@@ -451,8 +493,9 @@ async function init() {
   $('#prev-day').addEventListener('click', () => setDate(addDays(app.state.date, -1)));
   $('#next-day').addEventListener('click', () => setDate(addDays(app.state.date, 1)));
   $('#today').addEventListener('click', () => setDate(limaToday()));
-  $('#run-stats').addEventListener('click', () => runAnalysis('estadistico'));
-  $('#run-nn').addEventListener('click', () => runAnalysis('red_neuronal'));
+  $('#run-stats').addEventListener('click', () => runAnalysis(['estadistico']));
+  $('#run-nn').addEventListener('click', () => runAnalysis(['red_neuronal']));
+  $('#run-both').addEventListener('click', () => runAnalysis(['estadistico', 'red_neuronal']));
   $('#open-settings').addEventListener('click', openSettings);
   $('#settings').addEventListener('close', () => closeSettings($('#settings').returnValue));
 

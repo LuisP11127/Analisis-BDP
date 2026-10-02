@@ -1,24 +1,40 @@
-// Pestaña "Análisis": picks por nivel de confianza y combinadas.
+// Pestaña "Análisis": el último análisis estadístico y el último con red
+// neuronal, comparados y cada uno con sus picks por nivel y combinadas.
 import { MIN_SAMPLES } from '../analysis/neural.js';
 import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtTime, h, pct } from '../util.js';
 
-const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat' };
+const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat', simulacion: 'Simulación', noticias: 'Noticias' };
+const UNITS = { simulacion: 'selecciones', noticias: 'noticias' };
+const TITLES = {
+  simulacion: 'Mercados sin modelo propio (mitades, córners, marcador exacto...) estimados simulando el partido',
+  noticias: 'Noticias de Flashscore, ESPN y FotMob: solo las usa la red neuronal',
+};
 const MODE = { 'direct-api': 'directo', direct: 'directo', tab: 'pestaña', navigate: 'navegando' };
 const PRICE_SHORT = { apuestatotal: 'AT', betano: 'Betano', sofascore: 'Sofascore' };
 
 export const methodTitle = (m) => (m === 'red_neuronal' ? 'Análisis con red neuronal' : 'Análisis estadístico');
+const METHODS = [
+  ['estadistico', 'Estadístico'],
+  ['red_neuronal', 'Red neuronal'],
+];
 
 function sourceChip(id, s) {
   if (!s) return null;
   if (!s.ok) return h('span', { class: 'chip err', title: s.error || '' }, `${SOURCE_NAMES[id]}: error`);
-  const extra = s.matched != null ? ` · ${s.matched} partidos` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
-  const title = s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '';
+  const extra = s.matched != null ? ` · ${s.matched} ${UNITS[id] || 'partidos'}` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
+  let title = TITLES[id] || (s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '');
+  // Casas: cuántos mercados se leyeron y cuántos no se analizan (de jugador, de torneo...).
+  const m = s.markets;
+  if (m) {
+    const parts = [[m.ok, 'analizados'], [m.player, 'de jugador'], [m.outright, 'de torneo'], [m.special, 'especiales sin datos'], [m.unknown, 'sin reconocer']].filter(([n]) => n);
+    title = `Mercados: ${parts.map(([n, t]) => `${n} ${t}`).join(' · ')}${s.pages ? ` · páginas de partido abiertas: ${s.pages}` : ''}`;
+  }
   return h('span', { class: 'chip ok', title }, `${SOURCE_NAMES[id]}${extra}${s.published ? ' (publicadas)' : ''}`);
 }
 
-function pickCard(p, ev) {
+function pickCard(p, ev, method) {
   const sport = sportOf(p.sport);
   const others = Object.entries(p.prices || {})
     .filter(([src]) => src !== p.best.source)
@@ -38,6 +54,9 @@ function pickCard(p, ev) {
       p.ev > 0.01 ? h('span', { class: 'value' }, `+${Math.round(p.ev * 100)}% de valor`) : null,
     ),
     h('div', { class: 'meter' }, h('span', { style: `width:${Math.round(p.p * 100)}%` })),
+    method === 'red_neuronal' && Math.abs(p.p - p.pBase) >= 0.005
+      ? h('div', { class: 'meta' }, `Estadístico ${pct(p.pBase)} → red neuronal ${pct(p.p)}`)
+      : null,
     others.length ? h('div', { class: 'meta' }, `Otras cuotas: ${others.join(' · ')}`) : null,
     p.factors?.length ? h('ul', {}, p.factors.map((f) => h('li', {}, f))) : null,
   );
@@ -95,23 +114,104 @@ export function analysisText(a) {
   return lines.join('\n');
 }
 
+// Cuántos picks de cada nivel y combinadas dio cada método, y cuántos coinciden.
+function comparison(app) {
+  const { estadistico: est, red_neuronal: rn } = app.state.analyses;
+  if (!est || !rn) return null;
+  const count = (a, level) => a.picks.filter((p) => p.level === level).length;
+  const keys = (a) => new Set(a.picks.map((p) => `${p.eventId}|${p.key}`));
+  const ke = keys(est);
+  const kr = keys(rn);
+  const both = [...ke].filter((k) => kr.has(k)).length;
+  const row = (name, a, b) => h('tr', {}, h('td', {}, name), h('td', { class: 'num' }, a), h('td', { class: 'num' }, b));
+  const sameRun = est.run && est.run === rn.run;
+  const net = rn.network;
+  return h(
+    'div',
+    { class: 'panel compare' },
+    h('h3', {}, 'Comparación'),
+    h(
+      'div',
+      { class: 'table-wrap' },
+      h(
+        'table',
+        {},
+        h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', { class: 'num' }, 'Estadístico'), h('th', { class: 'num' }, 'Red neuronal'))),
+        h(
+          'tbody',
+          {},
+          LEVELS.map((l) => row(l.name, count(est, l.id), count(rn, l.id))),
+          row('Combinadas', est.combos.length, rn.combos.length),
+          row('Partidos', Object.keys(est.events).length, Object.keys(rn.events).length),
+        ),
+      ),
+    ),
+    h(
+      'p',
+      { class: 'note' },
+      sameRun
+        ? `Mismos partidos (${fmtDateTime(Date.parse(est.created))}). Coinciden ${both} picks; ${ke.size - both} solo en el estadístico y ${kr.size - both} solo en la red neuronal.`
+        : `Hechos por separado: estadístico ${fmtDateTime(Date.parse(est.created))}, red neuronal ${fmtDateTime(Date.parse(rn.created))}.`,
+      net && !net.trained ? ` La red neuronal todavía no corrige (${net.samples || 0} de ${MIN_SAMPLES} resultados): por ahora sus probabilidades son las del estadístico.` : '',
+    ),
+  );
+}
+
+function methodSwitch(app) {
+  const { analyses, analysisView } = app.state;
+  return h(
+    'div',
+    { class: 'segmented wide', role: 'group', 'aria-label': 'Análisis a mostrar' },
+    METHODS.map(([id, name]) =>
+      h(
+        'button',
+        { class: id === analysisView ? 'active' : '', title: analyses[id] ? `${analyses[id].picks.length} picks` : 'Sin hacer', onclick: () => app.setAnalysisView(id) },
+        name,
+        h('span', { class: 'n' }, analyses[id] ? ` ${analyses[id].picks.length}` : ' –'),
+      ),
+    ),
+  );
+}
+
 export function renderAnalisis(root, app) {
-  const a = app.state.analysis;
+  const { analyses, analysisView } = app.state;
   root.replaceChildren();
-  if (!a) {
+  if (!analyses.estadistico && !analyses.red_neuronal) {
     root.append(
       h(
         'div',
         { class: 'empty' },
         'Marca partidos o ligas en la pestaña Partidos y pulsa ',
         h('b', {}, 'Análisis estadístico'),
-        ' o ',
+        ', ',
         h('b', {}, 'Análisis red neuronal'),
+        ' o ',
+        h('b', {}, 'Ambos análisis'),
+        '. Cada uno se guarda por separado en el historial.',
+      ),
+    );
+    return;
+  }
+  root.append(...[comparison(app), methodSwitch(app)].filter(Boolean));
+  const a = analyses[analysisView];
+  if (!a) {
+    root.append(
+      h(
+        'div',
+        { class: 'empty' },
+        `Todavía no hiciste el ${methodTitle(analysisView).toLowerCase()} con estos partidos. Pulsa `,
+        h('b', {}, analysisView === 'red_neuronal' ? 'Análisis red neuronal' : 'Análisis estadístico'),
+        ' o ',
+        h('b', {}, 'Ambos análisis'),
         '.',
       ),
     );
     return;
   }
+  renderMethod(root, app, a);
+}
+
+function renderMethod(root, app, a) {
   const analyzed = Object.keys(a.events).length;
   const net = a.network;
   const summary = h(
@@ -124,7 +224,7 @@ export function renderAnalisis(root, app) {
       `${analyzed} partidos analizados · ${a.picks.length} picks · ${a.combos.length} combinadas · ${fmtDateTime(Date.parse(a.created))}`,
       a.skipped ? ` · ${a.skipped} omitidos (ya empezaron)` : '',
     ),
-    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat'].map((id) => sourceChip(id, a.sources[id]))),
+    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat', 'simulacion', ...(a.method === 'red_neuronal' ? ['noticias'] : [])].map((id) => sourceChip(id, a.sources[id]))),
     a.method === 'red_neuronal'
       ? h(
           'div',
@@ -140,10 +240,10 @@ export function renderAnalisis(root, app) {
       'div',
       { class: 'row' },
       h('button', { class: 'btn small', onclick: () => app.copyAnalysis() }, 'Copiar picks'),
-      app.state.analysisSaved
+      a.saved
         ? h('span', { class: 'chip ok' }, 'Guardado en el historial')
-        : app.canSave()
-          ? h('button', { class: 'btn small', onclick: () => app.saveCurrentAnalysis() }, 'Guardar en historial')
+        : app.canSave() && a.candidates.length
+          ? h('button', { class: 'btn small', onclick: () => app.saveAnalyses([a]) }, 'Guardar en historial')
           : h('span', { class: 'chip warn' }, 'Sin guardar'),
     ),
   );
@@ -173,7 +273,7 @@ export function renderAnalisis(root, app) {
       ),
     );
     root.append(
-      picks.length ? h('div', { class: 'cards' }, picks.map((p) => pickCard(p, a.events[p.eventId]))) : h('div', { class: 'note' }, 'Sin picks en este nivel.'),
+      picks.length ? h('div', { class: 'cards' }, picks.map((p) => pickCard(p, a.events[p.eventId], a.method))) : h('div', { class: 'note' }, 'Sin picks en este nivel.'),
     );
   }
   root.append(

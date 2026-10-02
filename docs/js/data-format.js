@@ -1,7 +1,10 @@
 // Formato compacto de los datos publicados en data/fuente (los escribe
 // scripts/collect-data.mjs y los lee la página). Compacto para que carguen
 // rápido en el celular; aquí se convierten al formato normal de la página.
-export const FORMAT_VERSION = 1;
+import { compactRecord, expandRecord } from './analysis/records.js';
+import { compactTeamStats, expandTeamStats } from './analysis/teamstats.js';
+
+export const FORMAT_VERSION = 2; // 2: grupos de cuotas, estadísticas de equipo y registros
 const LAST_MATCHES = 10;
 
 const fsUrl = (id) => `https://www.flashscore.pe/partido/${String(id).replace(/^fs:/, '')}/`;
@@ -44,7 +47,9 @@ const compactMatches = (list = []) => list.slice(0, LAST_MATCHES).map((m) => [Ma
 const expandMatches = (list = []) => list.map(([st, home, gf, ga, r]) => ({ start: st * 1000, home: Boolean(home), gf, ga, r }));
 
 export function compactDetails(d) {
-  return { h: compactMatches(d.lastHome), a: compactMatches(d.lastAway), d: d.h2h ? [d.h2h.homeWins, d.h2h.draws, d.h2h.awayWins] : null };
+  const out = { h: compactMatches(d.lastHome), a: compactMatches(d.lastAway), d: d.h2h ? [d.h2h.homeWins, d.h2h.draws, d.h2h.awayWins] : null };
+  if (d.teamStats) out.ts = { h: compactTeamStats(d.teamStats.home), a: compactTeamStats(d.teamStats.away) };
+  return out;
 }
 
 export function expandDetails(c) {
@@ -56,11 +61,27 @@ export function expandDetails(c) {
     h2h: c.d ? { homeWins: c.d[0], draws: c.d[1], awayWins: c.d[2] } : null,
     lastHome: expandMatches(c.h),
     lastAway: expandMatches(c.a),
+    teamStats: c.ts ? { home: expandTeamStats(c.ts.h) || {}, away: expandTeamStats(c.ts.a) || {} } : null,
   };
 }
 
-export const compactOffers = (list) => list.map((o) => [o.market, o.sel, o.line, o.price]);
-export const expandOffers = (list = []) => list.map(([market, sel, line, price]) => ({ source: 'apuestatotal', market, sel, line, price }));
+// Cuotas: { g: [grupos], o: [[mercado, selección, línea, cuota, grupo]] }. El
+// grupo (mercado de la casa con su línea) sirve para quitar el margen.
+export function compactOffers(list) {
+  const groups = [];
+  const index = new Map();
+  const gi = (g) => {
+    if (g == null) return null;
+    if (!index.has(g)) index.set(g, groups.push(g.replace(/^apuestatotal\|/, '')) - 1);
+    return index.get(g);
+  };
+  return { g: groups, o: list.map((o) => [o.market, o.sel, o.line, o.price, gi(o.group)]) };
+}
+export function expandOffers(c = []) {
+  // Versión 1: lista sin grupos.
+  if (Array.isArray(c)) return c.map(([market, sel, line, price]) => ({ source: 'apuestatotal', market, sel, line, price }));
+  return (c.o || []).map(([market, sel, line, price, g]) => ({ source: 'apuestatotal', market, sel, line, price, ...(g != null ? { group: `apuestatotal|${c.g[g]}` } : {}) }));
+}
 
 const r3 = (x) => Math.round(x * 1000) / 1000;
 export const compactXg = (x) => ({ h: [r3(x.home.xgFor), r3(x.home.xgAgainst)], a: [r3(x.away.xgFor), r3(x.away.xgAgainst)] });
@@ -85,6 +106,18 @@ export function expandDay(c) {
   };
 }
 
-// Resultados: { id: [estado, local, visita] }.
-export const compactResult = (r) => [r.state, r.score?.home ?? null, r.score?.away ?? null];
-export const expandResult = ([state, home, away]) => ({ state, score: home != null && away != null ? { home, away, homeNT: null, awayNT: null } : null, winner: null });
+// Resultados: { id: [estado, local, visita, periodos?, registro?] }. Los
+// periodos salen del feed del día; el registro completo (incidencias y
+// estadísticas) solo para los partidos analizados.
+export function compactResult(r, { per = null, record = null } = {}) {
+  const out = [r.state, r.score?.home ?? null, r.score?.away ?? null];
+  if (per || record) out.push(per || null);
+  if (record) out.push(compactRecord(record));
+  return out;
+}
+export function expandResult([state, home, away, per, record], sport = null) {
+  const out = { state, score: home != null && away != null ? { home, away, homeNT: null, awayNT: null } : null, winner: null };
+  if (per) out.per = per;
+  if (record) out.record = expandRecord(record, sport, state);
+  return out;
+}

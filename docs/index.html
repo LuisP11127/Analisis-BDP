@@ -19,8 +19,9 @@
     </div>
     <div class="actions">
       <span class="sel-count" id="sel-count">0 partidos marcados</span>
-      <button class="btn primary" id="run-stats" disabled>Análisis estadístico</button>
-      <button class="btn nn" id="run-nn" disabled>Análisis red neuronal</button>
+      <button class="btn primary" id="run-stats" disabled title="Análisis estadístico"><span class="long">Análisis estadístico</span><span class="short">Estadístico</span></button>
+      <button class="btn nn" id="run-nn" disabled title="Análisis con red neuronal"><span class="long">Análisis red neuronal</span><span class="short">Red neuronal</span></button>
+      <button class="btn both" id="run-both" disabled title="Hace los dos análisis a la vez y guarda cada uno por separado"><span class="long">Ambos análisis</span><span class="short">Ambos</span></button>
       <button class="icon-btn" id="open-settings" aria-label="Ajustes" title="Ajustes">⚙</button>
     </div>
   </header>
@@ -48,6 +49,12 @@
       <label>Cuotas objetivo de las combinadas (separadas por coma)<input name="comboTargets" type="text"></label>
       <label>Combinadas: probabilidad mínima de cada selección (%)<input name="comboMinProb" type="number" min="50" max="99" step="1"></label>
       <label>Combinadas: máximo de selecciones<input name="comboMaxLegs" type="number" min="2" max="12" step="1"></label>
+      <fieldset class="groups">
+        <legend>Mercados para picks y combinadas</legend>
+        <div id="market-groups"></div>
+        <p class="note">Todos se analizan y se guardan; aquí eliges cuáles pueden salir como pick o en una combinada.</p>
+        <label class="check"><input type="checkbox" name="betanoAllMarkets"> Betano: abrir la página de cada partido para leer todos sus mercados (con la extensión; tarda unos segundos por partido)</label>
+      </fieldset>
       <fieldset class="gh">
         <legend>Guardar el historial en GitHub (celular y PC)</legend>
         <p class="note" id="gh-status"></p>
