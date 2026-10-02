@@ -127,7 +127,7 @@ export async function runInSiteTab(pageUrl, func, args = [], { ownOnly = false, 
     fresh = true;
   }
   try {
-    if (navigate && !fresh && tab.url !== pageUrl) await goTo(tab.id, pageUrl);
+    if (navigate && !fresh) await goTo(tab.id, pageUrl);
     else await waitForTabComplete(tab.id);
     const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func, args });
     return res?.result;
@@ -259,42 +259,8 @@ function toResult(raw, as) {
 const isBlocked = (raw) => [0, 401, 403, 429].includes(raw.status);
 const mostlyBlocked = (raws) => raws.filter(isBlocked).length > raws.length / 2;
 
-// Último recurso: abre cada dirección en la pestaña, como si la escribieras en
-// la barra del navegador, y lee el JSON que muestra. Lento, pero es lo más
-// parecido a navegar tú.
-async function navigateMany(requests, pageUrl) {
-  const origin = new URL(pageUrl).origin;
-  const own = await ownTabs();
-  let tab = (await chrome.tabs.query({ url: `${origin}/*` })).filter(awake).find((t) => own[t.id]);
-  if (!tab) tab = await chrome.tabs.create({ url: 'about:blank', active: false });
-  const out = [];
-  try {
-    for (const r of requests) {
-      try {
-        await goTo(tab.id, r.url);
-        const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.body?.innerText || '' });
-        const text = res?.result || '';
-        let status = 200;
-        try {
-          const json = JSON.parse(text);
-          if (json?.error?.code) status = Number(json.error.code) || 500;
-        } catch {
-          status = 0;
-        }
-        out.push({ status, ok: status === 200, text, error: status === 0 ? 'La página no devolvió JSON' : undefined });
-      } catch (e) {
-        out.push({ status: 0, ok: false, text: '', error: e.message });
-      }
-      await markTabUsed(tab.id).catch(() => {});
-    }
-  } finally {
-    await markTabUsed(tab.id).catch(() => {});
-  }
-  return out;
-}
-
 const describe = (raw) => raw.error || `HTTP ${raw.status}`;
-const MODE_NAME = { direct: 'directo', tab: 'pestaña', navigate: 'navegación' };
+const MODE_NAME = { direct: 'directo', tab: 'pestaña' };
 
 // Peticiones marcadas como `required` deben existir (p. ej. la lista de
 // partidos del día): si todas fallan, incluso con 404, se prueba el siguiente
@@ -307,8 +273,7 @@ function requiredFailed(requests, raws) {
 
 // Hace muchas peticiones al mismo sitio. Devuelve un resultado por petición
 // ({ ok, status, data | error }); solo lanza error si el sitio no responde en
-// ningún modo. Modos, en orden: "direct", "tab" (todas en una pestaña del
-// sitio) y "navigate" (abriendo cada dirección).
+// ningún modo. Modos, en orden: "direct" y "tab" (todas en una pestaña del sitio).
 export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], concurrency = 6 } = {}) {
   if (!requests.length) return { mode: null, results: [], notes: [] };
   const origin = new URL(requests[0].url).origin;
@@ -328,11 +293,9 @@ export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], 
           continue;
         }
         raw = [first, ...(await pool(requests.slice(1), rawDirect, concurrency))];
-      } else if (mode === 'tab') {
+      } else {
         raw = await runInSiteTab(pageUrl, pageFetchMany, [requests.map(({ url, headers }) => ({ url, headers: headers || {} })), concurrency]);
         if (!Array.isArray(raw)) throw new FetchError('No se pudo ejecutar en la pestaña');
-      } else {
-        raw = await navigateMany(requests, pageUrl);
       }
     } catch (e) {
       notes.push(`${MODE_NAME[mode]}: ${e.message}`);
@@ -349,4 +312,54 @@ export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], 
     return { mode, results: raw.map((r, j) => toResult(r, requests[j].as)), notes };
   }
   throw new FetchError(notes.join(' | ') || 'Sin respuesta', { status: lastStatus, mode: order.at(-1) });
+}
+
+// ---- Leer una página como la ve el usuario ----
+
+// Corre dentro de la página: espera a que la web termine de pedir sus datos,
+// baja por la página `scrolls` veces (carga más contenido) y devuelve las
+// respuestas JSON que anotó page-hook.js. No puede usar nada de fuera.
+async function collectResponses(waitMs, scrolls) {
+  const hook = window.__bdpHook;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const end = Date.now() + waitMs;
+  let last = -1;
+  let stable = 0;
+  while (Date.now() < end) {
+    const n = hook?.responses?.length || 0;
+    stable = n > 0 && n === last ? stable + 1 : 0;
+    if (stable >= 4) break; // 2 s sin respuestas nuevas
+    last = n;
+    await sleep(500);
+  }
+  for (let i = 0; i < scrolls; i++) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(900);
+  }
+  if (scrolls) {
+    window.scrollTo(0, 0);
+    await sleep(1500);
+  }
+  return {
+    url: location.href,
+    title: document.title,
+    hooked: Boolean(hook),
+    responses: (hook?.responses || []).map((r) => ({ url: r.url, text: r.text })),
+  };
+}
+
+// Abre `url` en la pestaña de la extensión y devuelve lo que la web descargó:
+// { url, title, hooked, responses: [{ url, data }] }.
+export async function scanPage(url, { waitMs = 15000, scrolls = 0 } = {}) {
+  const r = await runInSiteTab(url, collectResponses, [waitMs, scrolls], { ownOnly: true, navigate: true });
+  if (!r) throw new FetchError('No se pudo leer la página', { mode: 'scan', url });
+  const responses = [];
+  for (const x of r.responses) {
+    try {
+      responses.push({ url: x.url, data: JSON.parse(x.text) });
+    } catch {
+      // respuesta que no es JSON
+    }
+  }
+  return { url: r.url, title: r.title, hooked: r.hooked, responses };
 }

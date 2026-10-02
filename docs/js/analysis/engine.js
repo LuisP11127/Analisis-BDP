@@ -73,9 +73,18 @@ async function sofascoreDetails(events, sources, progress) {
   let failed = 0;
   for (let i = 0; i < events.length; i += DETAILS_PER_CALL) {
     progress(`Sofascore: estadísticas ${Math.min(i + DETAILS_PER_CALL, events.length)} de ${events.length}`, (0.6 * i) / events.length);
-    const chunk = events.slice(i, i + DETAILS_PER_CALL).map((e) => ({ id: e.id, sport: e.sport, homeId: e.home.id, awayId: e.away.id, start: e.start }));
+    const chunk = events.slice(i, i + DETAILS_PER_CALL).map((e) => ({
+      id: e.id,
+      sport: e.sport,
+      homeId: e.home.id,
+      awayId: e.away.id,
+      homeSlug: e.home.slug || null,
+      awaySlug: e.away.slug || null,
+      start: e.start,
+      url: e.url || null,
+    }));
     try {
-      const r = await ext.call('sofascore', 'getEventDetails', { events: chunk }, { timeout: 240000 });
+      const r = await ext.call('sofascore', 'getEventDetails', { events: chunk }, { timeout: 400000 });
       Object.assign(details, r.items);
       failed += r.failed || 0;
       sources.sofascore = { ok: true, mode: r.mode, failed };

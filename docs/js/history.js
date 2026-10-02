@@ -32,6 +32,7 @@ function storedLeg(c, events) {
     sport: c.sport,
     start: c.start,
     match: events[c.eventId] ? `${events[c.eventId].home} vs ${events[c.eventId].away}` : '',
+    url: events[c.eventId]?.url || null,
     market: c.market,
     sel: c.sel,
     line: c.line,
@@ -80,6 +81,7 @@ export function trainingRows(result) {
     key: `${c.eventId}|${c.key}`,
     date: result.date,
     eventId: c.eventId,
+    url: result.events[c.eventId]?.url || null,
     sport: c.sport,
     start: c.start,
     market: c.market,
@@ -225,13 +227,18 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   onProgress('Buscando apuestas pendientes', 0.05);
   const dayFiles = [];
   const ids = new Set();
+  const urls = {}; // para leer la página del partido si el API de Sofascore no responde
+  const note = (x) => x.url && (urls[x.eventId] = x.url);
   for (const date of Object.keys(index.days).filter((d) => d <= today && index.days[d].pendingAll > 0)) {
     const day = await store.read(dayPath(date));
     if (!day) continue;
     dayFiles.push(day);
     for (const a of day.analyses) {
-      for (const p of a.picks) if (due(p)) ids.add(p.eventId);
-      for (const k of a.combos || []) for (const l of k.legs) if (due(l)) ids.add(l.eventId);
+      for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) {
+        if (!due(leg)) continue;
+        ids.add(leg.eventId);
+        note(leg);
+      }
     }
   }
   const rowFiles = [];
@@ -239,14 +246,19 @@ export async function updateResults({ onProgress = () => {} } = {}) {
     const file = await store.read(rowsPath(month));
     if (!file) continue;
     rowFiles.push({ month, file });
-    for (const r of file.rows) if (r.y == null && r.start < now - GRACE_MS) ids.add(r.eventId);
+    for (const r of file.rows) {
+      if (r.y != null || r.start >= now - GRACE_MS) continue;
+      ids.add(r.eventId);
+      note(r);
+    }
   }
 
   const results = {};
   const list = [...ids];
-  for (let i = 0; i < list.length; i += 25) {
-    onProgress(`Sofascore: resultados ${Math.min(i + 25, list.length)} de ${list.length}`, 0.1 + (0.6 * i) / Math.max(1, list.length));
-    const r = await ext.call('sofascore', 'getEventResults', { ids: list.slice(i, i + 25) }, { timeout: 180000 });
+  for (let i = 0; i < list.length; i += 10) {
+    onProgress(`Sofascore: resultados ${Math.min(i + 10, list.length)} de ${list.length}`, 0.1 + (0.6 * i) / Math.max(1, list.length));
+    const chunk = list.slice(i, i + 10);
+    const r = await ext.call('sofascore', 'getEventResults', { ids: chunk, urls: Object.fromEntries(chunk.map((id) => [id, urls[id]])) }, { timeout: 300000 });
     Object.assign(results, r.items);
   }
 

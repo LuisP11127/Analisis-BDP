@@ -137,7 +137,7 @@ app.loadSport = async (sport, { force = false } = {}) => {
   state.events.set(key, { status: 'loading' });
   render();
   try {
-    const { items } = await ext.call('sofascore', 'getSportEvents', { sport, date: state.date }, { timeout: 90000 });
+    const { items } = await ext.call('sofascore', 'getSportEvents', { sport, date: state.date }, { timeout: 150000 });
     state.events.set(key, { status: 'ok', items });
     // Actualiza los datos de los partidos ya marcados (estado, marcador).
     for (const e of items) if (state.selected.has(e.id)) state.selected.set(e.id, e);

@@ -1,11 +1,17 @@
 // Sofascore: partidos de todos los deportes, estadísticas previas de cada
 // partido (forma, últimos resultados, H2H, bajas, votos, cuotas de referencia)
 // y resultados finales para liquidar apuestas.
-import { fetchMany, FetchError } from '../lib/net.js';
-import { fractionalToDecimal, limaDate } from '../lib/model.js';
+//
+// Primero se intenta el API (rápido). Si no responde, la extensión abre la web
+// de Sofascore en una pestaña y lee los datos que la propia web descarga
+// (page-hook.js): página del deporte para los partidos del día, página del
+// partido para sus estadísticas y, si hace falta, páginas de los equipos.
+import { fetchMany, FetchError, scanPage } from '../lib/net.js';
+import { findAll, fractionalToDecimal, limaDate } from '../lib/model.js';
 
-const PAGE = 'https://www.sofascore.com/';
-const API = 'https://www.sofascore.com/api/v1';
+const SITE = 'https://www.sofascore.com';
+const PAGE = `${SITE}/`;
+const API = `${SITE}/api/v1`;
 const API_DIRECT = 'https://api.sofascore.com/api/v1';
 
 const limaDay = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date(ms));
@@ -16,36 +22,43 @@ function addDays(ymd, n) {
   return d.toISOString().slice(0, 10);
 }
 
-// Orden de intentos: api.sofascore.com directo, www.sofascore.com directo,
-// dentro de una pestaña de Sofascore y, como último recurso, abriendo cada
-// dirección en la pestaña. `required(path)` marca las peticiones que deben
-// existir: si fallan (aunque sea con 404) se pasa al siguiente intento.
-let apiHostWorks = null;
+// ---- API ----
 
-async function getMany(paths, required = () => false) {
-  const reqs = (base) => paths.map((p) => ({ url: base + p, required: required(p) }));
+// Si el API respondió o no en los últimos 10 minutos (el service worker se
+// reinicia seguido, por eso se guarda en chrome.storage.session).
+async function apiWorks() {
+  const { sofaApi } = await chrome.storage.session.get('sofaApi');
+  return sofaApi && Date.now() - sofaApi.at < 10 * 60000 ? sofaApi.works : null;
+}
+const setApiWorks = (works) => chrome.storage.session.set({ sofaApi: { works, at: Date.now() } });
+
+// api.sofascore.com directo y luego www.sofascore.com (directo y en pestaña).
+// `required(path)`: peticiones que deben existir; si todas fallan, el API no sirve.
+async function apiMany(paths, required = () => false) {
   const notes = [];
-  if (apiHostWorks !== false) {
+  const reqs = (base) => paths.map((p) => ({ url: base + p, required: required(p) }));
+  const failed = (results) => {
+    const idx = paths.map((p, j) => (required(p) ? j : -1)).filter((j) => j >= 0);
+    return idx.length ? idx.every((j) => !results[j].ok) : results.filter((r) => !r.ok).length > results.length / 2;
+  };
+  for (const [base, modes, label] of [
+    [API_DIRECT, ['direct'], 'api.sofascore.com'],
+    [API, ['direct', 'tab'], 'www.sofascore.com'],
+  ]) {
     try {
-      const r = await fetchMany(reqs(API_DIRECT), { modes: ['direct'] });
-      const req = r.results.filter((_, j) => required(paths[j]));
-      const failed = req.length ? req.every((x) => !x.ok) : r.results.filter((x) => !x.ok).length > r.results.length / 2;
-      if (!failed) {
-        apiHostWorks = true;
-        return { ...r, mode: 'direct-api', notes };
-      }
-      const bad = req[0] || r.results[0];
-      notes.push(`api.sofascore.com: ${bad.error}`);
-      // Un 404 puede ser un día sin partidos: solo se descarta ante un bloqueo.
-      if (bad.status !== 404) apiHostWorks = false;
+      const r = await fetchMany(reqs(base), { pageUrl: PAGE, modes });
+      notes.push(...r.notes.map((n) => `${label} ${n}`));
+      if (!failed(r.results)) return { ...r, notes };
+      const bad = r.results.find((x) => !x.ok);
+      notes.push(`${label} ${r.mode}: ${bad?.error || 'sin datos'}`);
     } catch (e) {
-      notes.push(`api.sofascore.com: ${e.message}`);
-      apiHostWorks = false;
+      notes.push(`${label}: ${e.message}`);
     }
   }
-  const r = await fetchMany(reqs(API), { pageUrl: PAGE, modes: ['direct', 'tab', 'navigate'] });
-  return { ...r, notes: [...notes, ...r.notes] };
+  return { results: null, notes };
 }
+
+// ---- Formato común ----
 
 const STATE = {
   notstarted: 'pendiente',
@@ -62,15 +75,14 @@ function team(t = {}) {
     id: t.id,
     name: t.name || '',
     short: t.shortName || t.name || '',
+    slug: t.slug || null,
     alpha2: t.country?.alpha2 || null,
     ranking: t.ranking ?? null,
     national: Boolean(t.national),
   };
 }
 
-function score(s) {
-  return s?.current == null ? null : s;
-}
+const score = (s) => (s?.current == null ? null : s);
 
 export function toEvent(e, sport) {
   const ut = e.tournament?.uniqueTournament;
@@ -79,12 +91,12 @@ export function toEvent(e, sport) {
   const as = score(e.awayScore);
   return {
     id: e.id,
-    sport,
+    sport: sport || cat.sport?.slug || null,
     start: e.startTimestamp * 1000,
     tournament: {
       id: ut?.id ?? e.tournament?.id ?? null,
       name: ut?.name || e.tournament?.name || '',
-      priority: e.tournament?.priority ?? 0,
+      priority: e.tournament?.priority ?? ut?.priority ?? 0,
     },
     category: { id: cat.id ?? null, name: cat.name || '', alpha2: cat.alpha2 || cat.country?.alpha2 || null },
     home: team(e.homeTeam),
@@ -93,36 +105,89 @@ export function toEvent(e, sport) {
     statusText: e.status?.description || '',
     score: hs && as ? { home: hs.current, away: as.current, homeNT: hs.normaltime ?? null, awayNT: as.normaltime ?? null } : null,
     winner: e.winnerCode ?? null,
-    url: e.slug && e.customId ? `https://www.sofascore.com/${e.slug}/${e.customId}#id:${e.id}` : null,
+    url: e.slug && e.customId ? `${SITE}/${e.slug}/${e.customId}#id:${e.id}` : null,
   };
 }
 
-// Partidos de un deporte para un día en hora de Lima. Sofascore agrupa por día
-// UTC, así que se piden dos días y se filtra.
-export async function getSportEvents({ sport = 'football', date = limaDate() } = {}) {
-  const { mode, results, notes } = await getMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`], () => true);
-  if (results.every((r) => !r.ok)) {
-    const r = results[0];
-    // Un deporte sin partidos ese día responde 404: no es un error.
-    if (results.every((x) => x.status === 404)) return { mode, items: [], notes: [...notes, `${mode}: 404 en todos los intentos`] };
-    const via = { 'direct-api': 'api directo', direct: 'directo', tab: 'en pestaña', navigate: 'navegando' }[mode] || mode;
-    throw new FetchError(`Sofascore respondió ${r.error} (${via})${notes.length ? ` · antes: ${notes.join(' | ')}` : ''}`, { status: r.status, mode, snippet: r.snippet });
+// Un partido de Sofascore dentro de cualquier JSON.
+const isSofaEvent = (o) =>
+  typeof o.id === 'number' && typeof o.startTimestamp === 'number' && o.homeTeam?.name != null && o.awayTeam?.name != null;
+
+function eventsIn(responses) {
+  const map = new Map();
+  for (const r of responses) for (const e of findAll(r.data, isSofaEvent)) map.set(e.id, e);
+  return [...map.values()];
+}
+
+// Rutas de API que usó la web (sin números), para el diagnóstico.
+function apiPaths(responses) {
+  return [
+    ...new Set(
+      responses.map((r) => {
+        try {
+          const u = new URL(r.url);
+          return `${u.hostname}${u.pathname.replace(/\d{3,}/g, '{n}').replace(/\d{4}-\d{2}-\d{2}/g, '{fecha}')}`;
+        } catch {
+          return r.url;
+        }
+      }),
+    ),
+  ];
+}
+
+// ---- Partidos del día ----
+
+function eventsForDay(raws, sport, date) {
+  const out = new Map();
+  for (const e of raws) {
+    const slug = e.tournament?.category?.sport?.slug;
+    if (slug && slug !== sport) continue;
+    if (limaDay(e.startTimestamp * 1000) !== date || out.has(e.id)) continue;
+    out.set(e.id, toEvent(e, sport));
   }
-  const events = new Map();
-  for (const r of results) {
-    for (const e of r.ok ? r.data.events || [] : []) {
-      if (!events.has(e.id) && limaDay(e.startTimestamp * 1000) === date) events.set(e.id, toEvent(e, sport));
+  return [...out.values()].sort((a, b) => a.start - b.start);
+}
+
+// Partidos de un deporte para un día en hora de Lima.
+export async function getSportEvents({ sport = 'football', date = limaDate() } = {}) {
+  const notes = [];
+  if ((await apiWorks()) !== false) {
+    // Sofascore agrupa por día UTC: se piden dos días y se filtra por Lima.
+    const r = await apiMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`], () => true);
+    notes.push(...r.notes);
+    if (r.results) {
+      await setApiWorks(true);
+      const raws = r.results.flatMap((x) => (x.ok ? x.data.events || [] : []));
+      return { mode: r.mode, notes, items: eventsForDay(raws, sport, date) };
+    }
+    await setApiWorks(false);
+  }
+  // Abrir la web: página del deporte en ese día (y la de hoy como respaldo).
+  const pages = [`${SITE}/${sport}/${date}`];
+  if (date === limaDate()) pages.push(`${SITE}/${sport}`);
+  let lastScan = null;
+  for (const url of pages) {
+    try {
+      const scan = await scanPage(url, { waitMs: 20000, scrolls: 6 });
+      lastScan = scan;
+      const items = eventsForDay(eventsIn(scan.responses), sport, date);
+      notes.push(`web ${url}: ${items.length} partidos`);
+      if (items.length) return { mode: 'scan', notes, items, scan: { page: scan.url, apiPaths: apiPaths(scan.responses) } };
+    } catch (e) {
+      notes.push(`web ${url}: ${e.message}`);
     }
   }
-  return { mode, notes, items: [...events.values()].sort((a, b) => a.start - b.start) };
+  return { mode: 'scan', notes, items: [], scan: lastScan && { page: lastScan.url, title: lastScan.title, hooked: lastScan.hooked, apiPaths: apiPaths(lastScan.responses) } };
 }
+
+// ---- Estadísticas de cada partido ----
 
 // Últimos partidos jugados por un equipo, del más reciente al más antiguo.
 // En fútbol se usa el marcador de los 90 minutos (sin prórroga ni penales).
-function lastMatches(data, teamId, sport, before) {
+function lastMatches(events, teamId, sport, before) {
   const regular = sport === 'football' || sport === 'futsal';
-  return (data?.events || [])
-    .filter((e) => e.status?.type === 'finished' && e.startTimestamp * 1000 < before)
+  return (events || [])
+    .filter((e) => (e.homeTeam?.id === teamId || e.awayTeam?.id === teamId) && e.status?.type === 'finished' && e.startTimestamp * 1000 < before)
     .sort((a, b) => b.startTimestamp - a.startTimestamp)
     .slice(0, 15)
     .map((e) => {
@@ -160,9 +225,7 @@ function oddsMarkets(data) {
     name: m.marketName || '',
     group: m.choiceGroup ?? null,
     live: Boolean(m.isLive),
-    choices: (m.choices || [])
-      .map((c) => ({ name: String(c.name), price: fractionalToDecimal(c.fractionalValue) }))
-      .filter((c) => c.price > 1),
+    choices: (m.choices || []).map((c) => ({ name: String(c.name), price: fractionalToDecimal(c.fractionalValue) })).filter((c) => c.price > 1),
   }));
 }
 
@@ -173,17 +236,35 @@ function votes(data) {
   return total ? { home: (v.vote1 || 0) / total, draw: (v.voteX || 0) / total, away: (v.vote2 || 0) / total, total } : null;
 }
 
-const DETAIL_PARTS = ['pregame-form', 'h2h', 'lineups', 'odds/1/all', 'votes'];
+// Arma las estadísticas de un partido con las piezas encontradas.
+function buildDetails(ev, parts, events) {
+  const form = parts.form;
+  const duel = parts.h2h?.teamDuel;
+  return {
+    form: form
+      ? {
+          home: { form: form.homeTeam?.form || [], position: form.homeTeam?.position ?? null, avgRating: Number(form.homeTeam?.avgRating) || null },
+          away: { form: form.awayTeam?.form || [], position: form.awayTeam?.position ?? null, avgRating: Number(form.awayTeam?.avgRating) || null },
+        }
+      : null,
+    h2h: duel ? { homeWins: duel.homeWins || 0, draws: duel.draws || 0, awayWins: duel.awayWins || 0 } : null,
+    missing: parts.lineups ? { home: missingPlayers(parts.lineups.home), away: missingPlayers(parts.lineups.away), confirmed: Boolean(parts.lineups.confirmed) } : null,
+    odds: parts.odds ? oddsMarkets(parts.odds) : null,
+    votes: votes(parts.votes),
+    lastHome: lastMatches(events.home, ev.homeId, ev.sport, ev.start),
+    lastAway: lastMatches(events.away, ev.awayId, ev.sport, ev.start),
+  };
+}
 
-// Estadísticas previas de varios partidos en una sola tanda de peticiones.
-// events: [{ id, sport, homeId, awayId, start }]
-export async function getEventDetails({ events = [] } = {}) {
+const DETAIL_PARTS = { form: 'pregame-form', h2h: 'h2h', lineups: 'lineups', odds: 'odds/1/all', votes: 'votes' };
+
+async function detailsFromApi(events) {
   const paths = [];
   const index = [];
   const teamIdx = new Map();
   for (const ev of events) {
-    for (const part of DETAIL_PARTS) {
-      index.push({ ev: ev.id, part });
+    for (const [key, part] of Object.entries(DETAIL_PARTS)) {
+      index.push({ ev: ev.id, key });
       paths.push(`/event/${ev.id}/${part}`);
     }
     for (const id of [ev.homeId, ev.awayId]) {
@@ -194,51 +275,113 @@ export async function getEventDetails({ events = [] } = {}) {
       }
     }
   }
-  const { mode, results } = await getMany(paths, (p) => p.startsWith('/team/'));
-  const raw = {};
-  results.forEach((r, i) => {
-    const { ev, part } = index[i];
-    if (ev && r.ok) (raw[ev] ||= {})[part] = r.data;
+  const r = await apiMany(paths, (p) => p.startsWith('/team/'));
+  if (!r.results) return { notes: r.notes };
+  const parts = {};
+  r.results.forEach((x, i) => {
+    const { ev, key } = index[i];
+    if (ev && x.ok) (parts[ev] ||= {})[key] = x.data;
   });
-  const teamData = (id) => (teamIdx.has(id) && results[teamIdx.get(id)].ok ? results[teamIdx.get(id)].data : null);
-
+  const teamEvents = (id) => (teamIdx.has(id) && r.results[teamIdx.get(id)].ok ? r.results[teamIdx.get(id)].data.events || [] : []);
   const items = {};
-  for (const ev of events) {
-    const d = raw[ev.id] || {};
-    const form = d['pregame-form'];
-    const duel = d.h2h?.teamDuel;
-    items[ev.id] = {
-      form: form
-        ? {
-            home: { form: form.homeTeam?.form || [], position: form.homeTeam?.position ?? null, avgRating: Number(form.homeTeam?.avgRating) || null },
-            away: { form: form.awayTeam?.form || [], position: form.awayTeam?.position ?? null, avgRating: Number(form.awayTeam?.avgRating) || null },
-          }
-        : null,
-      h2h: duel ? { homeWins: duel.homeWins || 0, draws: duel.draws || 0, awayWins: duel.awayWins || 0 } : null,
-      missing: d.lineups ? { home: missingPlayers(d.lineups.home), away: missingPlayers(d.lineups.away), confirmed: Boolean(d.lineups.confirmed) } : null,
-      odds: d['odds/1/all'] ? oddsMarkets(d['odds/1/all']) : null,
-      votes: votes(d.votes),
-      lastHome: lastMatches(teamData(ev.homeId), ev.homeId, ev.sport, ev.start),
-      lastAway: lastMatches(teamData(ev.awayId), ev.awayId, ev.sport, ev.start),
-    };
+  for (const ev of events) items[ev.id] = buildDetails(ev, parts[ev.id] || {}, { home: teamEvents(ev.homeId), away: teamEvents(ev.awayId) });
+  return { mode: r.mode, items, notes: r.notes };
+}
+
+// Estadísticas de un partido leyendo su página (y las de los equipos si faltan
+// sus últimos resultados).
+async function detailsFromWeb(ev) {
+  const pick = (responses, test) => responses.find((r) => test(r.url, r.data))?.data;
+  const scan = await scanPage(ev.url, { waitMs: 15000, scrolls: 2 });
+  const rs = scan.responses;
+  const parts = {
+    form: pick(rs, (u, d) => u.includes('/pregame-form') && (d.homeTeam || d.awayTeam)),
+    h2h: pick(rs, (u, d) => /\/h2h(\?|$)/.test(u) && d.teamDuel),
+    lineups: pick(rs, (u, d) => u.includes('/lineups') && (d.home || d.away)),
+    odds: rs.filter((r) => r.url.includes('/odds') && Array.isArray(r.data?.markets)).sort((a, b) => b.data.markets.length - a.data.markets.length)[0]?.data,
+    votes: pick(rs, (u, d) => u.includes('/votes') && d.vote),
+  };
+  let all = eventsIn(rs);
+  const paths = apiPaths(rs);
+  // Si la página del partido no trae los últimos resultados de un equipo, se abre la del equipo.
+  for (const [id, slug] of [
+    [ev.homeId, ev.homeSlug],
+    [ev.awayId, ev.awaySlug],
+  ]) {
+    // Los enfrentamientos directos pueden ser de hace años: solo cuentan los recientes.
+    const recent = lastMatches(all, id, ev.sport, ev.start).filter((m) => ev.start - m.start < 120 * 86400000);
+    if (!id || !slug || recent.length >= 5) continue;
+    try {
+      const teamScan = await scanPage(`${SITE}/team/${ev.sport}/${slug}/${id}`, { waitMs: 12000, scrolls: 1 });
+      all = [...all, ...eventsIn(teamScan.responses)];
+      paths.push(...apiPaths(teamScan.responses));
+    } catch {
+      // sin la página del equipo se sigue con lo que haya
+    }
   }
-  const failed = results.filter((r) => !r.ok && r.status !== 404).length;
-  return { mode, items, failed, requests: results.length };
+  return { details: buildDetails(ev, parts, { home: all, away: all }), apiPaths: [...new Set(paths)] };
+}
+
+// events: [{ id, sport, homeId, awayId, start, url, homeSlug, awaySlug }]
+export async function getEventDetails({ events = [] } = {}) {
+  let notes = [];
+  if ((await apiWorks()) !== false) {
+    const r = await detailsFromApi(events);
+    notes = r.notes;
+    if (r.items) return { mode: r.mode, items: r.items, failed: 0, notes };
+  }
+  const items = {};
+  const paths = new Set();
+  let failed = 0;
+  for (const ev of events) {
+    if (!ev.url) {
+      failed++;
+      continue;
+    }
+    try {
+      const { details, apiPaths: p } = await detailsFromWeb(ev);
+      items[ev.id] = details;
+      p.forEach((x) => paths.add(x));
+    } catch (e) {
+      failed++;
+      notes.push(`web ${ev.id}: ${e.message}`);
+    }
+  }
+  return { mode: 'scan', items, failed, notes, apiPaths: [...paths] };
+}
+
+// ---- Resultados ----
+
+function resultOf(e) {
+  const ev = toEvent(e, null);
+  return { state: ev.state, score: ev.score, winner: ev.winner };
 }
 
 // Estado y marcador final de varios partidos (para liquidar apuestas).
-export async function getEventResults({ ids = [] } = {}) {
-  const { mode, results } = await getMany(
-    ids.map((id) => `/event/${id}`),
-    () => true,
-  );
+// urls (opcional): { id: url de la página del partido } para leerla si el API no responde.
+export async function getEventResults({ ids = [], urls = {} } = {}) {
   const items = {};
-  results.forEach((r, i) => {
-    if (!r.ok || !r.data?.event) return;
-    const e = toEvent(r.data.event, null);
-    items[ids[i]] = { state: e.state, score: e.score, winner: e.winner };
-  });
-  return { mode, items };
+  if ((await apiWorks()) !== false) {
+    const r = await apiMany(
+      ids.map((id) => `/event/${id}`),
+      () => true,
+    );
+    if (r.results) {
+      r.results.forEach((x, i) => x.ok && x.data?.event && (items[ids[i]] = resultOf(x.data.event)));
+      return { mode: r.mode, items };
+    }
+  }
+  for (const id of ids) {
+    if (!urls[id]) continue;
+    try {
+      const scan = await scanPage(urls[id], { waitMs: 12000 });
+      const e = eventsIn(scan.responses).find((x) => x.id === Number(id));
+      if (e) items[id] = resultOf(e);
+    } catch {
+      // se reintentará en la próxima actualización
+    }
+  }
+  return { mode: 'scan', items };
 }
 
 // Compatibilidad con la primera versión del diagnóstico.
@@ -251,28 +394,40 @@ export default {
   name: 'Sofascore',
   role: 'Partidos de todos los deportes, forma, H2H, bajas y lesiones',
   async diagnose() {
-    const { mode, items, notes } = await getSportEvents({ sport: 'football' });
+    const { mode, items, notes, scan } = await getSportEvents({ sport: 'football' });
     // Siempre hay partidos de fútbol: una lista vacía significa que algo falló.
-    if (!items.length) throw new Error(`Sofascore no devolvió partidos de fútbol para hoy (${mode}). Intentos: ${notes.join(' | ') || 'ninguno'}`);
-    const upcoming = items.find((m) => m.state === 'pendiente') || items[0];
-    let details = null;
-    if (upcoming) {
-      const r = await getEventDetails({
-        events: [{ id: upcoming.id, sport: 'football', homeId: upcoming.home.id, awayId: upcoming.away.id, start: upcoming.start }],
-      });
-      const d = r.items[upcoming.id];
-      details = {
-        partido: `${upcoming.home.name} vs ${upcoming.away.name}`,
-        peticionesFallidas: r.failed,
-        forma: d.form,
-        h2h: d.h2h,
-        bajas: d.missing,
-        votos: d.votes,
-        mercadosCuotas: (d.odds || []).map((m) => `${m.name}${m.group ? ` ${m.group}` : ''}`).slice(0, 15),
-        ultimosLocal: d.lastHome.slice(0, 3),
-        ultimosVisita: d.lastAway.slice(0, 3),
-      };
+    if (!items.length) {
+      const err = new FetchError(`Sofascore no devolvió partidos de fútbol para hoy. Intentos: ${notes.join(' | ') || 'ninguno'}`, { mode });
+      err.attempts = [{ scan }];
+      throw err;
     }
+    const upcoming = items.find((m) => m.state === 'pendiente') || items[0];
+    const ev = {
+      id: upcoming.id,
+      sport: 'football',
+      homeId: upcoming.home.id,
+      awayId: upcoming.away.id,
+      homeSlug: upcoming.home.slug,
+      awaySlug: upcoming.away.slug,
+      start: upcoming.start,
+      url: upcoming.url,
+    };
+    const r = await getEventDetails({ events: [ev] });
+    const d = r.items[upcoming.id];
+    const details = {
+      partido: `${upcoming.home.name} vs ${upcoming.away.name}`,
+      modoEstadisticas: r.mode,
+      notasEstadisticas: r.notes,
+      forma: d?.form,
+      h2h: d?.h2h,
+      bajas: d?.missing,
+      votos: d?.votes,
+      mercadosCuotas: (d?.odds || []).map((m) => `${m.name}${m.group ? ` ${m.group}` : ''}`).slice(0, 15),
+      ultimosLocal: d?.lastHome.slice(0, 3),
+      ultimosVisita: d?.lastAway.slice(0, 3),
+      cantidadUltimos: d ? [d.lastHome.length, d.lastAway.length] : null,
+      rutasWebPartido: r.apiPaths,
+    };
     let basket = null;
     try {
       basket = (await getSportEvents({ sport: 'basketball' })).items.length;
@@ -288,6 +443,6 @@ export default {
       status: e.state,
       score: e.score,
     }));
-    return { mode, count: items.length, sample, details: { intentosPrevios: notes, ...details, partidosBasquet: basket } };
+    return { mode, count: items.length, sample, details: { intentosPrevios: notes, rutasWebLista: scan?.apiPaths, ...details, partidosBasquet: basket } };
   },
 };

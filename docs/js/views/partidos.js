@@ -118,7 +118,14 @@ export class PartidosView {
     const { data, groups } = this.visibleGroups();
     this.list.replaceChildren();
     if (!data || data.status === 'loading') {
-      this.list.append(h('div', { class: 'empty' }, 'Cargando partidos de Sofascore…'));
+      this.list.append(
+        h(
+          'div',
+          { class: 'empty' },
+          'Cargando partidos de Sofascore…',
+          h('div', { class: 'note' }, 'Si su API no responde, la extensión abre Sofascore en una pestaña y lee los partidos de la web; puede tardar unos 30 segundos.'),
+        ),
+      );
       return;
     }
     if (data.status === 'error') {
