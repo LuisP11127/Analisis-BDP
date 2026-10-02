@@ -1,7 +1,7 @@
 // Apuesta Total: cuotas de fútbol. El sportsbook lo provee kmianko:
 //  1) /api/pulse/snapshot/events      -> todos los eventos (todos los deportes)
 //  2) /api/eventlist/eu/markets/all   -> mercados y cuotas de una lista de eventos
-// Ambos funcionan sin iniciar sesión, también desde los servidores de GitHub.
+// No requieren cuenta y funcionan también desde los servidores de GitHub.
 import { fetchData } from '../lib/net.js';
 import { toIso } from '../lib/model.js';
 
@@ -13,7 +13,34 @@ const FOOTBALL = '1';
 const MARKET_TYPES = ['ML0', 'ML39', 'OU200', 'OU249', 'QA61', 'QA158'];
 const IDS_PER_REQUEST = 10;
 
-const get = (path) => fetchData(`${BASE}${path}`, { pageUrl: PAGE });
+// Las cuotas exigen una sesión anónima: al abrir la página el sitio entrega
+// las cookies `authorization` y `session`. En el navegador se guardan y se
+// envían solas; fuera de él (Node) se leen de set-cookie y se mandan como
+// encabezados, igual que hace el propio sportsbook.
+let sessionHeaders = null;
+
+async function ensureSession(force = false) {
+  if (sessionHeaders && !force) return sessionHeaders;
+  const resp = await fetch(PAGE, { credentials: 'include', signal: AbortSignal.timeout(25000) });
+  const setCookies = typeof resp.headers.getSetCookie === 'function' ? resp.headers.getSetCookie() : [];
+  const jar = {};
+  for (const c of setCookies) {
+    const pair = c.split(';')[0];
+    jar[pair.slice(0, pair.indexOf('='))] = pair.slice(pair.indexOf('=') + 1);
+  }
+  sessionHeaders = { 'time-area': '01', ...(jar.authorization ? { authorization: jar.authorization, session: jar.session } : {}) };
+  return sessionHeaders;
+}
+
+const get = async (path, { session = false } = {}) => {
+  const headers = session ? await ensureSession() : {};
+  try {
+    return await fetchData(`${BASE}${path}`, { pageUrl: PAGE, headers });
+  } catch (e) {
+    if (!session || e.status !== 403) throw e;
+    return fetchData(`${BASE}${path}`, { pageUrl: PAGE, headers: await ensureSession(true) }); // sesión vencida
+  }
+};
 
 function toEvent(e) {
   const home = e.Participants?.find((p) => p.VenueRole === 'Home') || e.Participants?.[0];
@@ -82,7 +109,7 @@ export async function getOdds({ hours = 24, limit = 60 } = {}) {
     const ids = events.slice(i, i + IDS_PER_REQUEST).map((e) => e.eventId);
     const query = encodeURIComponent(`${ids.join('|')}:${MARKET_TYPES.join('|')}`);
     try {
-      const { data } = await get(`/api/eventlist/eu/markets/all?markets=${query}`);
+      const { data } = await get(`/api/eventlist/eu/markets/all?markets=${query}`, { session: true });
       for (const m of Array.isArray(data) ? data : []) {
         if (m.IsRemoved || m.IsSuspended) continue;
         byId.get(String(m.EventId))?.markets.push(toMarket(m));

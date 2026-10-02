@@ -9,7 +9,6 @@ on:
     paths:
       - .github/workflows/probe-sources.yml
       - scripts/test-sources.mjs
-      - scripts/debug-kmianko.js
       - extension/lib/**
       - extension/sources/**
 
@@ -30,9 +29,3 @@ jobs:
       - name: Probar conectores
         run: node scripts/test-sources.mjs
 
-      - name: Depurar cuotas de Apuesta Total (temporal)
-        if: always()
-        run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium > /dev/null
-          node scripts/debug-kmianko.js
