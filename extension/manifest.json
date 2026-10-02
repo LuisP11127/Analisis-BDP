@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Análisis BDP - Conector",
+  "version": "0.3.1",
+  "description": "Obtiene partidos, estadísticas y cuotas desde tu navegador para la página Análisis BDP.",
+  "permissions": [
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.sofascore.com/*",
+    "https://*.flashscore.com/*",
+    "https://*.flashscore.pe/*",
+    "https://*.flashscore.ninja/*",
+    "https://www.betano.pe/*",
+    "https://*.apuestatotal.com/*",
+    "https://*.kmianko.com/*",
+    "https://www.fotmob.com/*",
+    "https://site.api.espn.com/*",
+    "https://understat.com/*",
+    "https://api.github.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://luisp11127.github.io/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.sofascore.com/*",
+        "https://www.betano.pe/*"
+      ],
+      "js": [
+        "page-hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "action": {
+    "default_title": "Análisis BDP - Diagnóstico"
+  }
+}

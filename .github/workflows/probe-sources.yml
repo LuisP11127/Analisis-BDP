@@ -1,0 +1,31 @@
+name: Prueba de fuentes de datos
+
+# Ejecuta los conectores de la extensión contra las fuentes que responden
+# desde los servidores de GitHub (Flashscore, FotMob, ESPN, Understat y
+# Apuesta Total). Falla si alguna deja de devolver datos.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/probe-sources.yml
+      - scripts/test-sources.mjs
+      - extension/lib/**
+      - extension/sources/**
+
+permissions:
+  contents: read
+
+jobs:
+  conectores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Probar conectores
+        run: node scripts/test-sources.mjs
+
