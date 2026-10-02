@@ -2,7 +2,7 @@
 // red neuronal). El token se guarda solo en la extensión: la página web nunca
 // lo ve y solo puede escribir archivos JSON dentro de docs/data/.
 const API = 'https://api.github.com';
-const DEFAULTS = { repo: 'LuisP11127/Analisis-BDP', branch: 'claude/zen-lamport-80vu3n', token: '' };
+const DEFAULTS = { repo: 'LuisP11127/Analisis-BDP', branch: 'main', token: '' };
 const WRITABLE = /^docs\/data\/[\w\-./]+\.json$/;
 
 export async function getConfig() {

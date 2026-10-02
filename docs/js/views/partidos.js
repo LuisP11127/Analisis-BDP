@@ -22,7 +22,7 @@ export class PartidosView {
           { class: 'banner warn' },
           h('b', {}, 'Instala la extensión "Análisis BDP - Conector" para ver los partidos. '),
           'Sofascore solo responde desde tu navegador. Instrucciones en ',
-          h('a', { href: 'https://github.com/LuisP11127/Analisis-BDP/tree/claude/zen-lamport-80vu3n/extension', target: '_blank', rel: 'noopener' }, 'extension/README.md'),
+          h('a', { href: 'https://github.com/LuisP11127/Analisis-BDP/tree/main/extension', target: '_blank', rel: 'noopener' }, 'extension/README.md'),
           '. Sin la extensión puedes ver el historial guardado.',
         ),
       );

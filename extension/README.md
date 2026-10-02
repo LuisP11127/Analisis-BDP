@@ -17,8 +17,8 @@ con tu conexión de Perú. Así funcionan también los sitios que bloquean a los
 
 ## Instalación (una sola vez)
 
-1. Descarga el repositorio: en GitHub, elige la rama `claude/zen-lamport-80vu3n`,
-   pulsa **Code → Download ZIP** y descomprímelo.
+1. Descarga el repositorio: en GitHub, rama `main`, pulsa **Code → Download ZIP** y
+   descomprímelo.
 2. En Chrome (o Edge / Brave) abre `chrome://extensions`.
 3. Activa **Modo de desarrollador** (arriba a la derecha).
 4. Pulsa **Cargar descomprimida** y elige la carpeta `extension` del repositorio.

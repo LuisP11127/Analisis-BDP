@@ -59,7 +59,7 @@ también lo es.
 ## Publicar la página
 
 En el repositorio: **Settings → Pages → Build and deployment → Source: Deploy from
-a branch**, rama `claude/zen-lamport-80vu3n` (o `main` cuando se fusione), carpeta
+a branch**, rama `main`, carpeta
 `/docs`, **Save**. En uno o dos minutos queda en
 <https://luisp11127.github.io/Analisis-BDP/>.
 
