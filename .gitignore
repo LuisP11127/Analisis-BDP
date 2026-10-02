@@ -1,3 +1,5 @@
+.cache/
 node_modules/
 probe-output/
+site/
 tests/e2e/capturas/

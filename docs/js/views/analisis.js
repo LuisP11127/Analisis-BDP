@@ -4,7 +4,7 @@ import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtTime, h, pct } from '../util.js';
 
-const SOURCE_NAMES = { sofascore: 'Sofascore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat' };
+const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat' };
 const MODE = { 'direct-api': 'directo', direct: 'directo', tab: 'pestaña', navigate: 'navegando' };
 const PRICE_SHORT = { apuestatotal: 'AT', betano: 'Betano', sofascore: 'Sofascore' };
 
@@ -14,7 +14,8 @@ function sourceChip(id, s) {
   if (!s) return null;
   if (!s.ok) return h('span', { class: 'chip err', title: s.error || '' }, `${SOURCE_NAMES[id]}: error`);
   const extra = s.matched != null ? ` · ${s.matched} partidos` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
-  return h('span', { class: 'chip ok' }, `${SOURCE_NAMES[id]}${extra}`);
+  const title = s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '';
+  return h('span', { class: 'chip ok', title }, `${SOURCE_NAMES[id]}${extra}${s.published ? ' (publicadas)' : ''}`);
 }
 
 function pickCard(p, ev) {
@@ -123,7 +124,7 @@ export function renderAnalisis(root, app) {
       `${analyzed} partidos analizados · ${a.picks.length} picks · ${a.combos.length} combinadas · ${fmtDateTime(Date.parse(a.created))}`,
       a.skipped ? ` · ${a.skipped} omitidos (ya empezaron)` : '',
     ),
-    h('div', { class: 'row' }, ['sofascore', 'apuestatotal', 'betano', 'understat'].map((id) => sourceChip(id, a.sources[id]))),
+    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat'].map((id) => sourceChip(id, a.sources[id]))),
     a.method === 'red_neuronal'
       ? h(
           'div',

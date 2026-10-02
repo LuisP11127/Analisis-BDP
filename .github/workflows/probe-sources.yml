@@ -28,4 +28,3 @@ jobs:
 
       - name: Probar conectores
         run: node scripts/test-sources.mjs
-

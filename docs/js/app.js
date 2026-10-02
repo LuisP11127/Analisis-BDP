@@ -1,5 +1,7 @@
 // Página principal: une la extensión, las vistas, el análisis y el historial.
 import * as ext from './ext.js';
+import * as gh from './github.js';
+import * as provider from './provider.js';
 import * as store from './storage.js';
 import * as history from './history.js';
 import { analyze } from './analysis/engine.js';
@@ -34,7 +36,9 @@ const app = {
   state: {
     date: limaToday(),
     sport: LS.get('bdp:deporte', 'football'),
-    events: new Map(), // "fecha|deporte" -> { status, items, error }
+    source: LS.get('bdp:fuente', null), // 'auto' (datos publicados) o 'sofascore' (extensión)
+    events: new Map(), // "fuente|fecha|deporte" -> { status, items, error, withOdds, generated }
+    onlyOdds: LS.get('bdp:solo-cuotas', true),
     selected: new Map(), // id -> evento (del día elegido)
     search: '',
     onlyPending: true,
@@ -72,19 +76,48 @@ const idle = () => ($('#busy').hidden = true);
 
 const views = {};
 
+// Antigüedad de los datos automáticos ("hace 35 min").
+app.ago = (iso) => {
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (!(min >= 0)) return '';
+  if (min < 60) return `hace ${min} min`;
+  const hours = Math.floor(min / 60);
+  return hours < 24 ? `hace ${hours} h ${min % 60} min` : `hace ${Math.floor(hours / 24)} d`;
+};
+
+// Sin la extensión solo se pueden analizar los partidos automáticos.
+app.canAnalyze = () => {
+  const sel = [...app.state.selected.values()];
+  return sel.length > 0 && (app.extOk || sel.every((e) => provider.isAuto(e.id)));
+};
+
+function chip(cls, text, title) {
+  const el = document.createElement('span');
+  el.className = `chip ${cls}`;
+  el.textContent = text;
+  el.title = title;
+  return el;
+}
+
 function renderHeader() {
   const n = app.state.selected.size;
   $('#sel-count').textContent = `${n} ${n === 1 ? 'partido marcado' : 'partidos marcados'}`;
-  $('#run-stats').disabled = !app.extOk || n === 0;
-  $('#run-nn').disabled = !app.extOk || n === 0;
+  $('#run-stats').disabled = !app.canAnalyze();
+  $('#run-nn').disabled = !app.canAnalyze();
   $('#date').value = app.state.date;
-  const status = $('#ext-status');
-  status.replaceChildren();
-  const chip = document.createElement('span');
-  chip.className = `chip ${app.extOk ? 'ok' : 'warn'}`;
-  chip.textContent = app.extOk ? 'Extensión ✓' : 'Sin extensión';
-  chip.title = app.extOk ? `Análisis BDP - Conector v${app.extVersion}` : 'Instala la extensión para ver partidos y analizar';
-  status.append(chip);
+  const { mode } = app.storage;
+  $('#ext-status').replaceChildren(
+    ...[
+      store.isGithub()
+        ? chip('ok', 'GitHub ✓', 'El historial se guarda en el repositorio')
+        : chip(
+            mode === 'local' ? '' : 'warn',
+            mode === 'local' ? 'Navegador' : 'Solo lectura',
+            'El historial se guarda solo en este navegador. Pega tu token de GitHub en ⚙ Ajustes para verlo en cualquier dispositivo.',
+          ),
+      app.extOk ? chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`) : null,
+    ].filter(Boolean),
+  );
 }
 
 function render() {
@@ -127,20 +160,48 @@ app.clearSelection = () => {
   render();
 };
 
+app.eventsKey = (sport = app.state.sport) => `${app.state.source}|${app.state.date}|${sport}`;
+
+app.setSource = (source) => {
+  app.state.source = source;
+  LS.set('bdp:fuente', source);
+  app.loadSport(app.state.sport);
+};
+
+app.setOnlyOdds = (on) => {
+  app.state.onlyOdds = on;
+  LS.set('bdp:solo-cuotas', on);
+};
+
+// Partidos automáticos (publicados cada 2 horas): hoy y mañana.
+async function loadAuto(sport, force) {
+  const day = await provider.loadDay(app.state.date, sport, { force });
+  if (!day) {
+    const index = provider.cachedIndex();
+    return { status: 'nodata', index };
+  }
+  return { status: 'ok', items: day.events, withOdds: new Set(day.offers.keys()), generated: day.generated };
+}
+
 app.loadSport = async (sport, { force = false } = {}) => {
   const { state } = app;
   state.sport = sport;
   LS.set('bdp:deporte', sport);
-  const key = `${state.date}|${sport}`;
-  if (!app.extOk) return render();
+  const key = app.eventsKey(sport);
+  if (state.source === 'sofascore' && !app.extOk) return render();
   if (!force && state.events.get(key)?.status === 'ok') return render();
   state.events.set(key, { status: 'loading' });
   render();
   try {
-    const { items } = await ext.call('sofascore', 'getSportEvents', { sport, date: state.date }, { timeout: 150000 });
-    state.events.set(key, { status: 'ok', items });
+    if (state.source === 'auto') {
+      if (force) await provider.loadIndex({ force: true });
+      state.events.set(key, await loadAuto(sport, force));
+    } else {
+      const { items } = await ext.call('sofascore', 'getSportEvents', { sport, date: state.date }, { timeout: 150000 });
+      state.events.set(key, { status: 'ok', items });
+    }
     // Actualiza los datos de los partidos ya marcados (estado, marcador).
-    for (const e of items) if (state.selected.has(e.id)) state.selected.set(e.id, e);
+    for (const e of state.events.get(key).items || []) if (state.selected.has(e.id)) state.selected.set(e.id, e);
     saveSelection();
   } catch (e) {
     state.events.set(key, { status: 'error', error: e.message });
@@ -154,6 +215,7 @@ function setDate(date) {
   loadSelection();
   app.loadSport(app.state.sport);
 }
+app.setDate = setDate;
 
 // ---- Análisis ----
 
@@ -167,7 +229,7 @@ app.saveCurrentAnalysis = async () => {
     app.state.analysisSaved = true;
     app.state.index = await history.loadIndex();
     app.state.dayCache.delete(a.date);
-    toast(store.getMode() === 'github' ? 'Análisis guardado en GitHub' : 'Análisis guardado en este navegador');
+    toast(store.isGithub() ? 'Análisis guardado en GitHub' : 'Análisis guardado en este navegador');
   } catch (e) {
     toast(`No se pudo guardar: ${e.message}`, 6000);
   }
@@ -218,7 +280,7 @@ app.reloadHistory = async () => {
     app.state.index = await history.loadIndex();
     app.state.network = await history.loadNetwork();
     app.state.dayCache.clear();
-    if (store.getMode() === 'github') {
+    if (store.isGithub()) {
       const paths = await store.localPaths();
       app.state.localFiles = paths.filter((p) => p.startsWith('data/historial/2') || p.startsWith('data/entrenamiento/')).length;
     }
@@ -254,12 +316,12 @@ app.updateResults = async () => {
   try {
     const r = await history.updateResults({ onProgress: (text, f) => busy('Actualizando resultados', text, f) });
     await app.reloadHistory();
-    toast(
-      r.checked
-        ? `Resultados: ${r.resolved} apuestas liquidadas${r.network ? ` · red neuronal reentrenada con ${r.network.samples} resultados` : ''}`
-        : 'No hay partidos terminados pendientes de liquidar',
-      6000,
-    );
+    const parts = [
+      r.checked ? `Resultados: ${r.resolved} apuestas liquidadas` : 'No hay partidos terminados pendientes de liquidar',
+      r.network ? (r.network.reason ? `red neuronal: ${r.network.reason.toLowerCase()}` : `red neuronal reentrenada con ${r.network.samples} resultados`) : '',
+      r.skipped ? `${r.skipped} partidos de Sofascore esperan a la extensión` : '',
+    ];
+    toast(parts.filter(Boolean).join(' · '), 7000);
   } catch (e) {
     toast(`No se pudieron actualizar: ${e.message}`, 7000);
   } finally {
@@ -305,7 +367,52 @@ function openSettings() {
   f.comboTargets.value = s.comboTargets.join(', ');
   f.comboMinProb.value = Math.round(s.comboMinProb * 100);
   f.comboMaxLegs.value = s.comboMaxLegs;
+  f.ghToken.value = '';
+  renderGithubStatus();
   $('#settings').showModal();
+}
+
+// ---- Token de GitHub en el navegador ----
+
+function renderGithubStatus(text) {
+  const el = $('#gh-status');
+  const { mode, info, tokenError } = app.storage;
+  el.className = 'note';
+  if (text) el.textContent = text;
+  else if (mode === 'github-web') {
+    el.textContent = `Conectado a ${info.repo} (rama ${info.branch}). El historial se guarda en GitHub.`;
+    el.className = 'note ok';
+  } else if (tokenError) {
+    el.textContent = `El token guardado no funciona: ${tokenError}.`;
+    el.className = 'note err';
+  } else if (mode === 'github') el.textContent = 'Guardando en GitHub con el token de la extensión. Pega aquí un token para usarlo también en el celular.';
+  else el.textContent = 'Sin token: el historial se guarda solo en este navegador.';
+  $('#gh-forget').hidden = !gh.hasToken();
+}
+
+async function saveToken() {
+  const input = $('#settings-form').ghToken;
+  const token = input.value.trim();
+  if (!token) return renderGithubStatus('Pega el token primero.');
+  renderGithubStatus('Probando el token…');
+  try {
+    gh.setConfig({ token });
+  } catch (e) {
+    return renderGithubStatus(e.message);
+  }
+  app.storage = await store.init();
+  input.value = '';
+  renderGithubStatus();
+  if (app.storage.mode === 'github-web') toast('Token guardado: el historial se guarda en GitHub');
+  await app.reloadHistory();
+}
+
+async function forgetToken() {
+  gh.forget();
+  app.storage = await store.init();
+  renderGithubStatus();
+  toast('Token borrado de este navegador');
+  await app.reloadHistory();
 }
 
 function closeSettings(action) {
@@ -349,15 +456,21 @@ async function init() {
   $('#open-settings').addEventListener('click', openSettings);
   $('#settings').addEventListener('close', () => closeSettings($('#settings').returnValue));
 
+  $('#gh-save').addEventListener('click', saveToken);
+  $('#gh-forget').addEventListener('click', forgetToken);
+
   loadSelection();
   renderHeader();
   const info = await ext.detect();
   app.extOk = Boolean(info);
   app.extVersion = info?.version;
+  // Sin extensión (p. ej. en el celular) se usan los datos automáticos.
+  if (!app.state.source) app.state.source = app.extOk ? 'sofascore' : 'auto';
+  if (app.state.source === 'sofascore' && !app.extOk) app.state.source = 'auto';
   app.storage = await store.init();
+  if (app.storage.tokenError) toast(`El token de GitHub no funciona: ${app.storage.tokenError}. Revísalo en ⚙ Ajustes.`, 8000);
   render();
-  if (app.extOk) app.loadSport(app.state.sport);
-  else showTab('historial');
+  app.loadSport(app.state.sport);
   await app.reloadHistory();
 }
 

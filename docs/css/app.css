@@ -99,6 +99,14 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 64px; }
 .sport .n { color: var(--muted); font-size: 12px; }
 .sport .sel { background: var(--accent); color: var(--accent-text); border-radius: 999px; font-size: 11px; padding: 0 6px; font-weight: 700; }
 
+/* Fuente de los partidos */
+.source-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 2px; }
+.segmented button { border: 0; background: transparent; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 600; color: var(--muted); }
+.segmented button.active { background: var(--accent); color: var(--accent-text); }
+.segmented button:disabled { opacity: 0.45; cursor: default; }
+.odds-badge { font-size: 11px; font-weight: 700; color: var(--ok); background: var(--ok-bg); border-radius: 999px; padding: 1px 7px; }
+
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .toolbar input[type="search"] { flex: 1 1 220px; min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: var(--surface); }
 .toolbar label { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); }
@@ -152,6 +160,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 64px; }
 .status-pill.lost { color: var(--err); background: var(--err-bg); }
 .status-pill.void, .status-pill.pending { color: var(--muted); background: var(--surface-2); }
 .note { color: var(--muted); font-size: 13px; }
+.note.ok { color: var(--ok); }
+.note.err { color: var(--err); }
 
 /* Historial */
 .grid2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); margin-bottom: 16px; }
@@ -185,5 +195,9 @@ dialog h3 { margin-top: 0; }
 .form label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
 .form input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--bg); }
 .form .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.form fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; margin: 6px 0 0; }
+.form legend { font-weight: 600; padding: 0 4px; }
+.form fieldset p { margin: 0; }
+dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
 #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 60; max-width: calc(100% - 32px); }
 #toast.show { opacity: 1; }

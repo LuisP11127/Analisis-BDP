@@ -57,6 +57,154 @@ export async function getMatches({ day = 0 } = {}) {
   return { mode, items };
 }
 
+// ---- Partidos de cualquier deporte en el formato de la página ----
+
+// Número de cada deporte en los feeds de Flashscore.
+export const SPORT_IDS = {
+  football: 1,
+  tennis: 2,
+  basketball: 3,
+  'ice-hockey': 4,
+  'american-football': 5,
+  baseball: 6,
+  handball: 7,
+  rugby: 8,
+  floorball: 9,
+  futsal: 11,
+  volleyball: 12,
+  cricket: 13,
+  darts: 14,
+  snooker: 15,
+  'aussie-rules': 18,
+  'table-tennis': 25,
+  mma: 28,
+  esports: 36,
+};
+
+// Estado detallado (AC): 4 aplazado, 5 cancelado.
+function stateOf(r) {
+  if (r.AC === '4') return 'aplazado';
+  if (r.AC === '5') return 'cancelado';
+  return STATUS[r.AB] || 'otro';
+}
+
+const num = (v) => (v === undefined || v === '' ? null : Number(v));
+
+// day: 0 = hoy, 1 = mañana, -1 = ayer (hora de Lima). Devuelve partidos con la
+// misma forma que los de Sofascore (id con prefijo "fs:").
+export async function getSportDay({ sport = 'football', day = 0 } = {}) {
+  const sportId = SPORT_IDS[sport];
+  if (!sportId) return { items: [] };
+  const { data, mode } = await feed(`f_${sportId}_${day}_${TZ_LIMA}_es-pe_1`);
+  const items = [];
+  let league = null;
+  for (const r of parseFeed(data)) {
+    if (r.ZA) {
+      const i = r.ZA.indexOf(': ');
+      league = { id: r.ZEE || r.ZC || r.ZA, country: i > 0 ? r.ZA.slice(0, i) : r.ZY || '', name: i > 0 ? r.ZA.slice(i + 2) : r.ZA };
+    } else if (r.AA && league && r.AE && r.AF) {
+      const state = stateOf(r);
+      const hs = num(r.AG);
+      const as = num(r.AH);
+      items.push({
+        id: `fs:${r.AA}`,
+        source: 'flashscore',
+        sport,
+        start: Number(r.AD) * 1000,
+        tournament: { id: league.id, name: league.name, priority: 0 },
+        category: { id: null, name: league.country, alpha2: null },
+        home: { id: r.PX || null, name: r.AE, short: r.AE, slug: r.WU || null, alpha2: null, ranking: null, national: false },
+        away: { id: r.PY || null, name: r.AF, short: r.AF, slug: r.WV || null, alpha2: null, ranking: null, national: false },
+        state,
+        statusText: '',
+        score: hs != null && as != null && state !== 'pendiente' ? { home: hs, away: as, homeNT: null, awayNT: null } : null,
+        winner: null,
+        url: `https://www.flashscore.pe/partido/${r.AA}/`,
+      });
+    }
+  }
+  return { mode, items };
+}
+
+// Últimos partidos de cada equipo y enfrentamientos directos de un partido
+// (pestaña "General" del H2H). fsId: id de Flashscore sin el prefijo.
+export function parseH2H(text) {
+  const sections = [];
+  let blocks = 0;
+  let current = null;
+  for (const r of parseFeed(text)) {
+    if (r.KA !== undefined) {
+      blocks++;
+      if (blocks > 1) break; // solo la pestaña "General"
+    } else if (r.KB !== undefined) {
+      current = { title: r.KB, rows: [] };
+      sections.push(current);
+    } else if (r.KC !== undefined && current) {
+      current.rows.push({
+        start: Number(r.KC) * 1000,
+        homeId: r.UQ || null,
+        awayId: r.UO || null,
+        home: (r.KJ || '').replace(/^\*/, ''),
+        away: (r.KK || '').replace(/^\*/, ''),
+        hs: num(r.KU),
+        as: num(r.KT),
+        focusHome: r.KS === 'home',
+        result: r.WIS || null, // w / l / d para el equipo de la sección
+        league: r.KF || '',
+      });
+    }
+  }
+  return sections;
+}
+
+// Convierte una fila del H2H en "último partido" del equipo `teamId`.
+function toLast(row, teamId) {
+  const home = row.homeId ? row.homeId === teamId : row.focusHome;
+  const gf = home ? row.hs : row.as;
+  const ga = home ? row.as : row.hs;
+  let r = { w: 'W', l: 'L', d: 'D' }[row.result?.[0]];
+  if (!r && gf != null && ga != null) r = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+  return { start: row.start, home, gf, ga, r: r || 'D', opp: home ? row.away : row.home, league: row.league };
+}
+
+// ev: partido con home.id / away.id de Flashscore. Devuelve los datos que usa el modelo.
+export async function getH2H({ fsId, homeId, awayId }) {
+  const { data } = await feed(`df_hh_1_${fsId}`);
+  return h2hData(parseH2H(data), homeId, awayId);
+}
+
+// Últimos partidos de cada equipo y balance de enfrentamientos a partir de las
+// secciones del H2H.
+export function h2hData(sections, homeId, awayId) {
+  // La sección de cada equipo es la de "Últimos partidos" donde aparece en
+  // (casi) todas las filas; en la del rival solo aparece si se enfrentaron.
+  const plays = (row, teamId) => row.homeId === teamId || row.awayId === teamId;
+  const last = (teamId) => {
+    const count = (x) => x.rows.filter((row) => plays(row, teamId)).length;
+    const s = sections.filter((x) => /ltimos partidos/i.test(x.title)).sort((a, b) => count(b) - count(a))[0];
+    if (!s || !teamId || count(s) < s.rows.length / 2) return [];
+    return s.rows
+      .filter((row) => row.hs != null && row.as != null && plays(row, teamId))
+      .map((row) => toLast(row, teamId))
+      .sort((a, b) => b.start - a.start);
+  };
+  const duel = sections.find((x) => /enfrentamientos/i.test(x.title));
+  let h2h = null;
+  if (duel?.rows.length) {
+    h2h = { homeWins: 0, draws: 0, awayWins: 0 };
+    for (const row of duel.rows) {
+      if (row.hs == null || row.as == null) continue;
+      if (row.hs === row.as) h2h.draws++;
+      else {
+        const winner = row.hs > row.as ? row.homeId : row.awayId;
+        if (winner === homeId) h2h.homeWins++;
+        else if (winner === awayId) h2h.awayWins++;
+      }
+    }
+  }
+  return { lastHome: last(homeId), lastAway: last(awayId), h2h };
+}
+
 export async function getNews() {
   const { data, mode } = await fetchData(`${FEED}/nl_1_59`, { pageUrl: PAGE, headers: HEADERS });
   const items = [];

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Análisis BDP</title>
-  <meta name="description" content="Partidos de Sofascore, análisis estadístico y con red neuronal, y seguimiento de apuestas por nivel de confianza.">
+  <meta name="description" content="Partidos de todos los deportes, análisis estadístico y con red neuronal, mejores cuotas y seguimiento de apuestas por nivel de confianza.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231f5fbf'/%3E%3Cpath d='M16 44 28 30l9 8 12-16' fill='none' stroke='white' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/app.css">
 </head>
@@ -48,6 +48,16 @@
       <label>Cuotas objetivo de las combinadas (separadas por coma)<input name="comboTargets" type="text"></label>
       <label>Combinadas: probabilidad mínima de cada selección (%)<input name="comboMinProb" type="number" min="50" max="99" step="1"></label>
       <label>Combinadas: máximo de selecciones<input name="comboMaxLegs" type="number" min="2" max="12" step="1"></label>
+      <fieldset class="gh">
+        <legend>Guardar el historial en GitHub (celular y PC)</legend>
+        <p class="note" id="gh-status"></p>
+        <label>Token de GitHub<input name="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+        <div class="row">
+          <button class="btn small ghost" type="button" id="gh-forget" hidden>Olvidar token</button>
+          <button class="btn small" type="button" id="gh-save">Guardar y probar</button>
+        </div>
+        <p class="note">Créalo en GitHub → Settings → Developer settings → Fine-grained tokens: solo el repositorio Analisis-BDP, permiso <b>Contents: Read and write</b>. Se guarda solo en este navegador y la página solo escribe en <code>docs/data/</code>. Pégalo una vez en cada dispositivo.</p>
+      </fieldset>
       <div class="row">
         <button class="btn" value="reset" type="submit">Valores por defecto</button>
         <button class="btn" value="cancel" type="submit">Cancelar</button>

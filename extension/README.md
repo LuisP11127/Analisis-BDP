@@ -4,6 +4,10 @@ Extensión que obtiene partidos, estadísticas, noticias y cuotas **desde tu nav
 con tu conexión de Perú. Así funcionan también los sitios que bloquean a los servidores
 (Sofascore) o a quien no está en Perú (Betano).
 
+Es opcional: sin ella la página funciona en el celular y en la PC con los datos
+automáticos (Flashscore y Apuesta Total, actualizados cada 2 horas). Con ella se suman
+Sofascore (cualquier día) y Betano.
+
 | Fuente | Qué aporta | ¿Funciona desde servidores de GitHub? |
 |---|---|---|
 | Sofascore | Partidos de todos los deportes, forma, últimos resultados, H2H, bajas y lesiones, votos, cuotas de referencia y resultados finales | No, solo desde tu navegador |
@@ -39,7 +43,8 @@ Haz clic en el ícono de la extensión → sección **Guardar en GitHub**:
 
 El token se guarda solo en la extensión (no en la página ni en el repositorio) y solo
 permite escribir archivos JSON dentro de `docs/data/`. Sin token, la página guarda
-todo en el navegador.
+todo en el navegador. Si prefieres, pega el token en la página (**⚙ Ajustes**): así
+también guardas desde el celular.
 
 ## Pestañas en segundo plano
 

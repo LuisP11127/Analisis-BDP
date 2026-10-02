@@ -1,5 +1,6 @@
-// Historial de apuestas, liquidación con los resultados de Sofascore y
-// entrenamiento de la red neuronal.
+// Historial de apuestas, liquidación con los resultados (Sofascore vía la
+// extensión o los publicados por GitHub Actions) y entrenamiento de la red
+// neuronal.
 //
 // Archivos (dentro de docs/ en GitHub o en el navegador):
 //   data/historial/index.json         resumen por día
@@ -7,8 +8,9 @@
 //   data/entrenamiento/AAAA-MM.json   selecciones analizadas + resultado real (para la red)
 //   data/modelo/red-neuronal.json     pesos de la red neuronal
 import * as ext from './ext.js';
+import * as provider from './provider.js';
 import * as store from './storage.js';
-import { addDays, groupBy, limaToday } from './util.js';
+import { addDays, groupBy, limaDateOf, limaToday } from './util.js';
 import { FEATURE_VERSION, FEATURES } from './analysis/features.js';
 import { settle } from './analysis/markets.js';
 import { Corrector } from './analysis/neural.js';
@@ -222,6 +224,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   const now = Date.now();
   const today = limaToday();
   const index = await loadIndex();
+  let skipped = 0; // partidos de Sofascore sin la extensión
   const due = (x) => x.status === 'pending' && x.start < now - GRACE_MS;
 
   onProgress('Buscando apuestas pendientes', 0.05);
@@ -255,9 +258,23 @@ export async function updateResults({ onProgress = () => {} } = {}) {
 
   const results = {};
   const list = [...ids];
-  for (let i = 0; i < list.length; i += 10) {
-    onProgress(`Sofascore: resultados ${Math.min(i + 10, list.length)} de ${list.length}`, 0.1 + (0.6 * i) / Math.max(1, list.length));
-    const chunk = list.slice(i, i + 10);
+  // Partidos automáticos (Flashscore): resultados publicados cada 2 horas.
+  const auto = list.filter(provider.isAuto);
+  const starts = new Map();
+  for (const day of dayFiles) for (const a of day.analyses) for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) starts.set(leg.eventId, leg.start);
+  for (const { file } of rowFiles) for (const r of file.rows) starts.set(r.eventId, r.start);
+  const dates = new Set(auto.filter((id) => Number.isFinite(starts.get(id))).flatMap((id) => [limaDateOf(starts.get(id)), limaDateOf(starts.get(id) + 86400000)]));
+  if (auto.length) onProgress('Resultados publicados', 0.1);
+  for (const date of dates) {
+    const published = await provider.loadResults(date, { force: true });
+    for (const id of auto) if (published[id] && results[id]?.state !== 'finalizado') results[id] = published[id];
+  }
+  // Partidos de Sofascore: con la extensión.
+  const sofa = list.filter((id) => !provider.isAuto(id));
+  if (sofa.length && !ext.available()) skipped = sofa.length;
+  for (let i = 0; ext.available() && i < sofa.length; i += 10) {
+    onProgress(`Sofascore: resultados ${Math.min(i + 10, sofa.length)} de ${sofa.length}`, 0.1 + (0.6 * i) / Math.max(1, sofa.length));
+    const chunk = sofa.slice(i, i + 10);
     const r = await ext.call('sofascore', 'getEventResults', { ids: chunk, urls: Object.fromEntries(chunk.map((id) => [id, urls[id]])) }, { timeout: 300000 });
     Object.assign(results, r.items);
   }
@@ -307,7 +324,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
     network = await trainNetwork();
   }
   onProgress('Listo', 1);
-  return { checked: list.length, resolved, newRows, network: network?.meta || null };
+  return { checked: list.length, resolved, newRows, skipped, network: network?.meta || null };
 }
 
 // ---- Red neuronal ----
@@ -332,7 +349,7 @@ export async function trainNetwork() {
 // ---- Subir lo guardado en el navegador a GitHub ----
 
 export async function uploadLocalToGithub({ onProgress = () => {} } = {}) {
-  if (store.getMode() !== 'github') throw new Error('Configura primero el token de GitHub en la extensión');
+  if (!store.isGithub()) throw new Error('Configura primero el token de GitHub (⚙ Ajustes)');
   const paths = (await store.localPaths()).filter((p) => p.startsWith('data/historial/2') || p.startsWith('data/entrenamiento/'));
   const days = [];
   for (const [i, path] of paths.entries()) {

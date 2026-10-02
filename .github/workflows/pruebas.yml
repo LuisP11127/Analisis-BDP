@@ -8,7 +8,10 @@ on:
     paths:
       - .github/workflows/pruebas.yml
       - docs/**
+      - '!docs/data/**'
       - tests/**
+      - extension/sources/**
+      - scripts/collect-data.mjs
 
 permissions:
   contents: read

@@ -1,10 +1,12 @@
-// Prueba de punta a punta de la página con la extensión simulada.
+// Prueba de punta a punta de la página: con la extensión simulada (PC) y sin
+// extensión, con datos automáticos y token de GitHub simulados (celular).
 // Uso: NODE_PATH=$(npm root -g) node tests/e2e/run.cjs [carpeta-capturas]
 // Requiere Playwright (con Chromium) y Python 3 para servir docs/.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 const ROOT = path.resolve(__dirname, '../..');
 const OUT = path.resolve(process.argv[2] || path.join(ROOT, 'tests/e2e/capturas'));
@@ -16,6 +18,165 @@ const checks = [];
 function check(name, ok, detail = '') {
   checks.push({ name, ok: Boolean(ok), detail });
   console.log(`${ok ? 'OK ' : 'FALLA'} ${name}${detail ? ` — ${detail}` : ''}`);
+}
+
+// ---- Datos automáticos (data/fuente) y API de GitHub simulados ----
+
+async function fixtures() {
+  const { compactDay, compactResult } = await import(pathToFileURL(path.join(ROOT, 'docs/js/data-format.js')).href);
+  const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+  const next = new Date(`${DAY}T12:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const TOMORROW = next.toISOString().slice(0, 10);
+  const at = (h) => Date.parse(`${DAY}T05:00:00Z`) + h * 3600000;
+  const ev = (id, league, country, alpha2, priority, home, away, hour) => ({
+    id: `fs:${id}`,
+    sport: 'football',
+    start: at(hour),
+    tournament: { id: league.toLowerCase().replace(/\W+/g, '-'), name: league, priority },
+    category: { name: country, alpha2 },
+    home: { id: `${id}h`, name: home },
+    away: { id: `${id}a`, name: away },
+    state: 'pendiente',
+    score: null,
+  });
+  const events = [
+    ev('e1', 'Liga 1', 'PERÚ', 'PE', 990, 'Alianza Lima', 'Sporting Cristal', 13),
+    ev('e2', 'Liga 1', 'PERÚ', 'PE', 990, 'Universitario', 'Melgar', 15),
+    ev('e3', 'Liga 1', 'PERÚ', 'PE', 990, 'Cienciano', 'ADT', 18),
+    ev('e4', 'Premier League', 'INGLATERRA', 'EN', 1000, 'Arsenal', 'Chelsea', 11),
+  ];
+  const last = (goals) => goals.map(([gf, ga], i) => ({ start: at(-24 * (i + 3)), home: i % 2 === 0, gf, ga, r: gf > ga ? 'W' : gf < ga ? 'L' : 'D' }));
+  const strong = last([[3, 0], [2, 1], [2, 0], [1, 1], [3, 1], [2, 0], [1, 0], [2, 2], [4, 1], [2, 1]]);
+  const weak = last([[0, 2], [1, 1], [0, 1], [1, 3], [0, 0], [1, 2], [0, 2], [2, 2], [0, 1], [1, 2]]);
+  const o = (market, sel, line, price) => ({ source: 'apuestatotal', market, sel, line, price });
+  const book = (h, d, a) => [o('1X2', 'home', null, h), o('1X2', 'draw', null, d), o('1X2', 'away', null, a), o('DC', '1X', null, 1.08), o('OU', 'over', 2.5, 1.8), o('OU', 'under', 2.5, 1.95), o('OU', 'over', 1.5, 1.25), o('OU', 'under', 1.5, 3.6)];
+  const football = compactDay({
+    date: DAY,
+    sport: 'football',
+    generated: new Date(Date.now() - 35 * 60000).toISOString(),
+    events,
+    offers: { 'fs:e1': book(1.35, 4.8, 8.5), 'fs:e2': book(1.5, 4.0, 6.5), 'fs:e4': book(1.45, 4.5, 6.8) },
+    details: Object.fromEntries(['e1', 'e2', 'e4'].map((id) => [`fs:${id}`, { lastHome: strong, lastAway: weak, h2h: { homeWins: 4, draws: 1, awayWins: 1 } }])),
+  });
+  const generated = football.generated;
+  const files = {
+    'indice.json': { generated, today: DAY, days: { [DAY]: { football: { events: 4, withOdds: 3 }, basketball: { events: 1, withOdds: 0 } }, [TOMORROW]: {} } },
+    [`${DAY}/football.json`]: football,
+    [`${DAY}/basketball.json`]: compactDay({
+      date: DAY,
+      sport: 'basketball',
+      generated,
+      events: [{ ...ev('b1', 'NBA', 'EE. UU.', 'US', 1000, 'Lakers', 'Celtics', 20), sport: 'basketball' }],
+    }),
+    [`resultados/${DAY}.json`]: {
+      'fs:e1': compactResult({ state: 'finalizado', score: { home: 2, away: 0 } }),
+      'fs:e2': compactResult({ state: 'finalizado', score: { home: 0, away: 1 } }),
+      'fs:e4': compactResult({ state: 'finalizado', score: { home: 3, away: 1 } }),
+    },
+  };
+  return { DAY, files };
+}
+
+// API de contenidos de GitHub en memoria.
+function githubMock(context) {
+  const files = new Map();
+  const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
+  let sha = 0;
+  context.route('https://api.github.com/**', async (route) => {
+    const req = route.request();
+    const url = new globalThis.URL(req.url());
+    const json = (status, body) => route.fulfill({ status, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (req.headers().authorization !== 'Bearer github_pat_prueba') return json(401, { message: 'Bad credentials' });
+    if (url.pathname === '/repos/LuisP11127/Analisis-BDP') return json(200, { permissions: { push: true } });
+    const m = url.pathname.match(/^\/repos\/LuisP11127\/Analisis-BDP\/contents\/(.+)$/);
+    if (!m) return json(404, {});
+    const file = decodeURIComponent(m[1]);
+    if (req.method() === 'PUT') {
+      const body = JSON.parse(req.postData());
+      files.set(file, { text: Buffer.from(body.content, 'base64').toString('utf8'), sha: `s${++sha}` });
+      return json(200, { content: { sha: files.get(file).sha } });
+    }
+    const f = files.get(file);
+    if (!f) return json(404, { message: 'Not Found' });
+    return json(200, { content: Buffer.from(f.text).toString('base64'), encoding: 'base64', sha: f.sha });
+  });
+  return files;
+}
+
+async function withoutExtension(browser, errors) {
+  const { DAY, files } = await fixtures();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'es-PE', timezoneId: 'America/Lima', isMobile: true, hasTouch: true });
+  await context.route('**/data/fuente/**', (route) => {
+    const rel = new globalThis.URL(route.request().url()).pathname.split('/data/fuente/')[1];
+    return files[rel] ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(files[rel]) }) : route.fulfill({ status: 404, body: '' });
+  });
+  const repo = githubMock(context);
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(`(sin extensión) ${e.message}`));
+  page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && !m.text().includes('401') && errors.push(`(sin extensión) ${m.text()}`));
+
+  await page.goto(URL);
+  await page.waitForSelector('.league');
+  check('sin extensión usa los datos automáticos', (await page.textContent('.segmented button.active')) === 'Automático');
+  check('sin extensión la fuente Sofascore está desactivada', await page.$eval('.segmented button:has-text("Sofascore")', (b) => b.disabled));
+  check('muestra cuándo se actualizaron los datos', (await page.textContent('.source-bar')).includes('hace 35 min'), await page.textContent('.source-bar'));
+  const leagues = await page.$$eval('.league .name', (els) => els.map((e) => e.textContent));
+  check('ligas automáticas ordenadas por importancia', leagues.join(',') === 'Premier League,Liga 1', leagues.join(', '));
+  await page.click('.league:has-text("Liga 1") .league-title');
+  const shown = await page.$$eval('.league:has-text("Liga 1") .match', (els) => els.length);
+  check('"Solo con cuotas" oculta los partidos sin cuotas', shown === 2 && (await page.$$('.odds-badge')).length === 2, `${shown} partidos`);
+  const chips = await page.$$eval('.sport', (els) => els.map((e) => e.textContent));
+  check('solo muestra los deportes publicados', chips.length === 2 && chips[0].includes('Fútbol'), chips.join(' | '));
+  await page.screenshot({ path: path.join(OUT, '6-celular-automatico.png'), fullPage: false });
+
+  // Token de GitHub en Ajustes
+  await page.click('#open-settings');
+  await page.fill('input[name="ghToken"]', 'github_pat_prueba');
+  await page.click('#gh-save');
+  await page.waitForFunction(() => document.querySelector('#gh-status').textContent.includes('Conectado'), null, { timeout: 10000 });
+  check('el token de GitHub se guarda y se prueba', true);
+  await page.click('#settings button[value="cancel"]');
+  check('indica que guarda en GitHub', (await page.textContent('#ext-status')).includes('GitHub'));
+
+  // Análisis sin extensión
+  await page.click('.league:has-text("Premier League") .league-head input');
+  await page.click('.league:has-text("Liga 1") .league-head input');
+  check('sin extensión se puede analizar', !(await page.$eval('#run-stats', (b) => b.disabled)));
+  await page.click('#run-stats');
+  await page.waitForSelector('#tab-analisis .summary h2', { timeout: 30000 });
+  await page.waitForSelector('.chip:has-text("Guardado en el historial")', { timeout: 30000 });
+  const summary = await page.textContent('#tab-analisis .summary');
+  check('analiza con estadísticas y cuotas publicadas', summary.includes('3 partidos analizados') && /Flashscore · 3 partidos/.test(summary) && /Apuesta Total · 3 partidos \(publicadas\)/.test(summary), summary.slice(0, 200));
+  const cards = await page.$$('#tab-analisis .card');
+  check('hay picks con datos automáticos', cards.length > 0, `${cards.length} tarjetas`);
+  check('guarda el análisis en GitHub', repo.has(`docs/data/historial/${DAY}.json`) && repo.has('docs/data/historial/index.json'), [...repo.keys()].join(', '));
+  await page.screenshot({ path: path.join(OUT, '7-celular-analisis.png'), fullPage: false });
+
+  // Liquidación con los resultados publicados
+  await page.click('.tabs button[data-tab="historial"]');
+  await page.waitForSelector('.day');
+  check('el historial muestra que guarda en GitHub', (await page.textContent('#tab-historial .banner')).includes('Guardando en GitHub'));
+  await page.evaluate(() => {
+    const real = Date.now.bind(Date);
+    Date.now = () => real() + 36 * 3600000;
+  });
+  await page.click('text=Actualizar resultados');
+  await page.waitForFunction(() => /Resultados:|No hay partidos|No se pudieron/.test(document.querySelector('#toast').textContent), null, { timeout: 30000 });
+  const toast = await page.textContent('#toast');
+  check('liquida con los resultados publicados', /Resultados: [1-9]\d* apuestas liquidadas/.test(toast), toast);
+  await page.waitForTimeout(500);
+  await page.click('.day-head');
+  await page.waitForSelector('.day-body .status-pill');
+  const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
+  check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
+  check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses[0].picks.every((p) => p.status !== 'pending'));
+  await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });
+  await page.click('.tabs button[data-tab="partidos"]');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  check('sin desplazamiento horizontal (automático, celular)', !overflow);
+  await context.close();
 }
 
 (async () => {
@@ -35,7 +196,8 @@ function check(name, ok, detail = '') {
     // 1) Partidos
     await page.goto(URL);
     await page.waitForSelector('.league');
-    check('detecta la extensión', (await page.getAttribute('#ext-status .chip', 'title')).includes('9.9.9'));
+    check('detecta la extensión', (await page.getAttribute('#ext-status .chip:has-text("Extensión")', 'title')).includes('9.9.9'));
+    check('con la extensión empieza con Sofascore', (await page.textContent('.segmented button.active')) === 'Sofascore');
     const leagues = await page.$$eval('.league .name', (els) => els.map((e) => e.textContent));
     check('muestra las ligas de fútbol ordenadas por importancia', leagues.join(',') === 'Premier League,Serie A,Liga 1', leagues.join(', '));
     const times = await page.$$eval('.league:has-text("Liga 1") .match .time', (els) => els.map((e) => e.textContent));
@@ -118,13 +280,8 @@ function check(name, ok, detail = '') {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     check('sin desplazamiento horizontal en celular', !overflow);
 
-    // 7) Sin extensión: solo historial
-    const plain = await browser.newPage();
-    plain.on('pageerror', (e) => errors.push(`(sin extensión) ${e.message}`));
-    await plain.goto(URL);
-    await plain.waitForSelector('#tab-historial .banner', { timeout: 10000 });
-    check('sin extensión abre el historial en modo lectura', (await plain.textContent('#tab-historial .banner')).includes('Solo lectura'));
-    check('sin extensión los botones de análisis están desactivados', await plain.$eval('#run-stats', (b) => b.disabled));
+    // 7) Sin extensión (celular): datos automáticos y token de GitHub en el navegador
+    await withoutExtension(browser, errors);
   } finally {
     check('sin errores de JavaScript', errors.length === 0, errors.slice(0, 3).join(' | '));
     await browser.close();
