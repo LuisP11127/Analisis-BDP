@@ -24,7 +24,13 @@ function sourceChip(id, s) {
   if (!s) return null;
   if (!s.ok) return h('span', { class: 'chip err', title: s.error || '' }, `${SOURCE_NAMES[id]}: error`);
   const extra = s.matched != null ? ` · ${s.matched} ${UNITS[id] || 'partidos'}` : s.mode ? ` · ${MODE[s.mode] || s.mode}` : '';
-  const title = TITLES[id] || (s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '');
+  let title = TITLES[id] || (s.published ? 'Cuotas publicadas por GitHub Actions (cada 2 horas)' : s.generated ? `Datos publicados el ${fmtDateTime(Date.parse(s.generated))}` : '');
+  // Casas: cuántos mercados se leyeron y cuántos no se analizan (de jugador, de torneo...).
+  const m = s.markets;
+  if (m) {
+    const parts = [[m.ok, 'analizados'], [m.player, 'de jugador'], [m.outright, 'de torneo'], [m.special, 'especiales sin datos'], [m.unknown, 'sin reconocer']].filter(([n]) => n);
+    title = `Mercados: ${parts.map(([n, t]) => `${n} ${t}`).join(' · ')}${s.pages ? ` · páginas de partido abiertas: ${s.pages}` : ''}`;
+  }
   return h('span', { class: 'chip ok', title }, `${SOURCE_NAMES[id]}${extra}${s.published ? ' (publicadas)' : ''}`);
 }
 

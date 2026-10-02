@@ -100,6 +100,15 @@ function chip(cls, text, title) {
   return el;
 }
 
+// Versión de la extensión con todos los mercados de Betano y Flashscore.
+const EXT_LATEST = '0.4.0';
+function extOutdated(v) {
+  if (!v || /prueba/.test(v)) return false;
+  const [a, b] = String(v).split('.').map(Number);
+  const [x, y] = EXT_LATEST.split('.').map(Number);
+  return a < x || (a === x && b < y);
+}
+
 function renderHeader() {
   const n = app.state.selected.size;
   $('#sel-count').textContent = `${n} ${n === 1 ? 'partido marcado' : 'partidos marcados'}`;
@@ -115,7 +124,11 @@ function renderHeader() {
             mode === 'local' ? 'Navegador' : 'Solo lectura',
             'El historial se guarda solo en este navegador. Pega tu token de GitHub en ⚙ Ajustes para verlo en cualquier dispositivo.',
           ),
-      app.extOk ? chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`) : null,
+      app.extOk
+        ? extOutdated(app.extVersion)
+          ? chip('warn', 'Extensión: actualizar', `Conector v${app.extVersion}: actualízalo (versión ${EXT_LATEST}) para leer todos los mercados de Betano y las estadísticas de Flashscore. Ver extension/README.md`)
+          : chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`)
+        : null,
     ].filter(Boolean),
   );
 }
