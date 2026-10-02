@@ -9,6 +9,7 @@ on:
     paths:
       - .github/workflows/probe-sources.yml
       - scripts/test-sources.mjs
+      - scripts/probe-detalle.mjs
       - extension/lib/**
       - extension/sources/**
 
@@ -28,3 +29,7 @@ jobs:
 
       - name: Probar conectores
         run: node scripts/test-sources.mjs
+
+      - name: Explorar feeds de detalle (temporal)
+        if: always()
+        run: node scripts/probe-detalle.mjs
