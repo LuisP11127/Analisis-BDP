@@ -60,6 +60,12 @@ function countryCodes() {
   return countries;
 }
 
+// Código de país (dos letras, mayúsculas) a partir de su nombre en español o inglés.
+export function countryCode(name) {
+  const code = countryCodes().get(basicNorm(name));
+  return code && code.length === 2 ? code.toUpperCase() : code === 'eng' ? 'EN' : null;
+}
+
 // Palabras clave de un nombre de equipo: sin artículos ni siglas genéricas,
 // con marcas de categoría (femenino, sub-21, reserva) separadas.
 export function nameTokens(name) {
