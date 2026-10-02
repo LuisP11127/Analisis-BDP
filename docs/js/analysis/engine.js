@@ -10,6 +10,7 @@
 //  6) Picks por nivel de confianza y combinadas.
 import * as ext from '../ext.js';
 import * as provider from '../provider.js';
+import { addTeamStats } from '../flashscore-link.js';
 import { sportOf } from '../sports.js';
 import { clamp, groupBy, limaDateOf, logit, sigmoid } from '../util.js';
 import { buildFeatures, FEATURE_VERSION } from './features.js';
@@ -399,6 +400,8 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
   if (sofa.length && !withExt) throw new Error('Los partidos de Sofascore necesitan la extensión. Elige la fuente "Automático" o abre la página en la PC con la extensión.');
 
   const details = sofa.length ? await sofascoreDetails(sofa, sources, onProgress) : {};
+  // Sofascore + Flashscore: estadísticas de los equipos de ambas fuentes.
+  if (sofa.length) await addTeamStats(sofa, details, sources, onProgress);
   const published = auto.length ? await publishedData(auto, details, sources, onProgress) : new Map();
   const offers = withExt ? await bookmakerOffers(pending, sources, onProgress, { allMarkets: settings.betanoAllMarkets !== false }) : new Map();
   const xg = sofa.length && withExt ? await understatXg(sofa, sources, onProgress) : new Map();
@@ -444,6 +447,7 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
       bookmakers: [...new Set(all.map((o) => o.source))],
       markets: new Set(all.map((o) => o.market)).size,
       teamStats: Boolean(details[ev.id]?.teamStats),
+      ...(details[ev.id]?.fsId ? { fsId: details[ev.id].fsId } : {}),
     };
   }
   sources.simulacion = { ok: true, matched: simulated };

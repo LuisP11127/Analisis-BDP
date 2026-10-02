@@ -147,6 +147,23 @@ export async function getMatchFeeds({ fsId, kinds = ['st', 'sui'] } = {}) {
   return out;
 }
 
+// Para partidos de Sofascore (con la extensión): H2H de Flashscore y las
+// estadísticas de los últimos partidos de cada equipo (texto de df_st; la
+// página las interpreta). fsId: id del partido en Flashscore.
+export async function getTeamFeeds({ fsId, homeId, awayId, n = 6 } = {}) {
+  const h2h = await getH2H({ fsId: String(fsId).replace(/^fs:/, ''), homeId, awayId });
+  const ids = [...new Set([...h2h.lastHome.slice(0, n), ...h2h.lastAway.slice(0, n)].map((m) => m.fsId).filter(Boolean))];
+  const st = {};
+  for (const id of ids) {
+    try {
+      st[id] = (await feed(`df_st_1_${id}`)).data || '';
+    } catch {
+      // sin estadísticas de ese partido
+    }
+  }
+  return { ...h2h, st };
+}
+
 // Últimos partidos de cada equipo y enfrentamientos directos de un partido
 // (pestaña "General" del H2H). fsId: id de Flashscore sin el prefijo.
 export function parseH2H(text) {

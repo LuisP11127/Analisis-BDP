@@ -200,6 +200,7 @@ function lastMatches(events, teamId, sport, before) {
       if (regular && gf != null && ga != null) r = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
       else r = e.winnerCode === 3 ? 'D' : e.winnerCode === (isHome ? 1 : 2) ? 'W' : 'L';
       return {
+        id: e.id,
         start: e.startTimestamp * 1000,
         home: isHome,
         gf,
@@ -285,7 +286,44 @@ async function detailsFromApi(events) {
   const teamEvents = (id) => (teamIdx.has(id) && r.results[teamIdx.get(id)].ok ? r.results[teamIdx.get(id)].data.events || [] : []);
   const items = {};
   for (const ev of events) items[ev.id] = buildDetails(ev, parts[ev.id] || {}, { home: teamEvents(ev.homeId), away: teamEvents(ev.awayId) });
+  await addTeamMatchStats(events, items, r.notes);
   return { mode: r.mode, items, notes: r.notes };
+}
+
+// Estadísticas (córners, tarjetas, tiros, rebotes, aces...) de los últimos
+// partidos de cada equipo: solo el total del partido, reducido a { key, home, away }.
+// La página las convierte en promedios (docs/js/analysis/teamstats.js).
+const STAT_SPORTS = new Set(['football', 'basketball', 'ice-hockey', 'tennis', 'baseball', 'american-football', 'handball']);
+const TEAM_STAT_MATCHES = 5;
+const statsCache = new Map(); // id de partido -> estadísticas reducidas (no cambian)
+function reduceStatistics(data) {
+  const all = (data?.statistics || []).find((b) => b.period === 'ALL');
+  if (!all) return null;
+  const items = [];
+  for (const g of all.groups || []) for (const it of g.statisticsItems || []) items.push({ key: it.key, homeValue: it.homeTotal ?? it.homeValue, awayValue: it.awayTotal ?? it.awayValue });
+  return items.length ? { statistics: [{ period: 'ALL', groups: [{ statisticsItems: items }] }] } : null;
+}
+async function addTeamMatchStats(events, items, notes) {
+  const want = new Map();
+  for (const ev of events) {
+    if (!STAT_SPORTS.has(ev.sport) || !items[ev.id]) continue;
+    for (const side of ['lastHome', 'lastAway']) for (const m of items[ev.id][side].slice(0, TEAM_STAT_MATCHES)) if (m.id && !statsCache.has(m.id)) want.set(m.id, true);
+  }
+  const ids = [...want.keys()];
+  if (ids.length) {
+    try {
+      const r = await apiMany(ids.map((id) => `/event/${id}/statistics`));
+      (r.results || []).forEach((x, i) => statsCache.set(ids[i], x.ok ? reduceStatistics(x.data) : null));
+    } catch (e) {
+      notes.push(`estadísticas de los últimos partidos: ${e.message}`);
+    }
+  }
+  for (const ev of events) {
+    const d = items[ev.id];
+    if (!d || !STAT_SPORTS.has(ev.sport)) continue;
+    const pick = (list) => list.slice(0, TEAM_STAT_MATCHES).map((m) => ({ home: m.home, statistics: statsCache.get(m.id) || null })).filter((m) => m.statistics);
+    d.teamMatches = { home: pick(d.lastHome), away: pick(d.lastAway) };
+  }
 }
 
 // Estadísticas de un partido leyendo su página (y las de los equipos si faltan

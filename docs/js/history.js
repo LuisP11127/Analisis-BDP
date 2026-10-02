@@ -16,6 +16,7 @@ import { settle } from './analysis/markets.js';
 import { parseMarketId } from './analysis/catalog.js';
 import { profitOf } from './analysis/outcomes.js';
 import { mergeRecords, recordFromSofascore } from './analysis/records.js';
+import { flashscoreRecords } from './flashscore-link.js';
 import { Corrector } from './analysis/neural.js';
 import { LEVELS } from './analysis/picks.js';
 
@@ -40,6 +41,7 @@ function storedLeg(c, events) {
     start: c.start,
     match: events[c.eventId] ? `${events[c.eventId].home} vs ${events[c.eventId].away}` : '',
     url: events[c.eventId]?.url || null,
+    ...(events[c.eventId]?.fsId ? { fsId: events[c.eventId].fsId } : {}),
     market: c.market,
     sel: c.sel,
     line: c.line,
@@ -408,6 +410,16 @@ export async function updateResults({ onProgress = () => {} } = {}) {
       const { raw, ...rest } = res;
       results[id] = rest;
       if (raw) results[id].record = recordFromSofascore({ sport: sports.get(id), ...raw });
+    }
+  }
+  // Con la extensión: registros de Flashscore de los partidos de Sofascore que
+  // los necesitan y que GitHub Actions no publicó (historial solo en el navegador).
+  if (ext.available()) {
+    const legs = [];
+    for (const day of dayFiles) for (const a of day.analyses) for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) if (due(leg) && !provider.isAuto(leg.eventId) && detailIds.has(leg.eventId) && !fsRecords[leg.eventId]) legs.push(leg);
+    if (legs.length) {
+      onProgress('Flashscore: estadísticas de los partidos', 0.72);
+      for (const [id, rec] of await flashscoreRecords(legs)) fsRecords[id] = rec;
     }
   }
   // Sofascore + Flashscore: se juntan los dos registros del partido.

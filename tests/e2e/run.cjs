@@ -237,6 +237,7 @@ async function withoutExtension(browser, errors) {
     check('Betano emparejada aunque falle en otros deportes', /Betano · \d+ partidos/.test(summary), summary.match(/Betano[^A-Z]*/)?.[0]);
     const log = await page.evaluate(() => window.__BDP_MOCK_LOG__);
     check('abre la página de cada partido de Betano (todos los mercados)', log.includes('betano.getEventMarkets'));
+    check('suma las estadísticas de equipo de Flashscore a los partidos de Sofascore', log.includes('flashscore.getTeamFeeds') && /Flashscore · \d+ partidos/.test(summary), summary.match(/Flashscore[^A-Z]*/)?.[0]);
     // Filas de entrenamiento guardadas en el navegador: incluyen los mercados nuevos.
     const rowMarkets = await page.evaluate(async () => {
       const st = await import(new URL('js/storage.js', location.href).href);

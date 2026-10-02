@@ -270,6 +270,19 @@
       items: Object.fromEntries(Object.entries(urls).map(([key, url]) => [key, betanoMarkets(byId.get(Number(url.match(/(\d+)\/$/)[1])))])),
       notes: [],
     }),
+    // Flashscore (con la extensión): los mismos partidos, para sumar estadísticas de equipo.
+    'flashscore.getSportDay': ({ sport }) => ({
+      mode: 'direct',
+      items: events
+        .filter((e) => e.sport === sport)
+        .map((e) => ({ id: `fs:m${e.id}`, sport, start: e.start, state: 'pendiente', home: { id: `t${e.home.id}`, name: e.home.name }, away: { id: `t${e.away.id}`, name: e.away.name }, score: null })),
+    }),
+    'flashscore.getTeamFeeds': () => {
+      const st = (c1, c2) => `SE÷Partido¬~SG÷Córneres¬SH÷${c1}¬SI÷${c2}¬~SG÷Tarjetas amarillas¬SH÷2¬SI÷3¬~SG÷Tarjetas rojas¬SH÷0¬SI÷0¬~`;
+      const last = (k) => Array.from({ length: 6 }, (_, i) => ({ fsId: `x${k}${i}`, home: i % 2 === 0, start: Date.now() - (i + 1) * 7 * 864e5, gf: 1, ga: 1, r: 'D' }));
+      const ids = [...last('h'), ...last('a')].map((m) => m.fsId);
+      return { lastHome: last('h'), lastAway: last('a'), h2h: null, st: Object.fromEntries(ids.map((id, i) => [id, st(4 + (i % 4), 3 + (i % 3))])) };
+    },
     'understat.getTeamStrength': ({ league }) => ({
       mode: 'direct',
       items:

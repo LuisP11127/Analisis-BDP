@@ -28,7 +28,7 @@ const HISTORY = path.resolve('docs/data/historial');
 // Deportes con estadísticas por partido en Flashscore (para los mercados de estadísticas).
 const STAT_SPORTS = new Set(['football', 'basketball', 'ice-hockey', 'tennis', 'baseball', 'american-football', 'handball', 'rugby']);
 const TEAM_MATCHES = 8; // últimos partidos de cada equipo para sus estadísticas
-const MAX_DETAIL_FETCHES = 2500; // por corrida (el resto queda para la siguiente)
+const MAX_DETAIL_FETCHES = 6000; // por corrida (el resto queda para la siguiente; los feeds quedan en caché)
 const CACHE_HOURS = 12;
 const AHEAD = [0, 1];
 const BACK = [-7, -6, -5, -4, -3, -2, -1];
@@ -217,7 +217,8 @@ async function main() {
   //     tarjetas, tiros, rebotes, aces...): df_st de cada partido, con caché.
   let withTeamStats = 0;
   await pool(
-    withOdds.filter((ev) => details[ev.id] && STAT_SPORTS.has(ev.sport)),
+    // Primero los partidos más próximos.
+    withOdds.filter((ev) => details[ev.id] && STAT_SPORTS.has(ev.sport)).sort((a, b) => a.start - b.start),
     async (ev) => {
       const d = details[ev.id];
       const side = async (last) => {
