@@ -1,0 +1,1 @@
+AC÷1a Entrada¬IG÷0¬IH÷0¬~AC÷2a Entrada¬IG÷1¬IH÷0¬~AC÷3a Entrada¬IG÷3¬IH÷0¬~AC÷4a Entrada¬IG÷2¬IH÷0¬~AC÷5a Entrada¬IG÷0¬IH÷3¬~AC÷6a Entrada¬IG÷0¬IH÷1¬~AC÷7a Entrada¬IG÷0¬IH÷1¬~AC÷8a Entrada¬IG÷0¬IH÷0¬~AC÷9a Entrada¬IG÷X¬IH÷0¬~WF÷10¬WH÷0¬WG÷7¬WI÷0¬~MIT÷VEN¬MIV÷Incheon SSG Landers Field¬MIT÷TWN¬MIV÷Incheon¬A1÷¬~

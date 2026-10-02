@@ -90,6 +90,10 @@ function stateOf(r) {
 
 const num = (v) => (v === undefined || v === '' ? null : Number(v));
 
+// Campos de la fila con el marcador de cada periodo (BA/BB = 1.er periodo...).
+const PERIOD_FIELDS = ['BA', 'BB', 'BC', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BK', 'BL', 'BM', 'BN', 'BO', 'BP', 'BQ', 'BR', 'AG', 'AH'];
+const periodFields = (r) => Object.fromEntries(PERIOD_FIELDS.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
+
 // day: 0 = hoy, 1 = mañana, -1 = ayer (hora de Lima). Devuelve partidos con la
 // misma forma que los de Sofascore (id con prefijo "fs:").
 export async function getSportDay({ sport = 'football', day = 0 } = {}) {
@@ -120,10 +124,27 @@ export async function getSportDay({ sport = 'football', day = 0 } = {}) {
         score: hs != null && as != null && state !== 'pendiente' ? { home: hs, away: as, homeNT: null, awayNT: null } : null,
         winner: null,
         url: `https://www.flashscore.pe/partido/${r.AA}/`,
+        ...(state === 'finalizado' ? { fsRow: periodFields(r) } : {}),
       });
     }
   }
   return { mode, items };
+}
+
+// Feeds de detalle de un partido (texto sin procesar; se interpretan en
+// docs/js/analysis/records.js): st estadísticas, sui incidencias y marcador
+// por periodo, mh punto a punto (tenis). Un feed vacío es "sin datos".
+export async function getMatchFeeds({ fsId, kinds = ['st', 'sui'] } = {}) {
+  const id = String(fsId).replace(/^fs:/, '');
+  const out = {};
+  for (const kind of kinds) {
+    try {
+      out[kind] = (await feed(`df_${kind}_1_${id}`)).data || '';
+    } catch (e) {
+      out[kind] = null; // error: se reintenta en la próxima corrida
+    }
+  }
+  return out;
 }
 
 // Últimos partidos de cada equipo y enfrentamientos directos de un partido
@@ -141,6 +162,7 @@ export function parseH2H(text) {
       sections.push(current);
     } else if (r.KC !== undefined && current) {
       current.rows.push({
+        id: r.KP || null,
         start: Number(r.KC) * 1000,
         homeId: r.UQ || null,
         awayId: r.UO || null,
@@ -164,7 +186,7 @@ function toLast(row, teamId) {
   const ga = home ? row.as : row.hs;
   let r = { w: 'W', l: 'L', d: 'D' }[row.result?.[0]];
   if (!r && gf != null && ga != null) r = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
-  return { start: row.start, home, gf, ga, r: r || 'D', opp: home ? row.away : row.home, league: row.league };
+  return { start: row.start, home, gf, ga, r: r || 'D', opp: home ? row.away : row.home, league: row.league, fsId: row.id || null };
 }
 
 // ev: partido con home.id / away.id de Flashscore. Devuelve los datos que usa el modelo.

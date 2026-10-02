@@ -75,3 +75,19 @@ test('combinadas por casa, cuota objetivo y sin repetir partido', () => {
   }
   assert.ok(combos.some((k) => k.source === 'betano'));
 });
+
+test('los ajustes eligen qué tipos de mercado pueden salir en picks y combinadas', async () => {
+  const { marketGroupOf } = await import('../docs/js/analysis/picks.js');
+  assert.equal(marketGroupOf('resultado'), 'principales');
+  assert.equal(marketGroupOf('games'), 'principales');
+  assert.equal(marketGroupOf('corners'), 'estadisticas');
+  assert.equal(marketGroupOf('periodo'), 'periodos');
+  assert.equal(marketGroupOf('combinado'), 'combinados');
+  const c = (eventId, key, family, p, price) => ({ eventId, key, family, p, best: { source: 'betano', price }, prices: { betano: price } });
+  const list = [c(1, 'OU.corners|over|8.5', 'corners', 0.85, 1.4), c(1, '1X2|home|', 'resultado', 0.82, 1.3), c(2, 'OU|over|1.5', 'total', 0.8, 1.35)];
+  const all = selectPicks(list);
+  assert.equal(all.find((x) => x.eventId === 1).key, 'OU.corners|over|8.5');
+  const s = { ...DEFAULT_SETTINGS, marketGroups: ['principales'] };
+  assert.equal(selectPicks(list, s).find((x) => x.eventId === 1).key, '1X2|home|');
+  for (const k of buildCombos(list, { ...s, comboTargets: [1.5] })) assert.ok(k.legs.every((l) => !l.key.includes('corners')));
+});

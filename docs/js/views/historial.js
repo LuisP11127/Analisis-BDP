@@ -7,7 +7,7 @@ import { emptyMethodStats, hitRate, roi, totals } from '../history.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtDay, fmtTime, h, pct } from '../util.js';
 
-const STATUS = { won: 'Ganada', lost: 'Perdida', void: 'Nula', pending: 'Pendiente' };
+const STATUS = { won: 'Ganada', lost: 'Perdida', void: 'Nula', pending: 'Pendiente', half_won: 'Medio ganada', half_lost: 'Medio perdida' };
 const LEVEL_NAME = Object.fromEntries(LEVELS.map((l) => [l.id, l.name]));
 const METHODS = [
   ['estadistico', 'Análisis estadístico', 'Estadístico'],
@@ -143,6 +143,7 @@ function legLine(l, extra = []) {
     h('span', {}, `${sport.icon} ${l.match} (${fmtTime(l.start)}): `),
     h('b', {}, l.label),
     h('span', { class: 'note' }, score),
+    l.noData ? h('span', { class: 'note' }, ' · sin datos para liquidarla') : null,
   );
 }
 

@@ -7,6 +7,27 @@ export const LEVELS = [
   { id: 'moderada', name: 'Moderada' },
 ];
 
+// Grupos de mercados que se pueden activar o desactivar en los ajustes.
+// family: la de catalog.familyOf (resultado, total, periodo, corners...).
+export const MARKET_GROUPS = [
+  { id: 'principales', name: 'Resultado, total, hándicap y ambos marcan' },
+  { id: 'periodos', name: 'Mitades, cuartos, periodos, sets y entradas' },
+  { id: 'estadisticas', name: 'Córners, tarjetas, tiros, faltas y otras estadísticas' },
+  { id: 'marcador', name: 'Marcador exacto y margen de victoria' },
+  { id: 'combinados', name: 'Combinados de la casa (descanso/final, resultado y total…)' },
+  { id: 'otros', name: 'Otros (primer gol, par/impar, prórroga, carrera a…)' },
+];
+const MAIN = new Set(['resultado', 'total', 'handicap', 'ambos', 'games', 'sets', 'legs', 'maps', 'rounds', 'frames']);
+export function marketGroupOf(family) {
+  if (!family || MAIN.has(family)) return 'principales';
+  if (family === 'periodo') return 'periodos';
+  if (family === 'marcador' || family === 'margen') return 'marcador';
+  if (family === 'combinado') return 'combinados';
+  if (family === 'otro') return 'otros';
+  return 'estadisticas';
+}
+const allowedGroup = (c, s) => !s.marketGroups || s.marketGroups.includes(marketGroupOf(c.family));
+
 export const DEFAULT_SETTINGS = {
   alta: 0.8, // probabilidad mínima para "alta"
   moderadaAlta: 0.7,
@@ -15,6 +36,7 @@ export const DEFAULT_SETTINGS = {
   comboTargets: [5, 10], // cuota mínima de cada combinada
   comboMinProb: 0.7, // probabilidad mínima de cada selección de una combinada
   comboMaxLegs: 8,
+  marketGroups: MARKET_GROUPS.map((g) => g.id), // mercados que pueden salir en picks y combinadas
 };
 
 export const BOOKMAKERS = { apuestatotal: 'Apuesta Total', betano: 'Betano', sofascore: 'Sofascore (referencia)' };
@@ -33,7 +55,7 @@ const levelRank = (id) => LEVELS.findIndex((l) => l.id === id);
 export function selectPicks(candidates, s = DEFAULT_SETTINGS) {
   const picks = [];
   for (const list of groupBy(
-    candidates.filter((c) => c.best && c.best.price >= s.minOdds),
+    candidates.filter((c) => c.best && c.best.price >= s.minOdds && allowedGroup(c, s)),
     (c) => c.eventId,
   ).values()) {
     for (const level of LEVELS) {
@@ -106,7 +128,7 @@ export function buildCombos(candidates, s = DEFAULT_SETTINGS, sources = ['apuest
   const seen = new Set();
   for (const source of sources) {
     const options = candidates
-      .filter((c) => c.p >= s.comboMinProb && c.prices?.[source] >= s.minOdds)
+      .filter((c) => c.p >= s.comboMinProb && c.prices?.[source] >= s.minOdds && allowedGroup(c, s))
       .map((c) => ({ key: c.key, eventId: c.eventId, p: c.p, price: c.prices[source] }));
     for (const target of s.comboTargets) {
       const used = new Set();

@@ -10,6 +10,7 @@
 import { groupBy, mean, sum } from '../util.js';
 import { decodeParts, labelOf, marketId, parseMarket, parseMarketId, swapSelection } from './catalog.js';
 import { evaluate } from './outcomes.js';
+import { recordFromFlashscore } from './records.js';
 
 export const GROUPS = {
   '1X2': ['home', 'draw', 'away'],
@@ -62,16 +63,22 @@ export function selectionLabel(c, ev, unit = 'goles') {
 // Registro mínimo con el resultado final (cuando no hay detalle del partido).
 export function recordFromResult(result, sport) {
   if (!result) return null;
-  if (result.per || Array.isArray(result.final)) return { sport, ...result };
+  // Aplazado/cancelado: se anula solo pasado el plazo (result.final === true).
+  const voidable = Boolean(result.final === true || result.voidable);
+  if (Array.isArray(result.final)) return { sport, ...result };
+  if (result.record) return { ...result.record, sport, state: result.state || result.record.state, winner: result.record.winner ?? result.winner, voidable };
   const s = result.score;
   const regular = (sport === 'football' || sport === 'futsal') && s?.homeNT != null && s?.awayNT != null;
+  const final = s ? [regular ? s.homeNT : s.home, regular ? s.awayNT : s.away] : undefined;
+  // Marcador por periodo del feed del día (Flashscore).
+  if (result.per) return { ...recordFromFlashscore({ sport, state: result.state, final: s ? [s.home, s.away] : null, per: result.per }), winner: result.winner, voidable };
   return {
     sport,
     state: result.state,
-    final: s ? [regular ? s.homeNT : s.home, regular ? s.awayNT : s.away] : undefined,
+    final,
     // Ganador cuando el marcador no lo dice (p. ej. tanda de penales).
     winner: result.winner,
-    voidable: Boolean(result.final === true || result.voidable),
+    voidable,
   };
 }
 

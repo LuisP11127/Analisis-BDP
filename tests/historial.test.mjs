@@ -59,3 +59,29 @@ test('totales de varios días por método', () => {
   assert.equal(t.methods.estadistico.combos.lost, 2);
   assert.equal(t.methods.red_neuronal.pending, 2);
 });
+
+test('medias apuestas, combinadas con medias y apuestas sin datos', async () => {
+  const { comboOdds, comboStatus, legStatus, needsRecord } = await import('../docs/js/history.js');
+  const s = daySummary({
+    analyses: [{ id: 'est-9', method: 'estadistico', created: 'x', picks: [pick(1, 'OU|over|2.25', 'alta', 'half_won', 2), pick(2, 'HCP|home|-0.25', 'alta', 'half_lost', 1.9)], combos: [] }],
+  });
+  const est = s.methods.estadistico;
+  assert.equal(est.won, 1);
+  assert.equal(est.lost, 1);
+  assert.ok(Math.abs(est.profit - (0.5 - 0.5)) < 1e-9);
+  const k = { legs: [{ status: 'won', price: 1.5 }, { status: 'half_won', price: 2 }, { status: 'void', price: 3 }] };
+  assert.equal(comboStatus(k), 'won');
+  assert.equal(comboOdds(k), 1.5 * 1.5);
+  assert.equal(needsRecord('OU'), false);
+  assert.equal(needsRecord('OU.corners'), true);
+  assert.equal(needsRecord('1X2@h1'), true);
+  assert.equal(needsRecord('AND'), true);
+  // Partido terminado sin estadísticas de córners: pendiente y, pasados 4 días, nula.
+  const leg = { market: 'OU.corners', sel: 'over', line: 8.5, sport: 'football', start: Date.parse('2026-10-01T20:00:00Z') };
+  const res = { state: 'finalizado', score: { home: 2, away: 1 } };
+  assert.equal(legStatus(leg, res, leg.start + 3 * 3600000), null);
+  assert.deepEqual(legStatus(leg, res, leg.start + 5 * 86400000), { status: 'void', noData: true });
+  // Con el registro completo se liquida.
+  const withRecord = { ...res, record: { state: 'finalizado', final: [2, 1], stats: { corners: { ft: [6, 4] } } } };
+  assert.deepEqual(legStatus(leg, withRecord, leg.start + 3 * 3600000), { status: 'won' });
+});

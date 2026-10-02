@@ -77,8 +77,10 @@ test('formato compacto: ida y vuelta de un día', () => {
   const offers = [
     { source: 'apuestatotal', market: '1X2', sel: 'home', line: null, price: 2.1 },
     { source: 'apuestatotal', market: 'OU', sel: 'over', line: 2.5, price: 1.95 },
+    { source: 'apuestatotal', market: 'OU.corners@h1', sel: 'over', line: 4.5, price: 1.8, group: 'apuestatotal|Córners 1ra mitad|4.5' },
   ];
   const details = {
+    teamStats: { home: { corners: { for: 5.5, against: 4.1, n: 8 } }, away: { corners: { for: 4, against: 6.25, n: 7 } } },
     lastHome: Array.from({ length: 12 }, (_, i) => ({ start: 1.7e12 - i * 864e5, home: i % 2 === 0, gf: 2, ga: 1, r: 'W', opp: 'X', league: 'L' })),
     lastAway: [],
     h2h: { homeWins: 2, draws: 1, awayWins: 0 },
@@ -100,6 +102,7 @@ test('formato compacto: ida y vuelta de un día', () => {
   assert.equal(d.lastHome.length, 10, 'se guardan los últimos 10');
   assert.deepEqual(d.lastHome[1], { start: 1.7e12 - 864e5, home: false, gf: 2, ga: 1, r: 'W' });
   assert.deepEqual(d.h2h, details.h2h);
+  assert.deepEqual(d.teamStats, details.teamStats);
   assert.deepEqual(day.xg.get(EVENT.id), { home: { xgFor: 1.235, xgAgainst: 0.988 }, away: { xgFor: 1.1, xgAgainst: 1.3 } });
 });
 
@@ -109,4 +112,14 @@ test('formato compacto: resultados que liquidan apuestas', () => {
   assert.equal(settle({ market: 'OU', sel: 'under', line: 2.5 }, done, 'football'), 'lost');
   const postponed = expandResult(compactResult({ ...EVENT, state: 'aplazado', score: null }));
   assert.equal(settle({ market: '1X2', sel: 'home', line: null }, { ...postponed, final: true }, 'football'), 'void');
+  // Con los periodos del feed del día se liquidan mitades; con el registro, córners.
+  const fin = { ...EVENT, state: 'finalizado', score: { home: 2, away: 1 } };
+  const per = expandResult(JSON.parse(JSON.stringify(compactResult(fin, { per: [[0, 1], [2, 0]] }))));
+  assert.equal(settle({ market: '1X2@h1', sel: 'away', line: null }, per, 'football'), 'won');
+  assert.equal(settle({ market: 'OU.corners', sel: 'over', line: 8.5 }, per, 'football'), null);
+  const record = { sport: 'football', state: 'finalizado', per: [[0, 1], [2, 0]], nReg: 2, final: [2, 1], stats: { corners: { ft: [7, 3] } }, events: [{ k: 'goal', team: 'away', min: 10.5 }] };
+  const full = expandResult(JSON.parse(JSON.stringify(compactResult(fin, { per: record.per, record }))), 'football');
+  assert.equal(settle({ market: 'OU.corners', sel: 'over', line: 8.5 }, full, 'football'), 'won');
+  assert.equal(settle({ market: 'FIRST', sel: 'away', line: null }, full, 'football'), 'won');
+  assert.equal(settle({ market: 'COMEBACK:home', sel: 'yes', line: null }, full, 'football'), 'won');
 });

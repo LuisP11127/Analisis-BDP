@@ -29,6 +29,7 @@ import { bestByName, matchEvent } from './matching.js';
 import { allowedMarkets, predict } from './models.js';
 import { buildCombos, DEFAULT_SETTINGS, selectPicks } from './picks.js';
 import { estimate, fitTennisGames, simParams } from './simulate.js';
+import { xgFromTeamStats } from './teamstats.js';
 
 // Ligas de Understat según el id de torneo de Sofascore.
 const UNDERSTAT_LEAGUES = { 17: 'EPL', 8: 'La_liga', 35: 'Bundesliga', 23: 'Serie_A', 34: 'Ligue_1' };
@@ -399,7 +400,8 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
     await new Promise((r) => setTimeout(r, 0)); // deja que la página se actualice
     const sofaOffers = offersFromSofascore(details[ev.id]?.odds, ev);
     const all = [...sofaOffers, ...(offers.get(ev.id) || [])];
-    const r = baseCandidates(ev, details[ev.id], all, { xg: xg.get(ev.id) });
+    // xG: Understat o, si no, el promedio de Flashscore de los últimos partidos.
+    const r = baseCandidates(ev, details[ev.id], all, { xg: xg.get(ev.id) || xgFromTeamStats(details[ev.id]?.teamStats) || undefined });
     simulated += r.simulated;
     base.push(...r.candidates);
     eventInfo[ev.id] = {

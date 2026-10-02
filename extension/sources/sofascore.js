@@ -359,7 +359,10 @@ function resultOf(e) {
 
 // Estado y marcador final de varios partidos (para liquidar apuestas).
 // urls (opcional): { id: url de la página del partido } para leerla si el API no responde.
-export async function getEventResults({ ids = [], urls = {} } = {}) {
+// detail: ids de los que además se quieren estadísticas e incidencias (para
+// mercados de córners, tarjetas, minuto del gol...). Se devuelven sin procesar
+// en items[id].raw = { event, statistics, incidents } (la página arma el registro).
+export async function getEventResults({ ids = [], urls = {}, detail = [] } = {}) {
   const items = {};
   if ((await apiWorks()) !== false) {
     const r = await apiMany(
@@ -368,6 +371,16 @@ export async function getEventResults({ ids = [], urls = {} } = {}) {
     );
     if (r.results) {
       r.results.forEach((x, i) => x.ok && x.data?.event && (items[ids[i]] = resultOf(x.data.event)));
+      const want = detail.map(String).filter((id) => items[id]?.state === 'finalizado');
+      if (want.length) {
+        const extra = await apiMany(want.flatMap((id) => [`/event/${id}/statistics`, `/event/${id}/incidents`]));
+        want.forEach((id, i) => {
+          const event = r.results[ids.map(String).indexOf(id)].data.event;
+          const st = extra.results?.[2 * i];
+          const inc = extra.results?.[2 * i + 1];
+          items[id].raw = { event, statistics: st?.ok ? st.data : null, incidents: inc?.ok ? inc.data : null };
+        });
+      }
       return { mode: r.mode, items };
     }
   }

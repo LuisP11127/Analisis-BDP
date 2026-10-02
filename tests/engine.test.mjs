@@ -107,7 +107,9 @@ test('del análisis al historial: picks, combinadas, filas de entrenamiento y re
   assert.ok(stored.picks.every((p) => p.status === 'pending' && p.match && p.odds > 1));
   for (const k of stored.combos) assert.ok(k.legs.every((l) => l.market && l.match));
   const rows = trainingRows(result);
-  assert.equal(rows.length, all.length);
+  // Solo las selecciones en la zona de los picks (40 % a 97 %).
+  assert.equal(rows.length, all.filter((c) => c.pBase >= 0.4 && c.pBase <= 0.97).length);
+  assert.ok(rows.length > 0);
   assert.ok(rows.every((r) => r.y === null && r.x.length === FEATURES.length));
   const s = daySummary({ analyses: [stored] });
   assert.equal(s.n, stored.picks.length);

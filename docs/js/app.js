@@ -5,8 +5,8 @@ import * as provider from './provider.js';
 import * as store from './storage.js';
 import * as history from './history.js';
 import { analyzeMany } from './analysis/engine.js';
-import { DEFAULT_SETTINGS } from './analysis/picks.js';
-import { addDays, limaToday } from './util.js';
+import { DEFAULT_SETTINGS, MARKET_GROUPS } from './analysis/picks.js';
+import { addDays, h, limaToday } from './util.js';
 import { PartidosView } from './views/partidos.js';
 import { analysisText, renderAnalisis } from './views/analisis.js';
 import { renderHistorial } from './views/historial.js';
@@ -385,6 +385,10 @@ function openSettings() {
   f.comboTargets.value = s.comboTargets.join(', ');
   f.comboMinProb.value = Math.round(s.comboMinProb * 100);
   f.comboMaxLegs.value = s.comboMaxLegs;
+  const groups = s.marketGroups || DEFAULT_SETTINGS.marketGroups;
+  $('#market-groups').replaceChildren(
+    ...MARKET_GROUPS.map((g) => h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'marketGroup', value: g.id, checked: groups.includes(g.id) }), ` ${g.name}`)),
+  );
   f.ghToken.value = '';
   renderGithubStatus();
   $('#settings').showModal();
@@ -449,7 +453,12 @@ function closeSettings(action) {
       comboTargets: targets.length ? targets : DEFAULT_SETTINGS.comboTargets,
       comboMinProb: Number(f.comboMinProb.value) / 100,
       comboMaxLegs: Math.round(Number(f.comboMaxLegs.value)),
+      marketGroups: [...f.querySelectorAll('input[name=marketGroup]:checked')].map((x) => x.value),
     };
+    if (!next.marketGroups.length) {
+      toast('Elige al menos un tipo de mercado para los picks', 6000);
+      return;
+    }
     if (!(next.alta > next.moderadaAlta && next.moderadaAlta > next.moderada)) {
       toast('Los niveles deben ir de mayor a menor: alta > moderada-alta > moderada', 6000);
       return;

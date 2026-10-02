@@ -49,6 +49,11 @@
       <label>Cuotas objetivo de las combinadas (separadas por coma)<input name="comboTargets" type="text"></label>
       <label>Combinadas: probabilidad mínima de cada selección (%)<input name="comboMinProb" type="number" min="50" max="99" step="1"></label>
       <label>Combinadas: máximo de selecciones<input name="comboMaxLegs" type="number" min="2" max="12" step="1"></label>
+      <fieldset class="groups">
+        <legend>Mercados para picks y combinadas</legend>
+        <div id="market-groups"></div>
+        <p class="note">Todos se analizan y se guardan; aquí eliges cuáles pueden salir como pick o en una combinada.</p>
+      </fieldset>
       <fieldset class="gh">
         <legend>Guardar el historial en GitHub (celular y PC)</legend>
         <p class="note" id="gh-status"></p>
