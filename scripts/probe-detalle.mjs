@@ -64,7 +64,7 @@ for (const sport of ['football', 'basketball', 'tennis', 'ice-hockey', 'baseball
       families[`${sport}:${c.family}:${c.via}`] = (families[`${sport}:${c.family}:${c.via}`] || 0) + 1;
       if (!(c.p > 0 && c.p < 1) || !c.x.every(Number.isFinite)) bad++;
     }
-    for (const p of selectPicks(candidates)) picks.push(`${sport} ${ev.home.name} vs ${ev.away.name}: ${p.label} @${p.best.price} p=${p.p.toFixed(2)} (${p.via}, mercado ${p.pMarket?.toFixed(2) ?? '-'})`);
+    for (const p of selectPicks(candidates)) picks.push(`${sport} ${ev.home.name} vs ${ev.away.name}: ${p.label} @${p.best.price} p=${p.p.toFixed(2)} (${p.via} ${p.pModel?.toFixed(2)}, mercado ${p.pMarket?.toFixed(2) ?? '-'})`);
   }
 }
 console.log(`\nMotor: ${n} partidos en ${((Date.now() - t0) / 1000).toFixed(1)} s, ${bad} candidatos inválidos`);

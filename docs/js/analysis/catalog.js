@@ -354,7 +354,7 @@ function typeFromName(name, sport) {
   if (/tiempo del primer gol/.test(name)) return 'FGT';
   if (/goles exactos|rango(?! de resultados)|^total de corners$/.test(name)) return 'CNT';
   if (/cantidad de sets en el partido|gana exactamente|goles exactos/.test(name)) return 'CNT';
-  if (/3-way total/.test(name)) return 'OU3';
+  if (/3-way total|3 opciones|tres opciones/.test(name)) return 'OU3';
   if (/handicap.*(triple|- triples)|handicap resultado del partido|handicap - triple|- triples|handicap 1x2/.test(name)) return 'HCP3';
   if (/handicap|hand\b|linea de puck|run line|linea de carreras/.test(name)) return 'HCP';
   if (/doble oportunidad/.test(name)) return 'DC';
@@ -413,6 +413,8 @@ export function parseMarket(rawName, selections = [], ctx = {}) {
   }
   // "Total de córners" puede venir por rangos (0-8, 9-11...) o con Más/Menos.
   if (type === 'CNT' && sels.every((s) => ouOf(s.text))) type = 'OU';
+  // Más/Menos con "Exactamente": es de tres opciones (sin devolución en la línea exacta).
+  if (type === 'OU' && sels.some((s) => ouOf(s.text)?.sel === 'exact')) type = 'OU3';
   const base = { stat, scope, team: null, n: null };
   const out = [];
   const add = (spec, sel, line, s) => {

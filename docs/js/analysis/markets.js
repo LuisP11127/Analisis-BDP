@@ -97,9 +97,8 @@ export function settle(c, result, sport) {
 
 const num = (s) => Number(String(s).replace(',', '.'));
 
-// Mercados parciales (1.ª mitad, sets, córners...) que no se modelan.
+// Cuotas de referencia de Sofascore: solo los mercados del partido completo.
 const PARTIAL_EN = /\b(1st|2nd|3rd|4th|first|second|third|fourth)\b|half|quarter|period|inning|corner|card|booking|\bsets?\b|\bmaps?\b|frame|\blegs?\b|\bgames\b/i;
-const PARTIAL_ES = /\b(1er|1ra|2do|2da|3er|primer|primera|segundo|segunda|tercer|mitad|cuarto|periodo|entrada|corner|corners|tarjeta|tarjetas|set|sets|juego|juegos|mapa|mapas)\b/;
 
 export function offersFromSofascore(markets, ev) {
   const out = [];

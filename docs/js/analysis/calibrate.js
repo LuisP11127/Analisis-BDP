@@ -4,6 +4,7 @@
 // coherentes con lo que dicen las cuotas principales, aunque el modelo propio
 // tenga pocos datos o no exista.
 import { clamp, logit, normCdf } from '../util.js';
+import { parseMarketId } from './catalog.js';
 import { scoreMatrix, scoreOutcomes } from './models.js';
 
 // Valores de partida cuando no hay modelo (solo cuotas).
@@ -108,4 +109,80 @@ export function calibrateExpected(sport, cfg, expected, targets) {
     return { ...(expected || {}), home: (total + margin) / 2, away: (total - margin) / 2, total, margin, sdTotal: sdT, sdMargin: sdM, calibrated: true };
   }
   return expected;
+}
+
+// ---- Estadísticas (córners, tarjetas, tiros...) ----
+
+// Binomial negativa (k = dispersión; sin k, Poisson) hasta `max`.
+function nbPmf(mean, k, max) {
+  const p = new Array(max + 1).fill(0);
+  if (!k || k > 200) {
+    p[0] = Math.exp(-mean);
+    for (let i = 1; i <= max; i++) p[i] = (p[i - 1] * mean) / i;
+    return p;
+  }
+  const q = k / (k + mean);
+  p[0] = q ** k;
+  for (let i = 1; i <= max; i++) p[i] = (p[i - 1] * (k + i - 1) * (1 - q)) / i;
+  return p;
+}
+
+// Probabilidad de un mercado de estadística con los promedios (h, a).
+function statProb(spec, sel, line, ph, pa) {
+  let p = 0;
+  for (let i = 0; i < ph.length; i++) {
+    if (ph[i] < 1e-9) continue;
+    for (let j = 0; j < pa.length; j++) {
+      const w = ph[i] * pa[j];
+      if (w < 1e-12) continue;
+      const v = spec.team === 'home' ? i : spec.team === 'away' ? j : i + j;
+      let ok = false;
+      if (spec.t === 'OU' || spec.t === 'OU3') ok = sel === 'over' ? v > line : sel === 'under' ? v < line : v === line;
+      else if (spec.t === 'HCP') ok = sel === 'home' ? i - j + line > 0 : i - j + line < 0;
+      else if (spec.t === '1X2') ok = sel === 'home' ? i > j : sel === 'away' ? i < j : i === j;
+      if (ok) p += w;
+    }
+  }
+  return p;
+}
+
+// Ajusta los promedios de cada estadística a las cuotas de la casa (más/menos,
+// hándicap y 1X2 de córners, tarjetas...) y los mezcla con los de los equipos.
+// priors: simulate.statPriors(); pMarket: Map(clave -> probabilidad sin margen).
+export function fitStatMeans(priors, pMarket) {
+  const out = {};
+  const keys = [...pMarket.entries()];
+  for (const [name, prior] of Object.entries(priors)) {
+    const targets = [];
+    for (const [key, p] of keys) {
+      const [market, sel, line] = key.split('|');
+      const spec = parseMarketId(market);
+      if (!spec || spec.stat !== name || spec.scope !== 'ft' || !['OU', 'OU3', 'HCP', '1X2'].includes(spec.t)) continue;
+      const l = line === '' ? null : Number(line);
+      // Líneas asiáticas enteras o de cuarto: la devolución complica la cuenta; se usan las .5 y las de 3 opciones.
+      if ((spec.t === 'OU' || spec.t === 'HCP') && !(Math.abs((l % 1) - 0.5) < 1e-9 || Math.abs((l % 1) + 0.5) < 1e-9)) continue;
+      if (p > 0.02 && p < 0.98) targets.push({ spec, sel, line: l, p });
+    }
+    if (!targets.length) {
+      out[name] = prior;
+      continue;
+    }
+    const max = (m) => Math.ceil(m + 8 * Math.sqrt(m * (1 + m / (prior.k || 1e9))) + 5);
+    const loss = ([a, b]) => {
+      const mh = Math.exp(a);
+      const ma = Math.exp(b);
+      const ph = nbPmf(mh, prior.k, max(mh));
+      const pa = nbPmf(ma, prior.k, max(ma));
+      let s = 0;
+      for (const t of targets) s += (logit(clamp(statProb(t.spec, t.sel, t.line, ph, pa), 0.002, 0.998)) - logit(t.p)) ** 2;
+      // Con un solo tipo de mercado (p. ej. solo el total) se respeta el reparto de los equipos.
+      s += 0.3 * (a - b - Math.log(prior.h / prior.a)) ** 2;
+      return s;
+    };
+    const [a, b] = minimize(loss, [Math.log(prior.h), Math.log(prior.a)], [0.12, 0.12], 60);
+    // Mezcla en escala log: con datos de los equipos pesa 40 %; sin datos, casi todo el mercado.
+    const w = prior.n >= 4 ? 0.6 : 0.9;
+    out[name] = { ...prior, h: Math.exp(w * a + (1 - w) * Math.log(prior.h)), a: Math.exp(w * b + (1 - w) * Math.log(prior.a)), market: true };
+  }
+  return out;
 }

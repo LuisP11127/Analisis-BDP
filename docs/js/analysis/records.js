@@ -23,8 +23,6 @@ export function parseFeedFirst(text = '') {
     });
 }
 
-const ORD = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9 };
-
 // "1er Tiempo" → h1, "2º Cuarto" → p2, "3er Set" → s3, "1a Entrada" / "2" → i1 / i2, "Partido" → ft.
 export function scopeOfLabel(label, sport) {
   const t = clean(label);

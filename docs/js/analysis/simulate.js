@@ -560,17 +560,43 @@ function teamMean(stats, name, side, fallback) {
   return f ?? a ?? fallback;
 }
 
+// Ventaja de local en las estadísticas (local/visita en una liga típica). Los
+// promedios de cada equipo mezclan partidos de local y de visita.
+const HOME_RATIO = { corners: 1.25, shots: 1.25, shots_on: 1.25, cards: 0.85, fouls: 0.95, offsides: 1, sog: 1.1, pim: 0.95 };
+
+// Promedio esperado de cada estadística para local y visita: datos de los
+// equipos (con la ventaja de local) o, sin datos, el promedio típico.
+export function statPriors(sport, teamStats) {
+  const defs = sport === 'football' ? FOOTBALL_STATS : sport === 'ice-hockey' ? HOCKEY_STATS : null;
+  if (!defs) return {};
+  const out = {};
+  for (const [name, def] of Object.entries(defs)) {
+    const r = Math.sqrt(HOME_RATIO[name] || 1);
+    const fromTeams = Boolean(teamStats?.home?.[name] && teamStats?.away?.[name]);
+    const n = Math.min(teamStats?.home?.[name]?.n ?? 0, teamStats?.away?.[name]?.n ?? 0);
+    out[name] = {
+      k: def.k,
+      h: teamMean(teamStats, name, 0, def.mean) * r,
+      a: teamMean(teamStats, name, 1, def.mean) / r,
+      n: fromTeams ? n : 0,
+    };
+  }
+  return out;
+}
+
 // Parámetros de simulación de un partido. model: salida de models.predict.
 // teamStats: { home: { corners: { for, against }, ... }, away: {...} } (Flashscore/Sofascore).
 // winProb: probabilidad de que gane el local (para deportes de sets).
-export function simParams(ev, cfg, model, { teamStats = null, winProb = null, format = {} } = {}) {
+// statMeans: promedios de estadísticas ya calibrados con las cuotas (calibrate.fitStatMeans).
+export function simParams(ev, cfg, model, { teamStats = null, winProb = null, format = {}, statMeans = null } = {}) {
   const sport = ev.sport;
   const e = model?.expected;
+  const means = statMeans || statPriors(sport, teamStats);
   if (sport === 'football' || sport === 'futsal') {
     if (!e) return null;
     const stats = {};
     for (const [name, def] of Object.entries(sport === 'football' ? FOOTBALL_STATS : {})) {
-      stats[name] = { ...def, h: teamMean(teamStats, name, 0, def.mean), a: teamMean(teamStats, name, 1, def.mean) };
+      stats[name] = { ...def, h: means[name]?.h ?? def.mean, a: means[name]?.a ?? def.mean };
     }
     if (sport === 'futsal') return { sport, lh: e.home, la: e.away, shares: [0.47, 0.53], periodMinutes: 20, pPP: 0, pSH: 0, overtime: false };
     return {
@@ -601,7 +627,7 @@ export function simParams(ev, cfg, model, { teamStats = null, winProb = null, fo
     };
     if (sport === 'ice-hockey') {
       P.stats = {};
-      for (const [name, def] of Object.entries(HOCKEY_STATS)) P.stats[name] = { k: def.k, h: teamMean(teamStats, name, 0, def.mean), a: teamMean(teamStats, name, 1, def.mean) };
+      for (const [name, def] of Object.entries(HOCKEY_STATS)) P.stats[name] = { k: def.k, h: means[name]?.h ?? def.mean, a: means[name]?.a ?? def.mean };
     }
     return P;
   }

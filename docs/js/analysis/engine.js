@@ -24,12 +24,12 @@ import {
   pricesByKey,
   selectionLabel,
 } from './markets.js';
-import { calibrateExpected } from './calibrate.js';
+import { calibrateExpected, fitStatMeans } from './calibrate.js';
 import { familyOf, parseMarketId, STAT_NAME } from './catalog.js';
 import { bestByName, matchEvent } from './matching.js';
 import { allowedMarkets, predict } from './models.js';
 import { buildCombos, DEFAULT_SETTINGS, selectPicks } from './picks.js';
-import { estimate, fitTennisGames, simParams } from './simulate.js';
+import { estimate, fitTennisGames, simParams, statPriors } from './simulate.js';
 import { xgFromTeamStats } from './teamstats.js';
 import { newsFeatures, prepareNews } from './news.js';
 
@@ -316,7 +316,9 @@ export function baseCandidates(ev, d, offers, { xg, simulations = SIMULATIONS } 
   const need = [...keys.entries()].filter(([, c]) => c.pModel == null);
   let simulated = 0;
   if (need.length && simulations > 0) {
-    let params = simParams(ev, cfg, simModel, { teamStats: d?.teamStats, winProb: winTarget?.p ?? null, format: inferFormat(ev, offers) });
+    // Córners, tarjetas, tiros...: promedios de los equipos ajustados a las líneas de la casa.
+    const statMeans = fitStatMeans(statPriors(ev.sport, d?.teamStats), pMarket);
+    let params = simParams(ev, cfg, simModel, { teamStats: d?.teamStats, winProb: winTarget?.p ?? null, format: inferFormat(ev, offers), statMeans });
     // Tenis: el total de juegos se ajusta con la línea más pareja del mercado.
     const games = [...pMarket].filter(([k]) => k.startsWith('OU.games|over|')).sort((x, y) => Math.abs(x[1] - 0.5) - Math.abs(y[1] - 0.5))[0];
     if (params?.sport === 'tennis' && games) params = fitTennisGames(params, Number(games[0].split('|')[2]), games[1]);

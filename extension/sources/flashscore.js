@@ -140,7 +140,7 @@ export async function getMatchFeeds({ fsId, kinds = ['st', 'sui'] } = {}) {
   for (const kind of kinds) {
     try {
       out[kind] = (await feed(`df_${kind}_1_${id}`)).data || '';
-    } catch (e) {
+    } catch {
       out[kind] = null; // error: se reintenta en la próxima corrida
     }
   }
