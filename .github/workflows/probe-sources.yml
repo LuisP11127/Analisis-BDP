@@ -9,6 +9,7 @@ on:
     paths:
       - .github/workflows/probe-sources.yml
       - scripts/test-sources.mjs
+      - scripts/check-cors.mjs
       - extension/lib/**
       - extension/sources/**
 
@@ -29,3 +30,6 @@ jobs:
       - name: Probar conectores
         run: node scripts/test-sources.mjs
 
+      - name: Comprobar CORS (temporal)
+        if: always()
+        run: node scripts/check-cors.mjs
