@@ -180,8 +180,8 @@ export function fitStatMeans(priors, pMarket) {
       return s;
     };
     const [a, b] = minimize(loss, [Math.log(prior.h), Math.log(prior.a)], [0.12, 0.12], 60);
-    // Mezcla en escala log: con datos de los equipos pesa 40 %; sin datos, casi todo el mercado.
-    const w = prior.n >= 4 ? 0.6 : 0.9;
+    // Mezcla en escala log: con datos de los equipos pesa 25 %; sin datos, casi todo el mercado.
+    const w = prior.n >= 4 ? 0.75 : 0.9;
     out[name] = { ...prior, h: Math.exp(w * a + (1 - w) * Math.log(prior.h)), a: Math.exp(w * b + (1 - w) * Math.log(prior.a)), market: true };
   }
   return out;

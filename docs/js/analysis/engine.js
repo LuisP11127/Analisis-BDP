@@ -275,7 +275,8 @@ function qualityFor(spec, model, d, calibrated) {
   const base = model?.quality ?? 0;
   if (!spec || spec.stat === 'score' || spec.stat === 'sets') return calibrated ? Math.max(base, 0.5) : base;
   const n = Math.min(d?.teamStats?.home?.[spec.stat]?.n ?? 0, d?.teamStats?.away?.[spec.stat]?.n ?? 0);
-  return n ? Math.min(1, n / 8) * 0.9 : 0.15;
+  // Las líneas de estadísticas de la casa suelen ser más fiables que 8 partidos por equipo.
+  return n ? Math.min(1, n / 8) * 0.55 : 0.15;
 }
 
 // Candidatos (todas las selecciones con cuota y probabilidad) de un partido, sin
