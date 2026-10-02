@@ -101,7 +101,7 @@ function chip(cls, text, title) {
 }
 
 // Versión de la extensión con todos los mercados de Betano y Flashscore.
-const EXT_LATEST = '0.4.0';
+const EXT_LATEST = '0.4.1';
 function extOutdated(v) {
   if (!v || /prueba/.test(v)) return false;
   const [a, b] = String(v).split('.').map(Number);

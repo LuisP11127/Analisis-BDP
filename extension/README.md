@@ -11,7 +11,7 @@ Sofascore (cualquier día) y Betano.
 | Fuente | Qué aporta | ¿Funciona desde servidores de GitHub? |
 |---|---|---|
 | Sofascore | Partidos de todos los deportes, forma, últimos resultados, H2H, bajas y lesiones, votos, cuotas de referencia, estadísticas de los últimos partidos de cada equipo y, al liquidar, estadísticas e incidencias del partido | No, solo desde tu navegador |
-| Flashscore | Partidos y resultados del día (hora de Lima), H2H, estadísticas de los últimos partidos de cada equipo, incidencias y estadísticas del partido terminado, noticias | Sí |
+| Flashscore | Partidos y resultados del día (hora de Lima), H2H, estadísticas de los últimos partidos de cada equipo, incidencias y estadísticas del partido terminado, noticias. Con la extensión se lee desde una pestaña de flashscore.pe (por la misma vía que usa la página, funciona desde cualquier red) | Sí |
 | FotMob | Partidos por liga, noticias destacadas | Sí |
 | ESPN | Noticias en español (fútbol y ligas grandes de otros deportes), resultados de Liga 1 | Sí |
 | Understat | xG (goles esperados) de las 5 grandes ligas | Sí |

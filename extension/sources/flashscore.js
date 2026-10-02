@@ -1,14 +1,17 @@
 // Flashscore (versión Perú): partidos y resultados del día y noticias.
 // Los datos salen de un "feed" de texto con registros separados por "~",
 // campos por "¬" y clave/valor por "÷". Requiere la cabecera x-fsign.
-import { fetchData } from '../lib/net.js';
+import { FetchError, fetchDirect, runInSiteTab } from '../lib/net.js';
 import { toIso } from '../lib/model.js';
 
 const PAGE = 'https://www.flashscore.pe/';
-const FEED = 'https://global.flashscore.ninja/203/x/feed'; // 203 = flashscore.pe
+// Dirección del "feed" (203 = flashscore.pe). Con la extensión los datos se
+// piden desde una pestaña de flashscore.pe, por la misma vía que usa la propia
+// página (así funciona desde cualquier red); en GitHub Actions, directo.
+const FEED_BASES = ['https://global.flashscore.ninja/203/x/feed', 'https://203.flashscore.ninja/203/x/feed', 'https://d.flashscore.pe/x/feed'];
 const HEADERS = { 'x-fsign': 'SW9D1eZo' };
+const inExtension = typeof chrome !== 'undefined' && Boolean(chrome?.scripting);
 const TZ_LIMA = -5;
-
 const STATUS = { 1: 'pendiente', 2: 'en_vivo', 3: 'finalizado' };
 
 export function parseFeed(text) {
@@ -25,8 +28,103 @@ export function parseFeed(text) {
     });
 }
 
-function feed(name) {
-  return fetchData(`${FEED}/${name}`, { pageUrl: PAGE, headers: HEADERS, as: 'text' });
+// Corre dentro de flashscore.pe: usa la dirección del feed que usa la página
+// (la ve en sus pedidos) y pide cada feed de `names`.
+export async function feedsInPage(names, headers, bases) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const seenBases = () => [
+    ...new Set(
+      performance
+        .getEntriesByType('resource')
+        .map((e) => e.name)
+        .filter((u) => u.includes('/x/feed/'))
+        .map((u) => u.slice(0, u.indexOf('/x/feed/') + '/x/feed'.length)),
+    ),
+  ];
+  // La página pide sus feeds al cargar: se espera un poco a verlos.
+  for (let i = 0; i < 16 && !seenBases().length; i++) await sleep(500);
+  const seen = seenBases();
+  const candidates = [...new Set([...seen, ...bases, `${location.origin}/x/feed`])];
+  const get = async (base, name) => {
+    for (const credentials of ['omit', 'include']) {
+      try {
+        const resp = await fetch(`${base}/${name}`, { headers, credentials });
+        return { status: resp.status, text: resp.ok ? await resp.text() : null };
+      } catch (e) {
+        if (credentials === 'include') return { status: 0, error: String(e?.message || e) };
+      }
+    }
+    return { status: 0, error: 'sin respuesta' };
+  };
+  // Primera dirección que responde (con el primer feed pedido).
+  const tried = [];
+  let base = null;
+  let first = null;
+  for (const b of candidates) {
+    const r = await get(b, names[0]);
+    if (r.status) {
+      base = b;
+      first = r;
+      break;
+    }
+    tried.push(`${b}: ${r.error}`);
+  }
+  if (!base) return { ok: false, tried, seen };
+  const texts = { [names[0]]: first.text };
+  const failed = first.text == null ? { [names[0]]: `HTTP ${first.status}` } : {};
+  for (const name of names.slice(1)) {
+    const r = await get(base, name);
+    texts[name] = r.text ?? null;
+    if (r.text == null) failed[name] = r.error || `HTTP ${r.status}`;
+  }
+  return { ok: true, base, texts, failed, seen };
+}
+
+let pageBase = null; // dirección que usa flashscore.pe (para empezar por ella)
+
+// Varios feeds a la vez: { nombre: texto o null (sin datos) }.
+async function feeds(names) {
+  if (!names.length) return { texts: {}, mode: inExtension ? 'tab' : 'direct' };
+  if (!inExtension) {
+    const texts = {};
+    for (const name of names) {
+      let last;
+      for (const base of FEED_BASES) {
+        try {
+          texts[name] = await fetchDirect(`${base}/${name}`, { headers: HEADERS, as: 'text' });
+          last = null;
+          break;
+        } catch (e) {
+          last = e;
+          if (e.status) break; // la dirección responde: ese feed no existe
+        }
+      }
+      if (last && !last.status) throw new FetchError(`Flashscore no responde: ${last.message}`, { mode: 'direct', url: `${FEED_BASES[0]}/${name}` });
+      if (last) texts[name] = null;
+    }
+    return { texts, mode: 'direct' };
+  }
+  let r;
+  try {
+    r = await runInSiteTab(PAGE, feedsInPage, [names, HEADERS, [pageBase, ...FEED_BASES].filter(Boolean)]);
+  } catch (e) {
+    r = { ok: false, tried: [e.message] };
+  }
+  if (!r?.ok) {
+    throw new FetchError(`No se pudieron leer los datos desde flashscore.pe: ${(r?.tried || ['la pestaña no respondió']).join(' | ')}`, {
+      mode: 'tab',
+      url: PAGE,
+      snippet: r?.seen?.length ? `La página usa: ${r.seen.join(', ')}` : 'La página no hizo pedidos a su feed (¿cargó bien flashscore.pe?)',
+    });
+  }
+  pageBase = r.base;
+  return { texts: r.texts, mode: 'tab', base: r.base };
+}
+
+async function feed(name) {
+  const { texts, mode } = await feeds([name]);
+  if (texts[name] == null) throw new FetchError(`Flashscore: sin datos para ${name}`, { mode, url: PAGE });
+  return { data: texts[name], mode };
 }
 
 // day: 0 = hoy, 1 = mañana, -1 = ayer (hora de Lima).
@@ -137,12 +235,11 @@ export async function getSportDay({ sport = 'football', day = 0 } = {}) {
 export async function getMatchFeeds({ fsId, kinds = ['st', 'sui'] } = {}) {
   const id = String(fsId).replace(/^fs:/, '');
   const out = {};
-  for (const kind of kinds) {
-    try {
-      out[kind] = (await feed(`df_${kind}_1_${id}`)).data || '';
-    } catch {
-      out[kind] = null; // error: se reintenta en la próxima corrida
-    }
+  try {
+    const { texts } = await feeds(kinds.map((k) => `df_${k}_1_${id}`));
+    for (const k of kinds) out[k] = texts[`df_${k}_1_${id}`] ?? null;
+  } catch {
+    for (const k of kinds) out[k] = null; // error: se reintenta en la próxima corrida
   }
   return out;
 }
@@ -154,12 +251,9 @@ export async function getTeamFeeds({ fsId, homeId, awayId, n = 6 } = {}) {
   const h2h = await getH2H({ fsId: String(fsId).replace(/^fs:/, ''), homeId, awayId });
   const ids = [...new Set([...h2h.lastHome.slice(0, n), ...h2h.lastAway.slice(0, n)].map((m) => m.fsId).filter(Boolean))];
   const st = {};
-  for (const id of ids) {
-    try {
-      st[id] = (await feed(`df_st_1_${id}`)).data || '';
-    } catch {
-      // sin estadísticas de ese partido
-    }
+  if (ids.length) {
+    const { texts } = await feeds(ids.map((id) => `df_st_1_${id}`));
+    for (const id of ids) if (texts[`df_st_1_${id}`] != null) st[id] = texts[`df_st_1_${id}`];
   }
   return { ...h2h, st };
 }
@@ -245,7 +339,13 @@ export function h2hData(sections, homeId, awayId) {
 }
 
 export async function getNews() {
-  const { data, mode } = await fetchData(`${FEED}/nl_1_59`, { pageUrl: PAGE, headers: HEADERS });
+  const { data: text, mode } = await feed('nl_1_59');
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = null;
+  }
   const items = [];
   for (const section of data?.data?.sections || []) {
     for (const a of section.articles || []) {

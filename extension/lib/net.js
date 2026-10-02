@@ -142,9 +142,14 @@ export async function runInSiteTab(pageUrl, func, args = [], { ownOnly = false, 
 // Funciones que corren dentro de la página del sitio (no pueden usar nada de fuera).
 async function pageFetch(url, headers) {
   const extra = window.__bdpHook ? { ...window.__bdpHook.headers } : {};
-  const resp = await fetch(url, { headers: { ...extra, ...headers }, credentials: 'include' });
-  const text = await resp.text();
-  return { status: resp.status, ok: resp.ok, text };
+  try {
+    const resp = await fetch(url, { headers: { ...extra, ...headers }, credentials: 'include' });
+    const text = await resp.text();
+    return { status: resp.status, ok: resp.ok, text };
+  } catch (e) {
+    // Bloqueado (CORS, red...): se informa en vez de devolver nada.
+    return { status: 0, ok: false, text: '', error: String(e?.message || e) };
+  }
 }
 
 async function pageFetchMany(requests, concurrency) {
@@ -175,6 +180,7 @@ async function pageFetchMany(requests, concurrency) {
 export async function fetchInTab(pageUrl, url, { headers = {}, as = 'json' } = {}) {
   const r = await runInSiteTab(pageUrl, pageFetch, [url, headers]);
   if (!r) throw new FetchError('No se pudo ejecutar en la pestaña', { mode: 'tab', url });
+  if (r.error) throw new FetchError(`desde la pestaña: ${r.error}`, { mode: 'tab', url });
   if (!r.ok) throw new FetchError(`HTTP ${r.status}`, { status: r.status, mode: 'tab', url, snippet: r.text.slice(0, 300) });
   return parseBody(r.text, as);
 }
