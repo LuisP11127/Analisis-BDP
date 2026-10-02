@@ -1,0 +1,42 @@
+name: Pruebas de la página
+
+# Pruebas unitarias del análisis (modelos, cuotas, combinadas, red neuronal)
+# y prueba de punta a punta de la página con una extensión simulada.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/pruebas.yml
+      - docs/**
+      - tests/**
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pruebas unitarias
+        run: node --test tests/*.test.mjs
+
+      - name: Instalar Playwright
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Prueba de punta a punta
+        run: node tests/e2e/run.cjs probe-output/capturas
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas
+          path: probe-output/capturas/

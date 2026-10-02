@@ -100,7 +100,49 @@ function toast(text) {
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+async function call(source, fn, args) {
+  return send('call', { source, fn, args });
+}
+
+function showGithub(st) {
+  const badge = $('#gh-badge');
+  if (!st.configured) {
+    badge.className = 'badge';
+    badge.textContent = 'Sin configurar';
+    $('#gh-status').textContent = 'Sin token, el historial se guarda solo en el navegador.';
+  } else if (st.ok) {
+    badge.className = 'badge ok';
+    badge.textContent = 'Conectado';
+    $('#gh-status').textContent = `Se guardará en ${st.repo} (rama ${st.branch}).`;
+  } else {
+    badge.className = 'badge err';
+    badge.textContent = 'Error';
+    $('#gh-status').textContent = st.error || 'No se pudo conectar';
+  }
+}
+
+async function setupGithub() {
+  const cfg = await call('github', 'getPublicConfig');
+  $('#gh-repo').value = cfg.repo;
+  $('#gh-branch').value = cfg.branch;
+  $('#gh-token').placeholder = cfg.hasToken ? 'Token guardado (escribe uno nuevo para cambiarlo)' : 'github_pat_…';
+  showGithub(await call('github', 'status'));
+  $('#gh-save').addEventListener('click', async () => {
+    $('#gh-status').textContent = 'Probando…';
+    const token = $('#gh-token').value.trim();
+    const st = await call('github', 'setConfig', { ...(token ? { token } : {}), repo: $('#gh-repo').value, branch: $('#gh-branch').value });
+    $('#gh-token').value = '';
+    if (st.configured) $('#gh-token').placeholder = 'Token guardado (escribe uno nuevo para cambiarlo)';
+    showGithub(st);
+  });
+  $('#gh-clear').addEventListener('click', async () => {
+    showGithub(await call('github', 'setConfig', { token: '' }));
+    $('#gh-token').placeholder = 'github_pat_…';
+  });
+}
+
 (async () => {
+  setupGithub().catch((e) => ($('#gh-status').textContent = e.message));
   $('#version').textContent = `v${chrome.runtime.getManifest().version}`;
   const sources = await send('sources');
   for (const s of sources) {

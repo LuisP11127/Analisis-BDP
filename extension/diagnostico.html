@@ -43,6 +43,12 @@
     details { margin-top: 8px; }
     summary { cursor: pointer; color: var(--accent); font-size: 14px; }
     pre { background: var(--code); border-radius: 8px; padding: 10px; font-size: 12px; overflow: auto; max-height: 320px; }
+    .gh { display: grid; gap: 8px; grid-template-columns: 1fr; margin-top: 10px; }
+    @media (min-width: 640px) { .gh { grid-template-columns: 2fr 1fr 1fr; } }
+    .gh label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+    .gh input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; }
+    .gh-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+    h2 { font-size: 17px; margin: 24px 0 8px; }
     #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
     #toast.show { opacity: 1; }
   </style>
@@ -56,6 +62,22 @@
       en segundo plano durante unos segundos: es normal y se cierra sola. Si Betano muestra una verificación,
       abre <a href="https://www.betano.pe/" target="_blank" rel="noopener">betano.pe</a> una vez y vuelve a probar.
     </div>
+    <section class="card" id="github-card">
+      <div class="head"><span class="name">Guardar en GitHub</span><span class="role">Historial de apuestas y red neuronal en tu repositorio</span><span class="badge" id="gh-badge">Sin configurar</span></div>
+      <p class="meta">Crea un token en GitHub → Settings → Developer settings → Fine-grained tokens, con acceso solo al repositorio
+        y permiso <b>Contents: Read and write</b>. El token se guarda únicamente en esta extensión.</p>
+      <div class="gh">
+        <label>Token<input id="gh-token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+        <label>Repositorio<input id="gh-repo"></label>
+        <label>Rama<input id="gh-branch"></label>
+      </div>
+      <div class="gh-actions">
+        <button id="gh-save" class="primary">Guardar y probar</button>
+        <button id="gh-clear">Quitar token</button>
+        <span class="meta" id="gh-status"></span>
+      </div>
+    </section>
+    <h2>Fuentes de datos</h2>
     <div class="bar">
       <button id="run-all" class="primary">Probar todas</button>
       <button id="copy" disabled>Copiar reporte</button>

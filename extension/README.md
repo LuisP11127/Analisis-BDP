@@ -6,13 +6,14 @@ con tu conexión de Perú. Así funcionan también los sitios que bloquean a los
 
 | Fuente | Qué aporta | ¿Funciona desde servidores de GitHub? |
 |---|---|---|
-| Sofascore | Partidos, forma, H2H, bajas y lesiones, cuotas de referencia | No, solo desde tu navegador |
+| Sofascore | Partidos de todos los deportes, forma, últimos resultados, H2H, bajas y lesiones, votos, cuotas de referencia y resultados finales | No, solo desde tu navegador |
 | Flashscore | Partidos y resultados del día (hora de Lima), noticias | Sí |
 | FotMob | Partidos por liga, noticias destacadas | Sí |
 | ESPN | Noticias en español, resultados de Liga 1 | Sí |
 | Understat | xG (goles esperados) de las 5 grandes ligas | Sí |
 | Betano | Cuotas | No, solo desde Perú |
-| Apuesta Total | Cuotas: 1X2, doble oportunidad, total de goles, ambos anotan | Sí |
+| Apuesta Total | Cuotas: 1X2, doble oportunidad, total de goles, ambos anotan; en otros deportes ganador, total y hándicap | Sí |
+| GitHub | Guarda el historial y la red neuronal en el repositorio (opcional, con token) | — |
 
 ## Instalación (una sola vez)
 
@@ -24,7 +25,28 @@ con tu conexión de Perú. Así funcionan también los sitios que bloquean a los
 5. Fija la extensión en la barra (ícono de pieza de rompecabezas → chincheta).
 
 Para actualizarla después de cambios en el repositorio: reemplaza la carpeta y pulsa el
-botón de recargar (↻) de la extensión en `chrome://extensions`.
+botón de recargar (↻) de la extensión en `chrome://extensions`. La versión 0.2.0 pide
+permisos nuevos (alarmas y almacenamiento de la extensión, y acceso a `api.github.com`).
+
+## Guardar en GitHub (opcional)
+
+Haz clic en el ícono de la extensión → sección **Guardar en GitHub**:
+
+1. Crea un token en GitHub → Settings → Developer settings → Personal access tokens →
+   **Fine-grained tokens**, con acceso solo a este repositorio y permiso
+   **Contents: Read and write**.
+2. Pégalo, revisa el repositorio y la rama, y pulsa **Guardar y probar**.
+
+El token se guarda solo en la extensión (no en la página ni en el repositorio) y solo
+permite escribir archivos JSON dentro de `docs/data/`. Sin token, la página guarda
+todo en el navegador.
+
+## Pestañas en segundo plano
+
+Si un sitio bloquea las consultas directas (Sofascore con algunas conexiones, Betano
+con su verificación), la extensión las hace dentro de una pestaña del sitio. Si ya
+tienes una abierta, la usa; si no, abre una en segundo plano que se cierra sola tras
+un minuto sin uso.
 
 ## Diagnóstico
 
@@ -39,8 +61,8 @@ Haz clic en el ícono de la extensión: se abre la página **Diagnóstico de fue
 ## Permisos
 
 La extensión solo puede leer los sitios listados en `manifest.json` (`host_permissions`).
-No accede a tus otras pestañas ni a otros sitios. La página web del proyecto
-(`luisp11127.github.io`) se comunica con ella a través de `bridge.js`.
+No accede a tus otras pestañas ni a otros sitios. Solo la página web del proyecto
+(`luisp11127.github.io/Analisis-BDP`) se comunica con ella, a través de `bridge.js`.
 
 ## Estructura
 
@@ -53,6 +75,7 @@ extension/
   lib/net.js           pedidos directos o dentro de una pestaña del sitio
   lib/model.js         formato común y utilidades
   sources/*.js         un conector por fuente
+  sources/github.js    guardar y leer el historial en el repositorio
 ```
 
 Los conectores que funcionan desde servidores se prueban automáticamente en GitHub

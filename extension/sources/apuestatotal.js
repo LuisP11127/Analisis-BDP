@@ -1,17 +1,49 @@
-// Apuesta Total: cuotas de fútbol. El sportsbook lo provee kmianko:
+// Apuesta Total: cuotas. El sportsbook lo provee kmianko:
 //  1) /api/pulse/snapshot/events      -> todos los eventos (todos los deportes)
 //  2) /api/eventlist/eu/markets/all   -> mercados y cuotas de una lista de eventos
 // No requieren cuenta y funcionan también desde los servidores de GitHub.
 import { fetchData } from '../lib/net.js';
-import { toIso } from '../lib/model.js';
 
 const BASE = 'https://prod20392.kmianko.com';
 const PAGE = `${BASE}/es-pe/spbkv3?operatorToken=logout`;
-const FOOTBALL = '1';
-// Tipos de mercado de fútbol que usa el propio sportsbook:
-// 1X2, doble oportunidad, más/menos goles y ambos equipos anotan.
-const MARKET_TYPES = ['ML0', 'ML39', 'OU200', 'OU249', 'QA61', 'QA158'];
 const IDS_PER_REQUEST = 10;
+
+// Tipos de mercado que usa el propio sportsbook. Fútbol: 1X2, doble
+// oportunidad, total de goles y ambos anotan. Resto: ganador, total y hándicap.
+const MARKET_TYPES = {
+  football: ['ML0', 'ML39', 'OU200', 'OU249', 'QA61', 'QA158'],
+  default: ['ML0', 'OU0', 'HC0', 'ML39', 'OU39', 'HC39'],
+};
+
+// Nombre del deporte en Apuesta Total para cada deporte de Sofascore.
+const SPORT_NAMES = {
+  football: ['Fútbol'],
+  basketball: ['Baloncesto'],
+  tennis: ['Tenis'],
+  baseball: ['Béisbol'],
+  'ice-hockey': ['Ice Hockey', 'Hockey sobre hielo', 'Hockey'],
+  'american-football': ['Fútbol Americano'],
+  volleyball: ['Voleibol'],
+  handball: ['Balonmano'],
+  futsal: ['Fútbol Rápido', 'Futsal', 'Fútbol Sala'],
+  'table-tennis': ['Tenis de Mesa'],
+  esports: ['E-sports+', 'eSports', 'E-Sports'],
+  rugby: ['Unión de Rugby', 'Liga de Rugby', 'Rugby'],
+  cricket: ['Críquet'],
+  mma: ['MMA'],
+  darts: ['Dardos'],
+  snooker: ['Snooker'],
+  badminton: ['Bádminton'],
+  waterpolo: ['Waterpolo'],
+  'beach-volley': ['Voleibol de playa'],
+};
+
+const norm = (s) =>
+  String(s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
 
 // Las cuotas exigen una sesión anónima: al abrir la página el sitio entrega
 // las cookies `authorization` y `session`. En el navegador se guardan y se
@@ -42,34 +74,19 @@ const get = async (path, { session = false } = {}) => {
   }
 };
 
-function toEvent(e) {
-  const home = e.Participants?.find((p) => p.VenueRole === 'Home') || e.Participants?.[0];
-  const away = e.Participants?.find((p) => p.VenueRole === 'Away') || e.Participants?.[1];
-  return {
-    source: 'apuestatotal',
-    eventId: String(e._id),
-    start: toIso(e.StartEventDate),
-    league: e.LeagueName || '',
-    country: e.RegionName || '',
-    topLeague: !!e.IsTopLeague,
-    leagueOrder: e.LeagueOrder ?? Infinity,
-    live: !!e.IsLive,
-    home: home?.Name || '',
-    away: away?.Name || '',
-    markets: [],
-  };
-}
-
-// Partidos de fútbol que empiezan en las próximas `hours` horas, priorizando
-// las ligas principales. `limit` acota cuántos se consultan después.
 // El parámetro `t` solo admite ciertos valores; `hPNl` es el que usa el sportsbook.
 const SNAPSHOT_PATHS = ['/api/pulse/snapshot/events?lang=ES-PE&t=hPNl', '/api/pulse/snapshot/events?lang=ES-PE'];
+const SNAPSHOT_TTL = 3 * 60000;
+let snapshotCache = null;
 
 async function snapshot() {
+  if (snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL) return snapshotCache;
   let lastError;
   for (const path of SNAPSHOT_PATHS) {
     try {
-      return await get(path);
+      const { data, mode } = await get(path);
+      snapshotCache = { at: Date.now(), data: Array.isArray(data) ? data : [], mode };
+      return snapshotCache;
     } catch (e) {
       lastError = e;
     }
@@ -77,15 +94,32 @@ async function snapshot() {
   throw lastError;
 }
 
-export async function getEvents({ hours = 24, includeLive = false } = {}) {
+function toEvent(e) {
+  const home = e.Participants?.find((p) => p.VenueRole === 'Home') || e.Participants?.[0];
+  const away = e.Participants?.find((p) => p.VenueRole === 'Away') || e.Participants?.[1];
+  return {
+    source: 'apuestatotal',
+    eventId: String(e._id),
+    start: e.StartEventDate,
+    sport: e.SportName || '',
+    league: e.LeagueName || '',
+    country: e.RegionName || '',
+    topLeague: Boolean(e.IsTopLeague),
+    leagueOrder: e.LeagueOrder ?? Infinity,
+    live: Boolean(e.IsLive),
+    home: home?.Name || '',
+    away: away?.Name || '',
+  };
+}
+
+// Lista ligera de eventos de un deporte (sin cuotas) entre `from` y `to` (ms).
+export async function getEventList({ sport = 'football', from = 0, to = Infinity } = {}) {
   const { data, mode } = await snapshot();
-  const now = Date.now();
-  const until = now + hours * 3600000;
-  const items = (Array.isArray(data) ? data : [])
-    .filter((e) => e.SportId === FOOTBALL && e.Type === 'Fixture' && !e.IsSuspended)
-    .filter((e) => (includeLive ? true : !e.IsLive) && e.StartEventDate <= until && (e.IsLive || e.StartEventDate >= now))
-    .map(toEvent)
-    .sort((a, b) => b.topLeague - a.topLeague || a.leagueOrder - b.leagueOrder || a.start.localeCompare(b.start));
+  const names = (SPORT_NAMES[sport] || []).map(norm);
+  const items = data
+    .filter((e) => e.Type === 'Fixture' && !e.IsSuspended && names.includes(norm(e.SportName)))
+    .filter((e) => e.StartEventDate >= from && e.StartEventDate <= to)
+    .map(toEvent);
   return { mode, items };
 }
 
@@ -95,44 +129,68 @@ function toMarket(m) {
     type: m.MarketType?._id || '',
     selections: (m.Selections || [])
       .filter((s) => !s.IsDisabled && !s.IsRemoved)
-      .map((s) => ({ name: s.BetslipLine || s.Name || '', outcome: s.OutcomeType || '', price: Number(s.DisplayOdds?.Decimal ?? s.TrueOdds) }))
+      .map((s) => ({
+        name: s.BetslipLine || s.Name || '',
+        outcome: s.OutcomeType || '',
+        side: s.Side ?? null,
+        price: Number(s.DisplayOdds?.Decimal ?? s.TrueOdds),
+      }))
       .filter((s) => s.price > 1),
   };
 }
 
-export async function getOdds({ hours = 24, limit = 60 } = {}) {
-  const { mode, items } = await getEvents({ hours });
-  const events = items.slice(0, limit);
-  const byId = new Map(events.map((e) => [e.eventId, e]));
+// Mercados y cuotas de una lista de eventos: { [eventId]: [mercado, ...] }.
+export async function getMarkets({ eventIds = [], sport = 'football' } = {}) {
+  const types = MARKET_TYPES[sport] || MARKET_TYPES.default;
+  const items = {};
   const errors = [];
-  for (let i = 0; i < events.length; i += IDS_PER_REQUEST) {
-    const ids = events.slice(i, i + IDS_PER_REQUEST).map((e) => e.eventId);
-    const query = encodeURIComponent(`${ids.join('|')}:${MARKET_TYPES.join('|')}`);
+  for (let i = 0; i < eventIds.length; i += IDS_PER_REQUEST) {
+    const ids = eventIds.slice(i, i + IDS_PER_REQUEST);
+    const query = encodeURIComponent(`${ids.join('|')}:${types.join('|')}`);
     try {
       const { data } = await get(`/api/eventlist/eu/markets/all?markets=${query}`, { session: true });
       for (const m of Array.isArray(data) ? data : []) {
         if (m.IsRemoved || m.IsSuspended) continue;
-        byId.get(String(m.EventId))?.markets.push(toMarket(m));
+        (items[String(m.EventId)] ||= []).push(toMarket(m));
       }
     } catch (e) {
       errors.push(e.message);
     }
   }
-  return { mode, totalEvents: items.length, items: events.filter((e) => e.markets.length), errors };
+  return { items, errors };
+}
+
+// Partidos de fútbol de las próximas `hours` horas con sus cuotas (diagnóstico).
+export async function getOdds({ hours = 24, limit = 60 } = {}) {
+  const now = Date.now();
+  const { mode, items } = await getEventList({ sport: 'football', from: now, to: now + hours * 3600000 });
+  const events = items
+    .filter((e) => !e.live)
+    .sort((a, b) => b.topLeague - a.topLeague || a.leagueOrder - b.leagueOrder || a.start - b.start)
+    .slice(0, limit);
+  const { items: markets, errors } = await getMarkets({ eventIds: events.map((e) => e.eventId), sport: 'football' });
+  const withOdds = events.map((e) => ({ ...e, markets: markets[e.eventId] || [] })).filter((e) => e.markets.length);
+  return { mode, totalEvents: items.length, items: withOdds, errors };
 }
 
 export default {
   id: 'apuestatotal',
   name: 'Apuesta Total',
-  role: 'Cuotas (1X2, doble oportunidad, goles, ambos anotan)',
+  role: 'Cuotas (1X2, doble oportunidad, goles, ambos anotan, hándicap)',
   async diagnose() {
     const { mode, totalEvents, items, errors } = await getOdds({ limit: 20 });
+    const otherSports = {};
+    for (const sport of ['basketball', 'tennis', 'baseball']) {
+      const now = Date.now();
+      otherSports[sport] = (await getEventList({ sport, from: now, to: now + 86400000 })).items.length;
+    }
     return {
       mode,
       count: items.length,
       sample: items.slice(0, 3),
       details: {
         footballEventsNext24h: totalEvents,
+        otherSportsNext24h: otherSports,
         marketNames: [...new Set(items.flatMap((e) => e.markets.map((m) => `${m.type} = ${m.name}`)))],
         errors,
       },
