@@ -15,10 +15,12 @@ function addDays(ymd, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// Directo, luego dentro de una pestaña de Sofascore y, como último recurso,
+// abriendo cada dirección en la pestaña.
 async function getMany(paths) {
   return fetchMany(
     paths.map((p) => ({ url: API + p })),
-    { pageUrl: PAGE },
+    { pageUrl: PAGE, modes: ['direct', 'tab', 'navigate'] },
   );
 }
 
@@ -75,12 +77,13 @@ export function toEvent(e, sport) {
 // Partidos de un deporte para un día en hora de Lima. Sofascore agrupa por día
 // UTC, así que se piden dos días y se filtra.
 export async function getSportEvents({ sport = 'football', date = limaDate() } = {}) {
-  const { mode, results } = await getMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`]);
+  const { mode, results, notes } = await getMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`]);
   if (results.every((r) => !r.ok)) {
     const r = results[0];
     // Un deporte sin partidos ese día responde 404: no es un error.
-    if (results.every((x) => x.status === 404)) return { mode, items: [] };
-    throw new FetchError(`Sofascore respondió ${r.error} (${mode === 'tab' ? 'en pestaña' : 'directo'})`, { status: r.status, mode, snippet: r.snippet });
+    if (results.every((x) => x.status === 404)) return { mode, items: [], notes };
+    const via = { direct: 'directo', tab: 'en pestaña', navigate: 'navegando' }[mode] || mode;
+    throw new FetchError(`Sofascore respondió ${r.error} (${via})${notes.length ? ` · antes: ${notes.join(' | ')}` : ''}`, { status: r.status, mode, snippet: r.snippet });
   }
   const events = new Map();
   for (const r of results) {
@@ -88,7 +91,7 @@ export async function getSportEvents({ sport = 'football', date = limaDate() } =
       if (!events.has(e.id) && limaDay(e.startTimestamp * 1000) === date) events.set(e.id, toEvent(e, sport));
     }
   }
-  return { mode, items: [...events.values()].sort((a, b) => a.start - b.start) };
+  return { mode, notes, items: [...events.values()].sort((a, b) => a.start - b.start) };
 }
 
 // Últimos partidos jugados por un equipo, del más reciente al más antiguo.
@@ -222,7 +225,7 @@ export default {
   name: 'Sofascore',
   role: 'Partidos de todos los deportes, forma, H2H, bajas y lesiones',
   async diagnose() {
-    const { mode, items } = await getSportEvents({ sport: 'football' });
+    const { mode, items, notes } = await getSportEvents({ sport: 'football' });
     const upcoming = items.find((m) => m.state === 'pendiente') || items[0];
     let details = null;
     if (upcoming) {
@@ -257,6 +260,6 @@ export default {
       status: e.state,
       score: e.score,
     }));
-    return { mode, count: items.length, sample, details: { ...details, partidosBasquet: basket } };
+    return { mode, count: items.length, sample, details: { intentosPrevios: notes, ...details, partidosBasquet: basket } };
   },
 };

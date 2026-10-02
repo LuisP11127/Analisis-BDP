@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Análisis BDP - Conector",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Obtiene partidos, estadísticas y cuotas desde tu navegador para la página Análisis BDP.",
   "permissions": [
     "scripting",
@@ -36,6 +36,17 @@
         "bridge.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.sofascore.com/*",
+        "https://www.betano.pe/*"
+      ],
+      "js": [
+        "page-hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "action": {

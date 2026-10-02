@@ -87,18 +87,48 @@ function waitForTabComplete(tabId) {
   });
 }
 
+// Navega una pestaña a `url` y espera a que termine de cargar.
+function goTo(tabId, url) {
+  return new Promise((resolve, reject) => {
+    let started = false;
+    const done = (fn, arg) => {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      fn(arg);
+    };
+    const timer = setTimeout(() => done(reject, new FetchError('La pestaña tardó demasiado en cargar', { mode: 'tab', url })), TAB_LOAD_TIMEOUT);
+    function listener(id, info) {
+      if (id !== tabId) return;
+      if (info.status === 'loading') started = true;
+      if (started && info.status === 'complete') done(resolve);
+    }
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.update(tabId, { url }).catch((e) => done(reject, e));
+  });
+}
+
+// Pestañas que Chrome "durmió" (ahorro de memoria) no sirven: no ejecutan nada.
+const awake = (t) => !t.discarded && t.status !== 'unloaded' && !t.frozen;
+
 // Ejecuta `func(...args)` dentro de una pestaña de `pageUrl` (contexto de la
 // página). Usa una pestaña del sitio que ya tengas abierta; si no hay, abre una
 // en segundo plano que se cierra sola tras un minuto sin uso.
-export async function runInSiteTab(pageUrl, func, args = []) {
+//  ownOnly: usar solo pestañas abiertas por la extensión.
+//  navigate: llevar la pestaña exactamente a `pageUrl` antes de ejecutar.
+export async function runInSiteTab(pageUrl, func, args = [], { ownOnly = false, navigate = false } = {}) {
   const origin = new URL(pageUrl).origin;
   const own = await ownTabs();
-  const open = await chrome.tabs.query({ url: `${origin}/*` });
-  let tab = open.find((t) => !own[t.id]) || open[0];
+  const open = (await chrome.tabs.query({ url: `${origin}/*` })).filter(awake);
+  let tab = ownOnly ? open.find((t) => own[t.id]) : open.find((t) => !own[t.id]) || open[0];
   const isOwn = !tab || Boolean(own[tab.id]);
-  if (!tab) tab = await chrome.tabs.create({ url: pageUrl, active: false });
+  let fresh = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: pageUrl, active: false });
+    fresh = true;
+  }
   try {
-    await waitForTabComplete(tab.id);
+    if (navigate && !fresh && tab.url !== pageUrl) await goTo(tab.id, pageUrl);
+    else await waitForTabComplete(tab.id);
     const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func, args });
     return res?.result;
   } catch (e) {
@@ -111,19 +141,27 @@ export async function runInSiteTab(pageUrl, func, args = []) {
 
 // Funciones que corren dentro de la página del sitio (no pueden usar nada de fuera).
 async function pageFetch(url, headers) {
-  const resp = await fetch(url, { headers, credentials: 'include' });
+  const extra = window.__bdpHook ? { ...window.__bdpHook.headers } : {};
+  const resp = await fetch(url, { headers: { ...extra, ...headers }, credentials: 'include' });
   const text = await resp.text();
   return { status: resp.status, ok: resp.ok, text };
 }
 
 async function pageFetchMany(requests, concurrency) {
+  // Encabezados especiales que la propia web añade a su API (los anota page-hook.js).
+  const hook = window.__bdpHook;
+  if (hook && !Object.keys(hook.headers).length) {
+    const end = Date.now() + 4000;
+    while (Date.now() < end && !Object.keys(hook.headers).length) await new Promise((r) => setTimeout(r, 250));
+  }
+  const extra = hook ? { ...hook.headers } : {};
   const out = new Array(requests.length);
   let next = 0;
   async function worker() {
     while (next < requests.length) {
       const i = next++;
       try {
-        const resp = await fetch(requests[i].url, { headers: requests[i].headers || {}, credentials: 'include' });
+        const resp = await fetch(requests[i].url, { headers: { ...extra, ...(requests[i].headers || {}) }, credentials: 'include' });
         out[i] = { status: resp.status, ok: resp.ok, text: await resp.text() };
       } catch (e) {
         out[i] = { status: 0, ok: false, text: '', error: String(e) };
@@ -219,39 +257,84 @@ function toResult(raw, as) {
 
 // Un 404 es una respuesta válida (p. ej. un partido sin cuotas); estos no.
 const isBlocked = (raw) => [0, 401, 403, 429].includes(raw.status);
+const mostlyBlocked = (raws) => raws.filter(isBlocked).length > raws.length / 2;
+
+// Último recurso: abre cada dirección en la pestaña, como si la escribieras en
+// la barra del navegador, y lee el JSON que muestra. Lento, pero es lo más
+// parecido a navegar tú.
+async function navigateMany(requests, pageUrl) {
+  const origin = new URL(pageUrl).origin;
+  const own = await ownTabs();
+  let tab = (await chrome.tabs.query({ url: `${origin}/*` })).filter(awake).find((t) => own[t.id]);
+  if (!tab) tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+  const out = [];
+  try {
+    for (const r of requests) {
+      try {
+        await goTo(tab.id, r.url);
+        const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => document.body?.innerText || '' });
+        const text = res?.result || '';
+        let status = 200;
+        try {
+          const json = JSON.parse(text);
+          if (json?.error?.code) status = Number(json.error.code) || 500;
+        } catch {
+          status = 0;
+        }
+        out.push({ status, ok: status === 200, text, error: status === 0 ? 'La página no devolvió JSON' : undefined });
+      } catch (e) {
+        out.push({ status: 0, ok: false, text: '', error: e.message });
+      }
+      await markTabUsed(tab.id).catch(() => {});
+    }
+  } finally {
+    await markTabUsed(tab.id).catch(() => {});
+  }
+  return out;
+}
+
+const describe = (raw) => raw.error || `HTTP ${raw.status}`;
 
 // Hace muchas peticiones al mismo sitio. Devuelve un resultado por petición
 // ({ ok, status, data | error }); solo lanza error si el sitio no responde en
-// ningún modo. En modo "tab" todas se ejecutan en una sola pestaña.
+// ningún modo. Modos, en orden: "direct", "tab" (todas en una pestaña del
+// sitio) y "navigate" (abriendo cada dirección).
 export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], concurrency = 6 } = {}) {
-  if (!requests.length) return { mode: null, results: [] };
+  if (!requests.length) return { mode: null, results: [], notes: [] };
   const origin = new URL(requests[0].url).origin;
-  const order = preferred.get(origin) === 'tab' && modes.includes('tab') ? ['tab'] : modes;
-  let directError = null;
-  for (const mode of order) {
-    if (mode === 'direct') {
-      const first = await rawDirect(requests[0]);
-      if (isBlocked(first)) {
-        directError = first;
-        continue;
-      }
-      const rest = await pool(requests.slice(1), rawDirect, concurrency);
-      preferred.set(origin, 'direct');
-      return { mode, results: [first, ...rest].map((r, i) => toResult(r, requests[i].as)) };
-    }
+  const pref = preferred.get(origin);
+  const order = pref && modes.includes(pref) ? modes.slice(modes.indexOf(pref)) : modes;
+  const notes = [];
+  let lastStatus;
+  for (const [i, mode] of order.entries()) {
+    const isLast = i === order.length - 1;
+    let raw;
     try {
-      const raw = await runInSiteTab(pageUrl, pageFetchMany, [requests.map(({ url, headers }) => ({ url, headers: headers || {} })), concurrency]);
-      if (!Array.isArray(raw)) throw new FetchError('No se pudo ejecutar en la pestaña', { mode: 'tab' });
-      preferred.set(origin, 'tab');
-      return { mode: 'tab', results: raw.map((r, i) => toResult(r, requests[i].as)) };
+      if (mode === 'direct') {
+        const first = await rawDirect(requests[0]);
+        if (isBlocked(first) && !isLast) {
+          notes.push(`directo: ${describe(first)}`);
+          lastStatus = first.status;
+          continue;
+        }
+        raw = [first, ...(await pool(requests.slice(1), rawDirect, concurrency))];
+      } else if (mode === 'tab') {
+        raw = await runInSiteTab(pageUrl, pageFetchMany, [requests.map(({ url, headers }) => ({ url, headers: headers || {} })), concurrency]);
+        if (!Array.isArray(raw)) throw new FetchError('No se pudo ejecutar en la pestaña');
+      } else {
+        raw = await navigateMany(requests, pageUrl);
+      }
     } catch (e) {
-      const prefix = directError ? `direct: ${directError.error || `HTTP ${directError.status}`} | ` : '';
-      throw new FetchError(`${prefix}tab: ${e.message}`, { status: directError?.status, mode: 'tab', snippet: e.snippet });
+      notes.push(`${mode === 'tab' ? 'pestaña' : mode === 'navigate' ? 'navegación' : 'directo'}: ${e.message}`);
+      continue;
     }
+    if (mostlyBlocked(raw) && !isLast) {
+      notes.push(`${mode === 'tab' ? 'pestaña' : mode === 'navigate' ? 'navegación' : 'directo'}: ${describe(raw.find(isBlocked))}`);
+      lastStatus = raw.find(isBlocked).status;
+      continue;
+    }
+    preferred.set(origin, mode);
+    return { mode, results: raw.map((r, j) => toResult(r, requests[j].as)), notes };
   }
-  throw new FetchError(`direct: ${directError?.error || `HTTP ${directError?.status}`}`, {
-    status: directError?.status,
-    mode: 'direct',
-    snippet: (directError?.text || '').slice(0, 200),
-  });
+  throw new FetchError(notes.join(' | ') || 'Sin respuesta', { status: lastStatus, mode: order.at(-1) });
 }

@@ -1,9 +1,9 @@
-// Betano Perú: cuotas de fútbol. Solo responde a conexiones desde Perú, por
+// Betano Perú: cuotas. Solo responde a conexiones desde Perú, por
 // eso se consulta dentro de una pestaña de betano.pe (tu navegador).
 // La estructura exacta no se ha podido verificar desde fuera de Perú: el
 // parser busca en el JSON cualquier evento con mercados y selecciones con
 // precio, y el diagnóstico informa qué encontró para ajustarlo.
-import { fetchInTab, readPageGlobal } from '../lib/net.js';
+import { fetchInTab, runInSiteTab } from '../lib/net.js';
 import { findAll, toIso } from '../lib/model.js';
 
 const BASE = 'https://www.betano.pe';
@@ -55,17 +55,57 @@ function toOdds(e, page) {
   };
 }
 
+// Corre dentro de la página de Betano: espera a que la web cargue sus datos y
+// devuelve el estado inicial incrustado y las respuestas de su API (las anota
+// page-hook.js). No puede usar nada de fuera de la función.
+async function collectInPage(waitMs) {
+  const KEYS = ['initial_state', '__NEXT_DATA__', '__INITIAL_STATE__', '__NUXT__', '__PRELOADED_STATE__', '__APOLLO_STATE__'];
+  const end = Date.now() + waitMs;
+  const ready = () => KEYS.some((k) => window[k]) || (window.__bdpHook?.responses?.length || 0) > 0;
+  while (Date.now() < end && !ready()) await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 3000)); // dar tiempo a que lleguen las cuotas
+  const sources = [];
+  for (const k of KEYS) {
+    if (!window[k]) continue;
+    try {
+      sources.push({ via: `window.${k}`, data: JSON.parse(JSON.stringify(window[k])) });
+    } catch {
+      sources.push({ via: `window.${k}`, data: null });
+    }
+  }
+  for (const r of window.__bdpHook?.responses || []) {
+    try {
+      sources.push({ via: r.url, data: JSON.parse(r.text) });
+    } catch {
+      // respuesta que no es JSON
+    }
+  }
+  return { title: document.title, url: location.href, text: (document.body?.innerText || '').slice(0, 200), hooked: Boolean(window.__bdpHook), sources };
+}
+
 // Devuelve { via, items } indicando de dónde salieron los datos.
 export async function getOdds({ sport = 'football' } = {}) {
   const page = pageFor(sport);
   const attempts = [];
   try {
-    const state = await readPageGlobal(page, 'initial_state', 20000);
-    const events = findAll(state, isEvent);
-    if (events.length) return { mode: 'tab', via: 'window.initial_state', items: events.map((e) => toOdds(e, page)), attempts };
-    attempts.push({ via: 'window.initial_state', error: 'sin eventos con cuotas', keys: Object.keys(state || {}).slice(0, 20) });
+    const found = await runInSiteTab(page, collectInPage, [20000], { ownOnly: true, navigate: true });
+    const events = new Map();
+    const vias = [];
+    for (const src of found?.sources || []) {
+      const list = findAll(src.data, isEvent);
+      vias.push(`${src.via} (${list.length} eventos)`);
+      for (const e of list) events.set(String(e.id ?? `${e.name}|${e.startTime}`), e);
+    }
+    if (events.size) return { mode: 'tab', via: vias.filter((v) => !v.endsWith('(0 eventos)')).join(', '), items: [...events.values()].map((e) => toOdds(e, page)), attempts };
+    attempts.push({
+      via: 'página del deporte',
+      error: 'sin eventos con cuotas',
+      page: { title: found?.title, url: found?.url, text: found?.text, hooked: found?.hooked },
+      sources: vias,
+      keys: (found?.sources || []).map((src) => `${src.via}: ${Object.keys(src.data || {}).slice(0, 12).join(', ')}`),
+    });
   } catch (e) {
-    attempts.push({ via: 'window.initial_state', error: e.message, snippet: e.snippet });
+    attempts.push({ via: 'página del deporte', error: e.message, snippet: e.snippet });
   }
   for (const url of apiCandidates(sport)) {
     try {
