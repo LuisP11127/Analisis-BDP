@@ -14,6 +14,7 @@ import { getTeamStrength } from '../extension/sources/understat.js';
 import { basicNorm, bestByName, countryCode, matchEvent } from '../docs/js/analysis/matching.js';
 import { offersFromApuestaTotal } from '../docs/js/analysis/markets.js';
 import { addDays, limaToday } from '../docs/js/util.js';
+import { compactDay, compactResult } from '../docs/js/data-format.js';
 
 const OUT = path.resolve(process.argv[2] || 'site', 'data/fuente');
 const CACHE = path.resolve('.cache/h2h');
@@ -59,7 +60,6 @@ async function h2hCached(ev) {
   return data;
 }
 
-const resultOf = (e) => ({ state: e.state, score: e.score, winner: e.winner });
 
 async function main() {
   const today = limaToday();
@@ -78,7 +78,7 @@ async function main() {
         for (const e of items) e.category.alpha2 = countryCode(e.category.name);
         if (day >= 0) (upcoming[date] ||= {})[sport] = items;
         const done = items.filter((e) => ['finalizado', 'aplazado', 'cancelado'].includes(e.state));
-        for (const e of done) (results[date] ||= {})[e.id] = resultOf(e);
+        for (const e of done) (results[date] ||= {})[e.id] = compactResult(e);
       } catch (e) {
         log(`Flashscore ${sport} día ${day}: ${e.message}`);
       }
@@ -162,15 +162,10 @@ async function main() {
       for (const e of events) e.tournament.priority = priority[`${sport}|${e.tournament.id}`] || 0;
       const ids = new Set(events.map((e) => e.id));
       const pick = (map) => Object.fromEntries(Object.entries(map).filter(([id]) => ids.has(id)));
-      await writeJson(path.join(OUT, date, `${sport}.json`), {
-        date,
-        sport,
-        generated: index.generated,
-        events,
-        offers: pick(offers),
-        details: pick(details),
-        xg: pick(xg),
-      });
+      await writeJson(
+        path.join(OUT, date, `${sport}.json`),
+        compactDay({ date, sport, generated: index.generated, events, offers: pick(offers), details: pick(details), xg: pick(xg) }),
+      );
       index.days[date][sport] = { events: events.length, withOdds: events.filter((e) => offers[e.id]).length };
     }
   }
