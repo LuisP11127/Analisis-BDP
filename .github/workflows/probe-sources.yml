@@ -9,6 +9,7 @@ on:
     paths:
       - .github/workflows/probe-sources.yml
       - scripts/probe-sources.js
+      - scripts/sample-endpoints.js
 
 permissions:
   contents: read
@@ -49,6 +50,9 @@ jobs:
         run: |
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
+
+      - name: Muestras de endpoints (estructura de datos)
+        run: node scripts/sample-endpoints.js
 
       - name: Prueba con navegador
         run: node scripts/probe-sources.js

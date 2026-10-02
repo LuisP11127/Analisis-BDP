@@ -13,9 +13,32 @@ const WAIT_MS = Number(process.env.PROBE_WAIT_MS || 15000);
 const targets = [
   { name: 'sofascore', url: 'https://www.sofascore.com/es/futbol' },
   { name: 'betano', url: 'https://www.betano.pe/sport/futbol/' },
-  { name: 'apuestatotal', url: 'https://www.apuestatotal.com/apuestas-deportivas' },
   { name: 'apuestatotal-iframe', url: 'https://prod20392.kmianko.com/es-pe/spbkv3?operatorToken=logout' },
+  { name: 'flashscore', url: 'https://www.flashscore.com/' },
+  { name: 'flashscore-pe', url: 'https://www.flashscore.pe/' },
+  { name: 'fotmob', url: 'https://www.fotmob.com/es' },
 ];
+
+// Forma resumida de un JSON: claves, tipos y primer elemento de cada lista.
+function shape(v, depth = 0, max = 4) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) {
+    if (!v.length) return '[]';
+    return depth >= max ? `[…×${v.length}]` : `[${shape(v[0], depth + 1, max)}]×${v.length}`;
+  }
+  if (typeof v === 'object') {
+    if (depth >= max) return '{…}';
+    const keys = Object.keys(v);
+    const parts = keys.slice(0, 25).map((k) => `${k}:${shape(v[k], depth + 1, max)}`);
+    if (keys.length > 25) parts.push(`…+${keys.length - 25}`);
+    return `{${parts.join(', ')}}`;
+  }
+  if (typeof v === 'string') return `"${v.slice(0, 40)}"`;
+  return String(v);
+}
+
+// Respuestas de seguimiento/publicidad que no aportan datos deportivos.
+const NOISE = /google|doubleclick|facebook|criteo|optimove|crazyegg|tiktok|stackadapt|adform|rfihub|cdn-cgi|mida\.so|instana|hotjar|clarity|onetrust|cookielaw/;
 
 const isData = (type) => type === 'xhr' || type === 'fetch' || type === 'document';
 
@@ -44,13 +67,19 @@ async function probe(browser, { name, url }) {
       body = (await r.body()).toString('utf8');
     } catch {}
     const ctype = r.headers()['content-type'] || '';
+    if (NOISE.test(r.url())) return;
+    let structure = '';
+    try {
+      structure = shape(JSON.parse(body)).slice(0, 1500);
+    } catch {}
     calls.push({
       status: r.status(),
       type,
       size: body.length,
-      json: ctype.includes('json'),
+      json: Boolean(structure),
       url: r.url(),
-      sample: ctype.includes('json') ? body.slice(0, 300) : '',
+      fsign: r.request().headers()['x-fsign'] || '',
+      sample: structure || (type === 'document' ? '' : body.slice(0, 400).replace(/\s+/g, ' ')),
     });
   });
 
@@ -78,8 +107,12 @@ async function probe(browser, { name, url }) {
     `websockets: ${JSON.stringify(sockets)}`,
     `fallidas: ${JSON.stringify(failed)}`,
     `llamadas de datos: ${calls.length} (JSON: ${jsonCalls.length})`,
-    ...calls.slice(0, 40).map((c) => `  ${c.status} ${c.type} ${c.size}B ${c.json ? '[json] ' : ''}${c.url.slice(0, 160)}`),
-    ...jsonCalls.slice(0, 5).map((c) => `  muestra ${c.url.slice(0, 100)}\n    ${c.sample}`),
+    ...calls.slice(0, 40).map((c) => `  ${c.status} ${c.type} ${c.size}B ${c.json ? '[json] ' : ''}${c.fsign ? '[x-fsign=' + c.fsign + '] ' : ''}${c.url.slice(0, 400)}`),
+    ...calls
+      .filter((c) => c.sample && c.size > 200)
+      .sort((a, b) => b.size - a.size)
+      .slice(0, 8)
+      .map((c) => `  muestra ${c.url.slice(0, 200)}\n    ${c.sample}`),
   ];
   return { name, status, title, jsonCount: jsonCalls.length, textLength: text.length, log: lines.join('\n') };
 }
