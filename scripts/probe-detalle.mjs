@@ -1,38 +1,39 @@
-// Exploración temporal (3): códigos de los tipos de mercado de Apuesta Total.
-// Pide, para un evento de cada deporte, los tipos ML/OU/HC/QA del 0 al 999 y
-// lista los que existen con su nombre.
-const AT = 'https://prod20392.kmianko.com';
-const page = await fetch(`${AT}/es-pe/spbkv3?operatorToken=logout`, { signal: AbortSignal.timeout(25000) });
-const jar = {};
-for (const c of page.headers.getSetCookie?.() || []) {
-  const p = c.split(';')[0];
-  jar[p.slice(0, p.indexOf('='))] = p.slice(p.indexOf('=') + 1);
-}
-const ath = { 'time-area': '01', ...(jar.authorization ? { authorization: jar.authorization, session: jar.session } : {}) };
-const evs = await (await fetch(`${AT}/api/pulse/snapshot/events?lang=ES-PE&t=hPNl`, { headers: ath })).json();
-const sports = ['Fútbol', 'Baloncesto', 'Tenis', 'Ice Hockey', 'Béisbol', 'Fútbol Americano', 'Voleibol', 'Balonmano', 'Tenis de Mesa', 'E-sports+', 'MMA', 'Dardos'];
-const prefixes = ['ML', 'OU', 'HC', 'QA'];
-for (const sport of sports) {
-  const ev = evs.filter((e) => e.SportName === sport && !e.IsLive).sort((a, b) => b.TotalMarketsCount - a.TotalMarketsCount)[0];
-  if (!ev) {
-    console.log(`\n=== ${sport}: sin eventos`);
-    continue;
-  }
-  const found = [];
-  for (const prefix of prefixes) {
-    for (let start = 0; start < 1000; start += 125) {
-      const types = Array.from({ length: 125 }, (_, i) => `${prefix}${start + i}`);
-      try {
-        const r = await fetch(`${AT}/api/eventlist/eu/markets/all?markets=${encodeURIComponent(`${ev._id}:${types.join('|')}`)}`, { headers: ath, signal: AbortSignal.timeout(30000) });
-        const list = await r.json();
-        for (const m of Array.isArray(list) ? list : []) {
-          found.push(`${m.MarketType?._id}=${m.Name} [${(m.Selections || []).slice(0, 4).map((s) => `${s.Name}${s.QAParam1 ? `(${s.QAParam1})` : ''} ${s.TrueOdds}`).join('; ')}]`);
-        }
-      } catch (e) {
-        found.push(`${prefix}${start}: ${e.message}`);
-      }
+// Prueba temporal: resumen de lo que publicó scripts/collect-data.mjs en
+// <salida>/data/fuente (resultados con periodos, registros completos y
+// estadísticas de equipo). Uso: node scripts/probe-detalle.mjs <salida>
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+const dir = path.resolve(process.argv[2] || 'site', 'data/fuente');
+const resDir = path.join(dir, 'resultados');
+let withPer = 0;
+let withRecord = 0;
+let numeric = 0;
+const samples = [];
+for (const f of (await fs.readdir(resDir)).sort()) {
+  const data = JSON.parse(await fs.readFile(path.join(resDir, f), 'utf8'));
+  for (const [id, r] of Object.entries(data)) {
+    if (r[3]) withPer++;
+    if (r[4]) {
+      withRecord++;
+      if (!id.startsWith('fs:')) numeric++;
+      if (samples.length < 6) samples.push([f, id, JSON.stringify(r).slice(0, 700)]);
     }
   }
-  console.log(`\n=== ${sport}: ${ev.EventName} (${ev.TotalMarketsCount} mercados; encontrados ${found.length})`);
-  for (const f of found) console.log('  ' + f.slice(0, 260));
+}
+console.log(`Resultados con periodos: ${withPer} · con registro completo: ${withRecord} (de Sofascore cruzados por nombre: ${numeric})`);
+for (const s of samples) console.log(' ', ...s);
+
+const index = JSON.parse(await fs.readFile(path.join(dir, 'indice.json'), 'utf8'));
+for (const [date, bySport] of Object.entries(index.days)) {
+  for (const sport of Object.keys(bySport)) {
+    const day = JSON.parse(await fs.readFile(path.join(dir, date, `${sport}.json`), 'utf8'));
+    const details = Object.entries(day.details || {});
+    const ts = details.filter(([, d]) => d.ts);
+    const groups = Object.values(day.offers || {}).reduce((n, o) => n + (o.g?.length || 0), 0);
+    const markets = new Set(Object.values(day.offers || {}).flatMap((o) => (o.o || []).map((x) => x[0])));
+    console.log(`${date} ${sport}: ${details.length} con H2H, ${ts.length} con estadísticas de equipo, ${groups} grupos de cuotas, ${markets.size} mercados distintos`);
+    if (ts.length && date === index.today) console.log('   ejemplo', ts[0][0], JSON.stringify(ts[0][1].ts).slice(0, 600));
+    if (date === index.today && markets.size) console.log('   mercados', [...markets].slice(0, 40).join(' '));
+  }
 }

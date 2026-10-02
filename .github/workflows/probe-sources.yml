@@ -10,6 +10,7 @@ on:
       - .github/workflows/probe-sources.yml
       - scripts/test-sources.mjs
       - scripts/probe-detalle.mjs
+      - scripts/collect-data.mjs
       - extension/lib/**
       - extension/sources/**
 
@@ -19,7 +20,7 @@ permissions:
 jobs:
   conectores:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +31,8 @@ jobs:
       - name: Probar conectores
         run: node scripts/test-sources.mjs
 
-      - name: Explorar feeds de detalle (temporal)
+      - name: Recolección de prueba (temporal)
         if: always()
-        run: node scripts/probe-detalle.mjs
+        run: |
+          node scripts/collect-data.mjs /tmp/sitio
+          node scripts/probe-detalle.mjs /tmp/sitio
