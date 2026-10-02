@@ -389,6 +389,7 @@ function openSettings() {
   $('#market-groups').replaceChildren(
     ...MARKET_GROUPS.map((g) => h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'marketGroup', value: g.id, checked: groups.includes(g.id) }), ` ${g.name}`)),
   );
+  f.betanoAllMarkets.checked = s.betanoAllMarkets !== false;
   f.ghToken.value = '';
   renderGithubStatus();
   $('#settings').showModal();
@@ -454,6 +455,7 @@ function closeSettings(action) {
       comboMinProb: Number(f.comboMinProb.value) / 100,
       comboMaxLegs: Math.round(Number(f.comboMaxLegs.value)),
       marketGroups: [...f.querySelectorAll('input[name=marketGroup]:checked')].map((x) => x.value),
+      betanoAllMarkets: f.betanoAllMarkets.checked,
     };
     if (!next.marketGroups.length) {
       toast('Elige al menos un tipo de mercado para los picks', 6000);

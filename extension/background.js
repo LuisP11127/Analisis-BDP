@@ -30,7 +30,7 @@ const PAGE_ALLOWED = {
   fotmob: ['getMatches', 'getNews'],
   espn: ['getMatches', 'getNews'],
   understat: ['getTeamStrength'],
-  betano: ['getOdds'],
+  betano: ['getOdds', 'getEventMarkets'],
   apuestatotal: ['getEventList', 'getMarkets', 'getOdds'],
   github: ['status', 'getFile', 'putFile', 'getPublicConfig'],
 };

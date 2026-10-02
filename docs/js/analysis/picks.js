@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS = {
   comboMinProb: 0.7, // probabilidad mínima de cada selección de una combinada
   comboMaxLegs: 8,
   marketGroups: MARKET_GROUPS.map((g) => g.id), // mercados que pueden salir en picks y combinadas
+  betanoAllMarkets: true, // abrir la página de cada partido en Betano (todos los mercados; más lento)
 };
 
 export const BOOKMAKERS = { apuestatotal: 'Apuesta Total', betano: 'Betano', sofascore: 'Sofascore (referencia)' };

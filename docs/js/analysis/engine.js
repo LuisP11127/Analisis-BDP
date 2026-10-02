@@ -24,7 +24,7 @@ import {
   selectionLabel,
 } from './markets.js';
 import { calibrateExpected } from './calibrate.js';
-import { familyOf, parseMarketId } from './catalog.js';
+import { familyOf, parseMarketId, STAT_NAME } from './catalog.js';
 import { bestByName, matchEvent } from './matching.js';
 import { allowedMarkets, predict } from './models.js';
 import { buildCombos, DEFAULT_SETTINGS, selectPicks } from './picks.js';
@@ -73,8 +73,16 @@ function factorsFor(ev, d, model, c) {
   if (ev.home.ranking && ev.away.ranking) out.push(`Ranking: ${ev.home.ranking} vs ${ev.away.ranking}`);
   const miss = d?.missing;
   if (miss && (miss.home.length || miss.away.length)) out.push(`Bajas: ${miss.home.length} local · ${miss.away.length} visita`);
+  // Mercados simulados: promedios de cada equipo en la estadística del mercado.
+  const spec = parseMarketId(c.market);
+  const ts = d?.teamStats;
+  const st = spec && spec.stat !== 'score' ? spec.stat : null;
+  if (st && ts?.home?.[st] && ts?.away?.[st]) {
+    const f = (x) => (Math.round(x * 10) / 10).toString();
+    out.push(`${STAT_NAME[st] || st} por partido: ${ev.home.name} ${f(ts.home[st].for)} (recibe ${f(ts.home[st].against)}) · ${ev.away.name} ${f(ts.away[st].for)} (recibe ${f(ts.away[st].against)})`);
+  }
   if (c.pMarket != null) out.push(`Mercado: ${Math.round(c.pMarket * 100)}%`);
-  if (c.pModel != null) out.push(`Modelo: ${Math.round(c.pModel * 100)}%`);
+  if (c.pModel != null) out.push(`${c.via === 'simulación' ? `Simulación (${SIMULATIONS} partidos)` : 'Modelo'}: ${Math.round(c.pModel * 100)}%`);
   return out;
 }
 
@@ -105,13 +113,16 @@ async function sofascoreDetails(events, sources, progress) {
   return details;
 }
 
-async function bookmakerOffers(events, sources, progress) {
+const BETANO_PAGES = 40; // partidos cuya página de Betano se abre (para todos los mercados)
+
+async function bookmakerOffers(events, sources, progress, { allMarkets = true } = {}) {
   const offers = new Map(); // id de Sofascore -> ofertas
   const add = (id, list) => offers.set(id, [...(offers.get(id) || []), ...list]);
   const bySport = groupBy(events, (e) => e.sport);
 
   progress('Apuesta Total: cuotas', 0.65);
   let atMatched = 0;
+  const atStats = {}; // mercados reconocidos / sin modelar (de jugador, de torneo...)
   for (const [sport, evs] of bySport) {
     try {
       const from = Math.min(...evs.map((e) => e.start)) - 3 * 3600000;
@@ -125,34 +136,56 @@ async function bookmakerOffers(events, sources, progress) {
       if (!pairs.size) continue;
       const { items } = await ext.call('apuestatotal', 'getMarkets', { eventIds: [...pairs.keys()], sport }, { timeout: 120000 });
       for (const [atId, { ev, m }] of pairs) {
-        const list2 = offersFromApuestaTotal(items[atId] || [], m.item, ev, m.swapped);
+        const list2 = offersFromApuestaTotal(items[atId] || [], m.item, ev, m.swapped, atStats);
         if (list2.length) atMatched++;
         add(ev.id, list2);
       }
-      sources.apuestatotal = { ok: true, matched: atMatched };
+      sources.apuestatotal = { ok: true, matched: atMatched, markets: atStats };
     } catch (e) {
       sources.apuestatotal = { ok: false, error: e.message };
     }
   }
   sources.apuestatotal ||= { ok: true, matched: 0 };
 
-  progress('Betano: cuotas', 0.75);
+  progress('Betano: cuotas', 0.72);
   let bMatched = 0;
+  const matched = []; // { ev, m } para abrir la página de cada partido
+  const bErrors = [];
   for (const [sport, evs] of bySport) {
     try {
       const list = (await ext.call('betano', 'getOdds', { sport }, { timeout: 90000 })).items;
       for (const ev of evs) {
         const m = matchEvent(ev, list, { toleranceMin: sport === 'tennis' ? 90 : 25 });
-        if (!m) continue;
-        const list2 = offersFromBetano(m.item.markets, m.item, ev, m.swapped);
-        if (list2.length) bMatched++;
-        add(ev.id, list2);
+        if (m) matched.push({ ev, m });
       }
-      sources.betano = { ok: true, matched: bMatched };
     } catch (e) {
-      sources.betano = { ok: false, error: e.message };
+      bErrors.push(`${sport}: ${e.message}`);
     }
   }
+  // Basta con que responda en algún deporte.
+  sources.betano = bErrors.length === bySport.size ? { ok: false, error: bErrors.join(' | ') } : { ok: true, matched: 0, ...(bErrors.length ? { partial: bErrors } : {}) };
+  // Todos los mercados: la lista del deporte trae solo los principales; se abre
+  // la página de cada partido (pestañas Goles, Córners, Tarjetas...).
+  const full = {};
+  const withUrl = allMarkets ? matched.filter((x) => x.m.item.url).slice(0, BETANO_PAGES) : [];
+  for (let i = 0; i < withUrl.length; i += 4) {
+    progress(`Betano: todos los mercados ${Math.min(i + 4, withUrl.length)} de ${withUrl.length}`, 0.74 + (0.06 * i) / withUrl.length);
+    const chunk = withUrl.slice(i, i + 4);
+    try {
+      const r = await ext.call('betano', 'getEventMarkets', { urls: Object.fromEntries(chunk.map((x) => [x.ev.id, x.m.item.url])) }, { timeout: 240000 });
+      Object.assign(full, r.items);
+    } catch (e) {
+      sources.betanoPages = { ok: false, error: e.message };
+    }
+  }
+  const stats = {};
+  for (const { ev, m } of matched) {
+    const markets = full[ev.id]?.length > (m.item.markets?.length || 0) ? full[ev.id] : m.item.markets;
+    const list2 = offersFromBetano(markets, m.item, ev, m.swapped, stats);
+    if (list2.length) bMatched++;
+    add(ev.id, list2);
+  }
+  if (sources.betano?.ok) sources.betano = { ok: true, matched: bMatched, pages: Object.keys(full).length, markets: stats };
   return offers;
 }
 
@@ -367,7 +400,7 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
 
   const details = sofa.length ? await sofascoreDetails(sofa, sources, onProgress) : {};
   const published = auto.length ? await publishedData(auto, details, sources, onProgress) : new Map();
-  const offers = withExt ? await bookmakerOffers(pending, sources, onProgress) : new Map();
+  const offers = withExt ? await bookmakerOffers(pending, sources, onProgress, { allMarkets: settings.betanoAllMarkets !== false }) : new Map();
   const xg = sofa.length && withExt ? await understatXg(sofa, sources, onProgress) : new Map();
 
   // Partidos automáticos: cuotas publicadas de Apuesta Total si no se

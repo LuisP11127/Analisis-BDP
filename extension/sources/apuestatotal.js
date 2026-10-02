@@ -10,10 +10,21 @@ const IDS_PER_REQUEST = 10;
 
 // Tipos de mercado que usa el propio sportsbook. Fútbol: 1X2, doble
 // oportunidad, total de goles y ambos anotan. Resto: ganador, total y hándicap.
-const MARKET_TYPES = {
-  football: ['ML0', 'ML39', 'OU200', 'OU249', 'QA61', 'QA158'],
-  default: ['ML0', 'OU0', 'HC0', 'ML39', 'OU39', 'HC39'],
+// Tipos de mercado de Apuesta Total (descubiertos pidiendo ML/OU/HC/QA del 0
+// al 999 para un partido de cada deporte). Se piden todos para cualquier
+// deporte: los que no existen simplemente no vuelven.
+const TYPES_BY_SPORT = {
+  football: 'ML0 ML1 ML2 ML14 ML20 ML39 ML159 ML160 ML235 ML619 OU0 OU1 OU2 OU7 OU10 OU14 OU22 OU52 OU200 OU201 OU249 OU257 OU615 OU619 OU621 HC0 HC1 HC10 HC14 HC157 HC270 HC359 HC619 QA38 QA60 QA61 QA62 QA119 QA144 QA158 QA262 QA272 QA696',
+  basketball: 'ML0 ML623 ML624 ML625 OU0 OU623 OU624 OU625 OU640 OU641 OU642 OU660 OU677 HC0 HC623 HC625 HC660 QA626 QA630 QA631 QA632 QA633 QA646',
+  tennis: 'ML0 ML740 ML741 OU0 OU738 OU743 OU744 HC0 HC738 HC740 HC741 QA60 QA748',
+  baseball: 'ML0 ML20 ML362 OU0 OU362 HC0 QA38 QA361',
+  'american-football': 'ML0 ML471 ML473 OU0 OU471 OU473 HC0 HC471 HC473',
+  volleyball: 'ML0 ML462 OU0 OU462 OU463 OU470 HC0 HC462 HC470 QA444',
+  handball: 'ML0 ML409 OU0 OU409 HC0 HC409',
+  other: 'ML39 OU39 HC39',
 };
+const ALL_TYPES = [...new Set(Object.values(TYPES_BY_SPORT).join(' ').split(' '))];
+const TYPE_CHUNK = 60; // tipos por pedido (la dirección no puede ser muy larga)
 
 // Nombre del deporte en Apuesta Total para cada deporte de Sofascore.
 const SPORT_NAMES = {
@@ -133,6 +144,8 @@ function toMarket(m) {
         name: s.BetslipLine || s.Name || '',
         outcome: s.OutcomeType || '',
         side: s.Side ?? null,
+        // Línea del mercado (si el nombre de la selección no la trae).
+        line: s.QAParam1 != null && s.QAParam1 !== '' && Number.isFinite(Number(s.QAParam1)) ? Number(s.QAParam1) : null,
         price: Number(s.DisplayOdds?.Decimal ?? s.TrueOdds),
       }))
       .filter((s) => s.price > 1),
@@ -141,20 +154,28 @@ function toMarket(m) {
 
 // Mercados y cuotas de una lista de eventos: { [eventId]: [mercado, ...] }.
 export async function getMarkets({ eventIds = [], sport = 'football' } = {}) {
-  const types = MARKET_TYPES[sport] || MARKET_TYPES.default;
+  // Primero los del deporte (los más usados) y luego el resto.
+  const own = (TYPES_BY_SPORT[sport] || '').split(' ').filter(Boolean);
+  const types = [...new Set([...own, ...ALL_TYPES])];
   const items = {};
   const errors = [];
+  const seen = new Set();
   for (let i = 0; i < eventIds.length; i += IDS_PER_REQUEST) {
     const ids = eventIds.slice(i, i + IDS_PER_REQUEST);
-    const query = encodeURIComponent(`${ids.join('|')}:${types.join('|')}`);
-    try {
-      const { data } = await get(`/api/eventlist/eu/markets/all?markets=${query}`, { session: true });
-      for (const m of Array.isArray(data) ? data : []) {
-        if (m.IsRemoved || m.IsSuspended) continue;
-        (items[String(m.EventId)] ||= []).push(toMarket(m));
+    for (let j = 0; j < types.length; j += TYPE_CHUNK) {
+      const query = encodeURIComponent(`${ids.join('|')}:${types.slice(j, j + TYPE_CHUNK).join('|')}`);
+      try {
+        const { data } = await get(`/api/eventlist/eu/markets/all?markets=${query}`, { session: true });
+        for (const m of Array.isArray(data) ? data : []) {
+          if (m.IsRemoved || m.IsSuspended) continue;
+          const key = `${m.EventId}|${m._id ?? `${m.MarketType?._id}|${m.Name}`}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          (items[String(m.EventId)] ||= []).push(toMarket(m));
+        }
+      } catch (e) {
+        errors.push(e.message);
       }
-    } catch (e) {
-      errors.push(e.message);
     }
   }
   return { items, errors };

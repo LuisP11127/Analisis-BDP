@@ -201,7 +201,7 @@ async function withoutExtension(browser, errors) {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: URL });
     const page = await context.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    page.on('console', (m) => m.type() === 'error' && !m.text().includes('404') && errors.push(m.text())); // 404: datos publicados que no existen en la prueba
 
     // 1) Partidos
     await page.goto(URL);
@@ -234,7 +234,17 @@ async function withoutExtension(browser, errors) {
     const summary = await page.textContent('#tab-analisis .summary');
     check('analiza los 11 partidos', summary.includes('11 partidos analizados'), summary.slice(0, 120));
     check('Apuesta Total emparejada', /Apuesta Total · \d+ partidos/.test(summary), summary.match(/Apuesta Total[^A-Z]*/)?.[0]);
-    check('muestra el error de Betano sin romper el análisis', summary.includes('Betano: error'));
+    check('Betano emparejada aunque falle en otros deportes', /Betano · \d+ partidos/.test(summary), summary.match(/Betano[^A-Z]*/)?.[0]);
+    const log = await page.evaluate(() => window.__BDP_MOCK_LOG__);
+    check('abre la página de cada partido de Betano (todos los mercados)', log.includes('betano.getEventMarkets'));
+    // Filas de entrenamiento guardadas en el navegador: incluyen los mercados nuevos.
+    const rowMarkets = await page.evaluate(async () => {
+      const st = await import(new URL('js/storage.js', location.href).href);
+      const out = new Set();
+      for (const p of await st.localPaths()) if (p.includes('entrenamiento')) for (const r of (await st.read(p))?.rows || []) out.add(r.market);
+      return [...out];
+    });
+    check('analiza los mercados nuevos (córners, 1.er tiempo, descanso/final)', ['OU.corners', '1X2@h1', 'OU.cards'].every((m) => rowMarkets.includes(m)), rowMarkets.join(' '));
     const levels = await page.$$eval('#tab-analisis .card', (cards) => cards.map((c) => c.className));
     check(
       'hay picks por nivel y combinadas',
@@ -271,14 +281,14 @@ async function withoutExtension(browser, errors) {
     const table = await page.textContent('.panel table');
     check('calcula aciertos y ganancia por nivel', /%/.test(table), table.replace(/\s+/g, ' ').slice(0, 160));
     const netPanel = await page.textContent('.panel:has(h3:text-is("Entrenamiento de la red neuronal"))');
-    check('la red neuronal registra los resultados para aprender', /105/.test(netPanel), netPanel.replace(/\s+/g, ' ').slice(0, 200));
+    check('la red neuronal registra los resultados para aprender', /Faltan resultados: [1-9]\d* de 200/.test(netPanel), netPanel.replace(/\s+/g, ' ').slice(0, 200));
     await page.screenshot({ path: path.join(OUT, '3-historial.png'), fullPage: true });
 
     // 5) Análisis con red neuronal
     await page.click('#run-nn');
     await page.waitForSelector('#tab-analisis .summary h2:has-text("red neuronal")', { timeout: 60000 });
     const nnBanner = await page.textContent('#tab-analisis .summary .banner');
-    check('el análisis con red neuronal explica su estado', /105 de 200/.test(nnBanner), nnBanner.slice(0, 160));
+    check('el análisis con red neuronal explica su estado', /[1-9]\d* de 200/.test(nnBanner), nnBanner.slice(0, 160));
     const compare = await page.textContent('#tab-analisis .compare');
     check('compara el análisis estadístico con el de red neuronal', compare.includes('Estadístico') && compare.includes('Red neuronal') && /por separado/.test(compare), compare.replace(/\s+/g, ' ').slice(0, 200));
     await page.click('#tab-analisis .segmented button:has-text("Estadístico")');

@@ -1008,7 +1008,7 @@ export function swapSelection(spec, sel, line) {
 
 // ---- Etiquetas ----
 
-const STAT_NAME = {
+export const STAT_NAME = {
   corners: 'córners', cards: 'tarjetas', reds: 'tarjetas rojas', shots: 'remates', shots_on: 'tiros al arco', fouls: 'faltas',
   offsides: 'fueras de juego', throwins: 'saques de banda', goalkicks: 'saques de meta', passes: 'pases', tackles: 'entradas',
   woodwork: 'tiros al palo', pens: 'penales', pengoals: 'goles de penal', owngoals: 'autogoles', sog: 'tiros a puerta',
