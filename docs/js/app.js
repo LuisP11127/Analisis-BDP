@@ -318,7 +318,7 @@ app.updateResults = async () => {
     await app.reloadHistory();
     const parts = [
       r.checked ? `Resultados: ${r.resolved} apuestas liquidadas` : 'No hay partidos terminados pendientes de liquidar',
-      r.network ? `red neuronal reentrenada con ${r.network.samples} resultados` : '',
+      r.network ? (r.network.reason ? `red neuronal: ${r.network.reason.toLowerCase()}` : `red neuronal reentrenada con ${r.network.samples} resultados`) : '',
       r.skipped ? `${r.skipped} partidos de Sofascore esperan a la extensión` : '',
     ];
     toast(parts.filter(Boolean).join(' · '), 7000);
