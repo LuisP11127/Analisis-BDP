@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { analyzeEvent, blend } from '../docs/js/analysis/engine.js';
 import { FEATURES } from '../docs/js/analysis/features.js';
-import { offersFromApuestaTotal, offersFromSofascore } from '../docs/js/analysis/markets.js';
+import { familyOf, parseMarketId } from '../docs/js/analysis/catalog.js';
+import { offersFromApuestaTotal, offersFromBetano, offersFromSofascore } from '../docs/js/analysis/markets.js';
 import { Corrector } from '../docs/js/analysis/neural.js';
 import { buildCombos, DEFAULT_SETTINGS, selectPicks } from '../docs/js/analysis/picks.js';
 import { compactAnalysis, daySummary, trainingRows } from '../docs/js/history.js';
@@ -111,4 +112,56 @@ test('del análisis al historial: picks, combinadas, filas de entrenamiento y re
   const s = daySummary({ analyses: [stored] });
   assert.equal(s.n, stored.picks.length);
   assert.equal(s.pending, stored.picks.length);
+});
+
+// Mercados de Betano que no tienen modelo propio: se simulan con lo esperado
+// ya calibrado con las cuotas principales.
+const betano = [
+  { name: 'Resultado Final', selections: [{ name: '1', price: 1.52 }, { name: 'X', price: 4.4 }, { name: '2', price: 5.8 }] },
+  { name: 'Total de goles Más/Menos', selections: [{ name: 'Más de 2.5', price: 1.45 }, { name: 'Menos de 2.5', price: 2.7 }] },
+  { name: 'Primer Tiempo - Resultado', selections: [{ name: '1', price: 2.05 }, { name: 'X', price: 2.25 }, { name: '2', price: 6.5 }] },
+  { name: 'Descanso/Final', selections: [{ name: '1/1', price: 2.4 }, { name: 'X/1', price: 4.6 }, { name: '2/2', price: 11 }] },
+  { name: 'Total de Córners', selections: [{ name: 'Más de 9.5', price: 1.85 }, { name: 'Menos de 9.5', price: 1.9 }] },
+  { name: 'Resultado Exacto', selections: [{ name: '2-0', price: 7 }, { name: '1-0', price: 8.5 }] },
+];
+const teamStats = {
+  home: { corners: { for: 6.1, against: 3.8, n: 8 } },
+  away: { corners: { for: 4.2, against: 5.3, n: 8 } },
+};
+
+test('mercados nuevos: simulados, coherentes con el mercado principal y con etiqueta', () => {
+  const offers = offersFromBetano(betano, { home: 'Belgium', away: 'Türkiye' }, ev);
+  const { candidates } = analyzeEvent(ev, { ...details, teamStats }, offers, {});
+  const by = Object.fromEntries(candidates.map((c) => [c.key, c]));
+  for (const k of ['1X2@h1|home|', 'AND|1X2@h1~home~+1X2~home~|', 'OU.corners|over|9.5', 'CS|2-0|']) {
+    assert.ok(by[k], `falta ${k}`);
+    assert.equal(by[k].via, 'simulación');
+    assert.ok(by[k].p > 0 && by[k].p < 1);
+    assert.equal(by[k].x.length, FEATURES.length);
+  }
+  // Ganar al descanso y al final no puede ser más probable que ganar el partido.
+  assert.ok(by['AND|1X2@h1~home~+1X2~home~|'].pModel < by['1X2|home|'].pBase);
+  // Los resultados del 1.er tiempo suman 1.
+  const h1 = ['home', 'draw', 'away'].reduce((s, x) => s + by[`1X2@h1|${x}|`].pModel, 0);
+  assert.ok(Math.abs(h1 - 1) < 1e-9);
+  assert.equal(by['OU.corners|over|9.5'].label, 'Más de 9.5 córners');
+  assert.equal(by['AND|1X2@h1~home~+1X2~home~|'].family, familyOf(parseMarketId('AND')));
+});
+
+test('sin estadísticas del equipo: los córners solo con cuotas completas; el marcador se calibra con el mercado', () => {
+  const offers = offersFromBetano(betano, { home: 'Belgium', away: 'Türkiye' }, ev);
+  const { candidates } = analyzeEvent(ev, {}, offers, {});
+  const by = Object.fromEntries(candidates.map((c) => [c.key, c]));
+  // Sin modelo propio el resultado sale de las cuotas.
+  assert.ok(Math.abs(by['1X2|home|'].p - by['1X2|home|'].pMarket) < 0.03);
+  // Córners: hay cuotas de ambos lados, se usa el mercado.
+  assert.ok(by['OU.corners|over|9.5']);
+  assert.ok(by['AND|1X2@h1~home~+1X2~home~|'].p < by['1X2|home|'].p);
+});
+
+test('el mismo partido da siempre las mismas probabilidades simuladas', () => {
+  const offers = offersFromBetano(betano, { home: 'Belgium', away: 'Türkiye' }, ev);
+  const a = analyzeEvent(ev, details, offers, {}).candidates.map((c) => c.p);
+  const b = analyzeEvent(ev, details, offers, {}).candidates.map((c) => c.p);
+  assert.deepEqual(a, b);
 });

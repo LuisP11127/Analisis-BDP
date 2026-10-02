@@ -188,7 +188,7 @@ const STATS = [
   [/aces (y|&) faltas dobles|aces & faltas dobles/, 'acesdf'],
   [/faltas dobles|falta doble/, 'df'],
   [/\baces?\b/, 'aces'],
-  [/tie ?breaks?/, 'tiebreaks'],
+  [/tie[ -]?breaks?/, 'tiebreaks'],
   [/breaks? de servicio|quiebres? de servicio|\bquiebres?\b|primer break/, 'breaks'],
   [/duracion/, 'duration'],
   [/puntos de tarjetas/, 'cards'],
@@ -300,7 +300,7 @@ function scopeOf(name, sport) {
   if (/primer cuarto/.test(name)) return 'p1';
   // Mitades.
   if (/primer tiempo\s*\/\s*tiempo completo|medio tiempo\s*\/\s*tiempo completo|primer tiempo o tiempo completo/.test(name)) return 'ft';
-  if (/mitad\s*\/\s*final/.test(name)) return 'ft';
+  if (/mitad\s*\/\s*final|descanso\s*\/\s*final/.test(name)) return 'ft';
   if (/primer tiempo|1er tiempo|medio tiempo|primera mitad|\b1(ra|a)? mitad|\b1 mitad|1ra parte/.test(name)) return 'h1';
   if (/segundo tiempo|2do tiempo|segunda mitad|\b2(da|a)? mitad|\b2 mitad/.test(name)) return 'h2';
   if (/tiempo reg|tiempo regular|fin tiempo reg/.test(name)) return 'reg';
@@ -335,7 +335,7 @@ function sideLike(selections, ctx) {
 function typeFromName(name, sport) {
   if (/par\s*\/\s*impar|impar\s*\/\s*par|par impar|impar par|\bpar\/impar\b/.test(name)) return 'OE';
   if (/doble resultado, set y partido|ambos jugadores ganan un set x resultado/.test(name)) return 'AND';
-  if (/primer tiempo\s*\/\s*tiempo completo|medio tiempo\s*\/\s*tiempo completo|tarjetas de medio tiempo\/tiempo completo|primer tiempo\/tiempo completo corners|mitad\s*\/\s*final/.test(name)) return 'HTFT';
+  if (/primer tiempo\s*\/\s*tiempo completo|medio tiempo\s*\/\s*tiempo completo|tarjetas de medio tiempo\/tiempo completo|primer tiempo\/tiempo completo corners|mitad\s*\/\s*final|descanso\s*\/\s*final/.test(name)) return 'HTFT';
   if (/ y mas\/menos| con mas\/menos|& total de|y total de|ganador del partido y mas\/menos|ganador & total|ganador y total|resultado & ambos|ambos anotan y mas|ambos equipos anotan & total|resultado del partido \/ ambos|doble oportunidad \/ ambos|primer equipo en anotar & |ganador del mapa &|ganador del partido & ganador del mapa|periodo 1 - resultado & resultado|gana & partido sobrepasa|ganador & (local|visitante) total|ganador del set y total/.test(name)) return 'AND';
   if (/ambos equipos anotan o mas/.test(name)) return 'BTTSOVER';
   if (/ o ambos equipos anotan| o goles totales|resultado primer tiempo o tiempo completo/.test(name)) return 'OR';
@@ -411,6 +411,8 @@ export function parseMarket(rawName, selections = [], ctx = {}) {
     else if (sels.every((s) => scoreOf(s.text))) type = 'CS';
     else return unsupported('unknown');
   }
+  // "Total de córners" puede venir por rangos (0-8, 9-11...) o con Más/Menos.
+  if (type === 'CNT' && sels.every((s) => ouOf(s.text))) type = 'OU';
   const base = { stat, scope, team: null, n: null };
   const out = [];
   const add = (spec, sel, line, s) => {

@@ -1,12 +1,15 @@
 // Mercados de apuesta en un formato común:
 //   { market, sel, line }
+//   market es el identificador del catálogo (catalog.js): los principales son
 //   1X2 (home/draw/away) · ML ganador sin empate (home/away) · DC doble
 //   oportunidad (1X/X2/12) · OU más/menos (over/under + línea) · BTTS ambos
-//   marcan (yes/no) · HCP hándicap (home/away; line = hándicap del local)
+//   marcan (yes/no) · HCP hándicap (home/away; line = hándicap del local), y el
+//   resto lleva estadística, periodo y equipo: OU.corners@h1:home, CS@s1...
 // Aquí se traducen las cuotas de cada casa a ese formato, se calcula la
 // probabilidad implícita sin el margen de la casa y se liquidan las apuestas.
 import { groupBy, mean, sum } from '../util.js';
-import { basicNorm, similarity } from './matching.js';
+import { decodeParts, labelOf, marketId, parseMarket, parseMarketId, swapSelection } from './catalog.js';
+import { evaluate } from './outcomes.js';
 
 export const GROUPS = {
   '1X2': ['home', 'draw', 'away'],
@@ -22,14 +25,18 @@ export const isHalfLine = (line) => Number.isFinite(line) && Math.abs((Math.abs(
 
 // Lado al que favorece la selección: +1 local, -1 visitante, 0 neutral.
 export function sideOf(market, sel) {
-  if (['1X2', 'ML', 'HCP'].includes(market)) return sel === 'home' ? 1 : sel === 'away' ? -1 : 0;
-  if (market === 'DC') return sel === '1X' ? 1 : sel === 'X2' ? -1 : 0;
+  const t = String(market).split(/[.@:#]/)[0];
+  if (['1X2', 'ML', 'HCP', 'HCP3', 'FIRST', 'LAST', 'RACE'].includes(t)) return sel === 'home' ? 1 : sel === 'away' ? -1 : 0;
+  if (t === 'DC') return sel === '1X' ? 1 : sel === 'X2' ? -1 : 0;
   return 0;
 }
+
+const LEGACY = new Set(['1X2', 'ML', 'DC', 'OU', 'BTTS', 'HCP']);
 
 export function selectionLabel(c, ev, unit = 'goles') {
   const home = ev.home?.name || 'Local';
   const away = ev.away?.name || 'Visitante';
+  if (!LEGACY.has(c.market)) return labelOf(c.market, c.sel, c.line, ev.sport, { home, away });
   switch (c.market) {
     case '1X2':
       return c.sel === 'home' ? `Gana ${home}` : c.sel === 'away' ? `Gana ${away}` : 'Empate';
@@ -52,48 +59,31 @@ export function selectionLabel(c, ev, unit = 'goles') {
 
 // ---- Liquidación ----
 
-// Marcador que cuenta para la apuesta: en fútbol, los 90 minutos.
-function finalScore(result, sport, market) {
+// Registro mínimo con el resultado final (cuando no hay detalle del partido).
+export function recordFromResult(result, sport) {
+  if (!result) return null;
+  if (result.per || Array.isArray(result.final)) return { sport, ...result };
   const s = result.score;
-  if (!s) return null;
-  const regular = (sport === 'football' || sport === 'futsal') && market !== 'ML';
-  return regular && s.homeNT != null && s.awayNT != null ? [s.homeNT, s.awayNT] : [s.home, s.away];
+  const regular = (sport === 'football' || sport === 'futsal') && s?.homeNT != null && s?.awayNT != null;
+  return {
+    sport,
+    state: result.state,
+    final: s ? [regular ? s.homeNT : s.home, regular ? s.awayNT : s.away] : undefined,
+    // Ganador cuando el marcador no lo dice (p. ej. tanda de penales).
+    winner: result.winner,
+    voidable: Boolean(result.final === true || result.voidable),
+  };
 }
 
-// Devuelve 'won' | 'lost' | 'void', o null si el partido aún no termina.
+// Devuelve 'won' | 'lost' | 'void' | 'half_won' | 'half_lost', o null si el
+// partido aún no termina o faltan datos para esa apuesta.
 export function settle(c, result, sport) {
-  if (!result) return null;
-  if (['cancelado', 'aplazado'].includes(result.state)) return result.final ? 'void' : null;
-  if (result.state !== 'finalizado') return null;
-  const sc = finalScore(result, sport, c.market);
-  if (!sc || sc[0] == null || sc[1] == null) return null;
-  const [H, A] = sc;
-  const win = (cond) => (cond ? 'won' : 'lost');
-  switch (c.market) {
-    case '1X2':
-      return win(c.sel === 'home' ? H > A : c.sel === 'away' ? A > H : H === A);
-    case 'ML': {
-      if (H !== A) return win(c.sel === 'home' ? H > A : A > H);
-      if (result.winner === 1 || result.winner === 2) return win((result.winner === 1) === (c.sel === 'home'));
-      return 'void';
-    }
-    case 'DC':
-      return win(c.sel === '1X' ? H >= A : c.sel === 'X2' ? A >= H : H !== A);
-    case 'OU': {
-      const total = H + A;
-      if (total === c.line) return 'void';
-      return win(c.sel === 'over' ? total > c.line : total < c.line);
-    }
-    case 'BTTS':
-      return win((H > 0 && A > 0) === (c.sel === 'yes'));
-    case 'HCP': {
-      const m = H - A + c.line;
-      if (m === 0) return 'void';
-      return win(c.sel === 'home' ? m > 0 : m < 0);
-    }
-    default:
-      return null;
-  }
+  const rec = recordFromResult(result, sport);
+  if (!rec) return null;
+  const status = evaluate(c.market, c.sel, c.line, rec);
+  // Ganador sin empate con marcador igualado: decide el ganador oficial (penales, desempate).
+  if (status === 'void' && c.market === 'ML' && (rec.winner === 1 || rec.winner === 2)) return (rec.winner === 1) === (c.sel === 'home') ? 'won' : 'lost';
+  return status;
 }
 
 // ---- Cuotas de cada casa ----
@@ -137,109 +127,97 @@ export function offersFromSofascore(markets, ev) {
   return out.filter((o) => ev.sport !== 'football' || o.market !== 'ML');
 }
 
-// Lado (respecto del partido de Sofascore `ev`) al que se refiere un texto
-// de la casa: 'home' | 'away' | 'draw' | null.
-function sideFromText(text, other, ev, swapped) {
-  const t = basicNorm(text);
-  if (/^(x|empate|draw)$/.test(t)) return 'draw';
-  if (t === '1') return swapped ? 'away' : 'home';
-  if (t === '2') return swapped ? 'home' : 'away';
-  const otherHome = swapped ? other.away : other.home;
-  const otherAway = swapped ? other.home : other.away;
-  const sh = Math.max(similarity(text, ev.home.name), similarity(text, otherHome || ''));
-  const sa = Math.max(similarity(text, ev.away.name), similarity(text, otherAway || ''));
-  if (Math.max(sh, sa) < 0.5 || sh === sa) return null;
-  return sh > sa ? 'home' : 'away';
+// Línea que separa los grupos de selecciones de un mismo mercado de la casa
+// (p. ej. "Más/Menos 1.5" y "Más/Menos 2.5" vienen juntos pero son apuestas distintas).
+function groupLine(o) {
+  const spec = o.spec;
+  if (['OU', 'OU3', 'HCP', 'HCP3', 'ALLPER'].includes(spec.t)) return `${o.line}`;
+  if (spec.t === 'AND' || spec.t === 'OR') {
+    const lines = decodeParts(String(o.sel).replace(/^!/, '')).map((p) => (p.line == null ? '' : p.line));
+    return lines.filter((x) => x !== '').join(',');
+  }
+  return '';
 }
 
-const lastNumber = (s) => {
-  const all = [...String(s).matchAll(/[+-]?\d+(?:[.,]\d+)?/g)];
-  return all.length ? num(all[all.length - 1][0]) : NaN;
-};
-
 // Traduce los mercados de una casa (Apuesta Total o Betano) ya emparejada con
-// el partido de Sofascore. `other` = evento de la casa ({ home, away }).
-function offersFromBookmaker(source, markets, other, ev, swapped) {
+// el partido. `other` = evento de la casa ({ home, away }); swapped = la casa
+// lista los equipos al revés.
+function offersFromBookmaker(source, markets, other, ev, swapped, stats) {
   const out = [];
-  const push = (market, sel, price, line = null) => out.push({ source, market, sel, line, price });
   for (const m of markets || []) {
-    const name = basicNorm(m.name);
-    const type = m.type || '';
-    // Mercados parciales, "empate no válido" y cuotas promocionales (SuperCuotas, con límites).
-    if (PARTIAL_ES.test(name) || /empate no valido|apuesta sin empate|super ?cuota|supercuota|boost|mejorada/.test(name)) continue;
-    const isTeamSpecific = [other.home, other.away, ev.home.name, ev.away.name].some((n) => n && name.includes(basicNorm(n)));
-    if (type === 'QA61' || name.includes('doble oportunidad')) {
-      for (const s of m.selections) {
-        const t = basicNorm(s.name);
-        const direct = { '1x': '1X', x1: '1X', x2: 'X2', '2x': 'X2', 12: '12', 21: '12' }[t.replace(/\s/g, '')];
-        let sel = direct;
-        if (!sel) {
-          const hasDraw = /empate|draw/.test(t);
-          const parts = t.split(/ o | or | u /).filter((p) => !/empate|draw/.test(p));
-          const sides = parts.map((p) => sideFromText(p, other, ev, swapped));
-          if (hasDraw) sel = sides[0] === 'home' ? '1X' : sides[0] === 'away' ? 'X2' : null;
-          else if (sides.includes('home') && sides.includes('away')) sel = '12';
-        } else if (swapped) {
-          sel = { '1X': 'X2', X2: '1X', 12: '12' }[sel];
-        }
-        if (sel) push('DC', sel, s.price);
-      }
-    } else if (type === 'QA158' || name.includes('ambos equipos') || name.includes('ambos marcan')) {
-      if (isTeamSpecific) continue;
-      for (const s of m.selections) {
-        const t = basicNorm(s.name);
-        if (/^(si|yes)\b/.test(t)) push('BTTS', 'yes', s.price);
-        else if (/^no\b/.test(t)) push('BTTS', 'no', s.price);
-      }
-    } else if (/^OU/.test(type) || name.startsWith('total') || name.includes('mas menos')) {
-      if (isTeamSpecific) continue;
-      for (const s of m.selections) {
-        const t = basicNorm(s.name);
-        const line = Number.isFinite(lastNumber(s.name)) ? lastNumber(s.name) : lastNumber(m.name);
-        if (!Number.isFinite(line)) continue;
-        if (/^(mas|over)\b/.test(t)) push('OU', 'over', s.price, line);
-        else if (/^(menos|under)\b/.test(t)) push('OU', 'under', s.price, line);
-      }
-    } else if (/^HC/.test(type) || name.includes('handicap')) {
-      for (const s of m.selections) {
-        const value = lastNumber(s.name);
-        const side = sideFromText(String(s.name).replace(/\(?[+-]?\d+(?:[.,]\d+)?\)?/g, ''), other, ev, swapped);
-        if (!Number.isFinite(value) || (side !== 'home' && side !== 'away')) continue;
-        push('HCP', side, s.price, side === 'home' ? value : -value);
-      }
-    } else if (/^ML/.test(type) || /ganador|resultado (del partido|final)|1x2|1 x 2/.test(name)) {
-      if (isTeamSpecific) continue;
-      const sels = m.selections.map((s) => ({ s, side: sideFromText(s.name, other, ev, swapped) })).filter((x) => x.side);
-      const market = sels.some((x) => x.side === 'draw') ? '1X2' : 'ML';
-      if (new Set(sels.map((x) => x.side)).size !== sels.length) continue; // nombres ambiguos
-      for (const x of sels) push(market, x.side, x.s.price);
+    let r;
+    try {
+      r = parseMarket(m.name, m.selections || [], { sport: ev.sport, home: other.home, away: other.away });
+    } catch {
+      r = null;
+    }
+    if (!r) continue;
+    if (r.unsupported) {
+      if (stats) stats[r.unsupported] = (stats[r.unsupported] || 0) + 1;
+      continue;
+    }
+    if (stats) stats.ok = (stats.ok || 0) + 1;
+    for (const o of r.outcomes) {
+      const x = swapped ? swapSelection(o.spec, o.sel, o.line) : o;
+      const market = marketId(x.spec);
+      out.push({ source, market, sel: x.sel, line: x.line ?? null, price: o.price, group: `${source}|${m.name}|${groupLine({ spec: x.spec, sel: x.sel, line: x.line })}` });
     }
   }
   return out;
 }
 
-export const offersFromApuestaTotal = (markets, at, ev, swapped = false) => offersFromBookmaker('apuestatotal', markets, at, ev, swapped);
-export const offersFromBetano = (markets, b, ev, swapped = false) => offersFromBookmaker('betano', markets, b, ev, swapped);
+export const offersFromApuestaTotal = (markets, at, ev, swapped = false, stats) => offersFromBookmaker('apuestatotal', markets, at, ev, swapped, stats);
+export const offersFromBetano = (markets, b, ev, swapped = false, stats) => offersFromBookmaker('betano', markets, b, ev, swapped, stats);
 
 // Probabilidad implícita de cada selección sin el margen de la casa,
 // promediada entre las casas que la ofrecen: Map(clave -> p).
+// Se calcula dentro de cada grupo de selecciones excluyentes (un mercado de la
+// casa con una misma línea); grupos incompletos o incoherentes se ignoran.
 export function marketProbabilities(offers) {
   const acc = new Map();
-  for (const list of groupBy(offers, (o) => `${o.source}|${o.market}|${o.line ?? ''}`).values()) {
-    const { market, line } = list[0];
-    const sels = GROUPS[market];
-    if (!sels) continue;
-    const price = {};
-    for (const o of list) price[o.sel] = Math.max(price[o.sel] || 0, o.price);
-    if (!sels.every((s) => price[s] > 1)) continue;
-    const inv = sels.map((s) => 1 / price[s]);
-    const overround = market === 'DC' ? sum(inv) / 2 : sum(inv);
-    if (overround < 0.95 || overround > 1.35) continue; // cuotas incoherentes
-    sels.forEach((s, i) => {
-      const key = candidateKey(market, s, line);
+  const groupKey = (o) => o.group || `${o.source}|${o.market}|${o.line ?? ''}`;
+  for (const list of groupBy(offers, groupKey).values()) {
+    const spec = parseMarketId(list[0].market);
+    if (!spec) continue;
+    const best = new Map();
+    for (const o of list) {
+      const key = candidateKey(o.market, o.sel, o.line);
+      if (!best.has(key) || o.price > best.get(key).price) best.set(key, o);
+    }
+    const items = [...best.values()];
+    if (items.length < 2) continue;
+    const legacy = GROUPS[spec.t] && !list[0].group;
+    if (legacy && !GROUPS[spec.t].every((s) => items.some((o) => o.sel === s))) continue;
+    // Selecciones "N+" sin su contraria no forman un grupo completo.
+    if (spec.t === 'OU' && !(items.some((o) => o.sel === 'over') && items.some((o) => o.sel === 'under'))) continue;
+    if (spec.t === 'OU' && items.length !== 2) continue;
+    const inv = items.map((o) => 1 / o.price);
+    const covered = spec.t === 'DC' ? 2 : 1; // en doble oportunidad cada resultado está en dos selecciones
+    const overround = sum(inv) / covered;
+    const multi = items.length > 3;
+    if (overround < (multi ? 1.0 : 0.95) || overround > (multi ? 1.6 : 1.35)) continue;
+    items.forEach((o, i) => {
+      const key = candidateKey(o.market, o.sel, o.line);
       if (!acc.has(key)) acc.set(key, []);
       acc.get(key).push(inv[i] / overround);
     });
+  }
+  return new Map([...acc].map(([k, ps]) => [k, mean(ps)]));
+}
+
+// Probabilidad aproximada cuando el grupo de la casa está incompleto (p. ej.
+// solo algunos marcadores exactos): 1/cuota dividida por el margen típico de
+// ese tipo de mercado. Es menos fiable que marketProbabilities.
+const MANY_WAY = new Set(['CS', 'CSANY', 'CNT', 'MRG', 'FGT', 'AND', 'OR', 'PMAX', 'MAXPER', 'GSEQ', 'SEQ', 'OU3', 'HCP3', 'COURSE']);
+export function looseProbabilities(offers) {
+  const acc = new Map();
+  for (const o of offers) {
+    const spec = parseMarketId(o.market);
+    if (!spec || !(o.price > 1)) continue;
+    const overround = MANY_WAY.has(spec.t) ? 1.22 : spec.t === '1X2' ? 1.08 : 1.06;
+    const key = candidateKey(o.market, o.sel, o.line);
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key).push(Math.min(0.97, 1 / o.price / overround));
   }
   return new Map([...acc].map(([k, ps]) => [k, mean(ps)]));
 }

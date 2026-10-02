@@ -89,7 +89,9 @@ test('traduce las cuotas de Apuesta Total aunque los nombres estén en otro idio
   assert.equal(find('DC', '1X'), 1.17);
   assert.equal(find('DC', 'X2'), 2.47);
   assert.equal(find('DC', '12'), 1.21);
-  assert.ok(!offers.some((o) => o.line === 0.5), 'no debe incluir el total de la 1.ª mitad');
+  // El total de la 1.ª mitad es otro mercado (no se mezcla con el del partido).
+  assert.equal(find('OU@h1', 'over', 0.5), 1.3);
+  assert.ok(!offers.some((o) => o.market === 'OU' && o.line === 0.5));
 });
 
 test('si la casa lista los equipos al revés, se corrigen los lados', () => {
@@ -160,6 +162,10 @@ test('traduce las cuotas reales de Betano', () => {
   assert.deepEqual(find('DC', 'X2'), [1.82]);
   assert.deepEqual(find('DC', '12'), [1.31]);
   assert.deepEqual(find('BTTS', 'yes'), [1.82]);
-  assert.ok(!offers.some((o) => [0.5, 8.5, 4.5].includes(o.line)), 'sin primer tiempo, córners ni tarjetas');
-  assert.equal(offers.length, 10);
+  // Primer tiempo, córners y tarjetas son mercados aparte.
+  assert.deepEqual(find('OU@h1', 'over', 0.5), [1.47]);
+  assert.deepEqual(find('OU.corners', 'over', 8.5), [1.75]);
+  assert.deepEqual(find('OU.cards', 'under', 4.5), [1.9]);
+  assert.ok(!offers.some((o) => o.market === 'OU' && [0.5, 8.5, 4.5].includes(o.line)));
+  assert.equal(offers.length, 16);
 });

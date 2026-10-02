@@ -773,6 +773,21 @@ export function estimate(params, selections, { n = 3000, seed = 7 } = {}) {
   return out;
 }
 
+// Tenis: sube o baja el nivel de saque de ambos (sin cambiar la diferencia)
+// para que el total de juegos coincida con la probabilidad del Más/Menos.
+export function fitTennisGames(P, line, pOver, { n = 400, seed = 11 } = {}) {
+  const at = (d) => ({ ...P, ph: clamp(P.ph + d, 0.4, 0.9), pa: clamp(P.pa + d, 0.4, 0.9) });
+  const over = (d) => estimate(at(d), [{ key: 'x', market: 'OU.games', sel: 'over', line }], { n, seed }).get('x')?.p ?? 0.5;
+  let lo = -0.1;
+  let hi = 0.1;
+  for (let i = 0; i < 10; i++) {
+    const mid = (lo + hi) / 2;
+    if (over(mid) < pOver) lo = mid;
+    else hi = mid;
+  }
+  return at((lo + hi) / 2);
+}
+
 // Selecciones que el simulador sabe evaluar (todas sus partes).
 export function simulable(spec) {
   if (!spec) return false;
