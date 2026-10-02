@@ -5,7 +5,7 @@ import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtTime, h, pct } from '../util.js';
 
 const SOURCE_NAMES = { sofascore: 'Sofascore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat' };
-const MODE = { direct: 'directo', tab: 'pestaña' };
+const MODE = { 'direct-api': 'directo', direct: 'directo', tab: 'pestaña', navigate: 'navegando' };
 const PRICE_SHORT = { apuestatotal: 'AT', betano: 'Betano', sofascore: 'Sofascore' };
 
 export const methodTitle = (m) => (m === 'red_neuronal' ? 'Análisis con red neuronal' : 'Análisis estadístico');

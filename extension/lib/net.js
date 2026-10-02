@@ -294,6 +294,16 @@ async function navigateMany(requests, pageUrl) {
 }
 
 const describe = (raw) => raw.error || `HTTP ${raw.status}`;
+const MODE_NAME = { direct: 'directo', tab: 'pestaña', navigate: 'navegación' };
+
+// Peticiones marcadas como `required` deben existir (p. ej. la lista de
+// partidos del día): si todas fallan, incluso con 404, se prueba el siguiente
+// modo. Algunos sitios responden 404 en vez de 403 cuando rechazan el pedido.
+const hardFail = (raw) => isBlocked(raw) || raw.status === 404;
+function requiredFailed(requests, raws) {
+  const idx = requests.map((r, j) => (r.required ? j : -1)).filter((j) => j >= 0);
+  return idx.length > 0 && idx.every((j) => hardFail(raws[j]));
+}
 
 // Hace muchas peticiones al mismo sitio. Devuelve un resultado por petición
 // ({ ok, status, data | error }); solo lanza error si el sitio no responde en
@@ -312,7 +322,7 @@ export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], 
     try {
       if (mode === 'direct') {
         const first = await rawDirect(requests[0]);
-        if (isBlocked(first) && !isLast) {
+        if ((isBlocked(first) || (requests[0].required && first.status === 404)) && !isLast) {
           notes.push(`directo: ${describe(first)}`);
           lastStatus = first.status;
           continue;
@@ -325,15 +335,17 @@ export async function fetchMany(requests, { pageUrl, modes = ['direct', 'tab'], 
         raw = await navigateMany(requests, pageUrl);
       }
     } catch (e) {
-      notes.push(`${mode === 'tab' ? 'pestaña' : mode === 'navigate' ? 'navegación' : 'directo'}: ${e.message}`);
+      notes.push(`${MODE_NAME[mode]}: ${e.message}`);
       continue;
     }
-    if (mostlyBlocked(raw) && !isLast) {
-      notes.push(`${mode === 'tab' ? 'pestaña' : mode === 'navigate' ? 'navegación' : 'directo'}: ${describe(raw.find(isBlocked))}`);
-      lastStatus = raw.find(isBlocked).status;
+    const failedRequired = requiredFailed(requests, raw);
+    if ((mostlyBlocked(raw) || failedRequired) && !isLast) {
+      const bad = raw.find(hardFail) || raw[0];
+      notes.push(`${MODE_NAME[mode]}: ${describe(bad)}`);
+      lastStatus = bad.status;
       continue;
     }
-    preferred.set(origin, mode);
+    if (!failedRequired) preferred.set(origin, mode);
     return { mode, results: raw.map((r, j) => toResult(r, requests[j].as)), notes };
   }
   throw new FetchError(notes.join(' | ') || 'Sin respuesta', { status: lastStatus, mode: order.at(-1) });

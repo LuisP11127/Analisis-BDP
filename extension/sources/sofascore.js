@@ -6,6 +6,7 @@ import { fractionalToDecimal, limaDate } from '../lib/model.js';
 
 const PAGE = 'https://www.sofascore.com/';
 const API = 'https://www.sofascore.com/api/v1';
+const API_DIRECT = 'https://api.sofascore.com/api/v1';
 
 const limaDay = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date(ms));
 
@@ -15,13 +16,35 @@ function addDays(ymd, n) {
   return d.toISOString().slice(0, 10);
 }
 
-// Directo, luego dentro de una pestaña de Sofascore y, como último recurso,
-// abriendo cada dirección en la pestaña.
-async function getMany(paths) {
-  return fetchMany(
-    paths.map((p) => ({ url: API + p })),
-    { pageUrl: PAGE, modes: ['direct', 'tab', 'navigate'] },
-  );
+// Orden de intentos: api.sofascore.com directo, www.sofascore.com directo,
+// dentro de una pestaña de Sofascore y, como último recurso, abriendo cada
+// dirección en la pestaña. `required(path)` marca las peticiones que deben
+// existir: si fallan (aunque sea con 404) se pasa al siguiente intento.
+let apiHostWorks = null;
+
+async function getMany(paths, required = () => false) {
+  const reqs = (base) => paths.map((p) => ({ url: base + p, required: required(p) }));
+  const notes = [];
+  if (apiHostWorks !== false) {
+    try {
+      const r = await fetchMany(reqs(API_DIRECT), { modes: ['direct'] });
+      const req = r.results.filter((_, j) => required(paths[j]));
+      const failed = req.length ? req.every((x) => !x.ok) : r.results.filter((x) => !x.ok).length > r.results.length / 2;
+      if (!failed) {
+        apiHostWorks = true;
+        return { ...r, mode: 'direct-api', notes };
+      }
+      const bad = req[0] || r.results[0];
+      notes.push(`api.sofascore.com: ${bad.error}`);
+      // Un 404 puede ser un día sin partidos: solo se descarta ante un bloqueo.
+      if (bad.status !== 404) apiHostWorks = false;
+    } catch (e) {
+      notes.push(`api.sofascore.com: ${e.message}`);
+      apiHostWorks = false;
+    }
+  }
+  const r = await fetchMany(reqs(API), { pageUrl: PAGE, modes: ['direct', 'tab', 'navigate'] });
+  return { ...r, notes: [...notes, ...r.notes] };
 }
 
 const STATE = {
@@ -77,12 +100,12 @@ export function toEvent(e, sport) {
 // Partidos de un deporte para un día en hora de Lima. Sofascore agrupa por día
 // UTC, así que se piden dos días y se filtra.
 export async function getSportEvents({ sport = 'football', date = limaDate() } = {}) {
-  const { mode, results, notes } = await getMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`]);
+  const { mode, results, notes } = await getMany([`/sport/${sport}/scheduled-events/${date}`, `/sport/${sport}/scheduled-events/${addDays(date, 1)}`], () => true);
   if (results.every((r) => !r.ok)) {
     const r = results[0];
     // Un deporte sin partidos ese día responde 404: no es un error.
-    if (results.every((x) => x.status === 404)) return { mode, items: [], notes };
-    const via = { direct: 'directo', tab: 'en pestaña', navigate: 'navegando' }[mode] || mode;
+    if (results.every((x) => x.status === 404)) return { mode, items: [], notes: [...notes, `${mode}: 404 en todos los intentos`] };
+    const via = { 'direct-api': 'api directo', direct: 'directo', tab: 'en pestaña', navigate: 'navegando' }[mode] || mode;
     throw new FetchError(`Sofascore respondió ${r.error} (${via})${notes.length ? ` · antes: ${notes.join(' | ')}` : ''}`, { status: r.status, mode, snippet: r.snippet });
   }
   const events = new Map();
@@ -171,7 +194,7 @@ export async function getEventDetails({ events = [] } = {}) {
       }
     }
   }
-  const { mode, results } = await getMany(paths);
+  const { mode, results } = await getMany(paths, (p) => p.startsWith('/team/'));
   const raw = {};
   results.forEach((r, i) => {
     const { ev, part } = index[i];
@@ -205,7 +228,10 @@ export async function getEventDetails({ events = [] } = {}) {
 
 // Estado y marcador final de varios partidos (para liquidar apuestas).
 export async function getEventResults({ ids = [] } = {}) {
-  const { mode, results } = await getMany(ids.map((id) => `/event/${id}`));
+  const { mode, results } = await getMany(
+    ids.map((id) => `/event/${id}`),
+    () => true,
+  );
   const items = {};
   results.forEach((r, i) => {
     if (!r.ok || !r.data?.event) return;
@@ -226,6 +252,8 @@ export default {
   role: 'Partidos de todos los deportes, forma, H2H, bajas y lesiones',
   async diagnose() {
     const { mode, items, notes } = await getSportEvents({ sport: 'football' });
+    // Siempre hay partidos de fútbol: una lista vacía significa que algo falló.
+    if (!items.length) throw new Error(`Sofascore no devolvió partidos de fútbol para hoy (${mode}). Intentos: ${notes.join(' | ') || 'ninguno'}`);
     const upcoming = items.find((m) => m.state === 'pendiente') || items[0];
     let details = null;
     if (upcoming) {

@@ -38,7 +38,7 @@ function describe(item) {
   return JSON.stringify(item).slice(0, 200);
 }
 
-const MODE = { direct: 'directo', tab: 'en pestaña del sitio' };
+const MODE = { 'direct-api': 'directo (api.sofascore.com)', direct: 'directo', tab: 'en pestaña del sitio', navigate: 'abriendo cada dirección' };
 
 function render(source) {
   const r = results[source.id];

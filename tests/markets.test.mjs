@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   marketProbabilities,
   offersFromApuestaTotal,
+  offersFromBetano,
   offersFromSofascore,
   selectionLabel,
   settle,
@@ -131,4 +132,34 @@ test('etiquetas en español', () => {
   assert.equal(selectionLabel({ market: 'DC', sel: '1X' }, ev), 'Bélgica o empate');
   assert.equal(selectionLabel({ market: 'OU', sel: 'over', line: 2.5 }, ev), 'Más de 2.5 goles');
   assert.equal(selectionLabel({ market: 'HCP', sel: 'away', line: -4.5 }, ev, 'puntos'), 'Turquía +4.5 (hándicap)');
+});
+
+// Estructura real de Betano (reporte del diagnóstico, 2 oct 2026).
+const BETANO_EVENT = { eventId: '93290362', start: '2026-10-04T18:45:00.000Z', home: 'Irlanda', away: 'Israel' };
+const BETANO_MARKETS = [
+  { name: 'Resultado del partido', type: 'MRES', selections: [{ name: '1', price: 2.05 }, { name: 'X', price: 3.35 }, { name: '2', price: 3.8 }] },
+  { name: 'Goles totales Más/Menos', type: 'HCTG', selections: [{ name: 'Más de 2.5', price: 2.05 }, { name: 'Menos 2.5', price: 1.78 }] },
+  { name: 'Más/Menos Goles en Primer Tiempo', type: 'OUH1', selections: [{ name: 'Más de 0.5', price: 1.47 }, { name: 'Menos 0.5', price: 2.62 }] },
+  { name: 'Doble oportunidad', type: 'DBLC', selections: [{ name: '1X', price: 1.29 }, { name: '12', price: 1.31 }, { name: '2X', price: 1.82 }] },
+  { name: 'Ambos equipos anotan', type: 'BTSC', selections: [{ name: 'Sí', price: 1.82 }, { name: 'No', price: 1.93 }] },
+  { name: 'Más/Menos Córners', type: 'CNOU', selections: [{ name: 'Más de 8.5', price: 1.75 }, { name: 'Menos 8.5', price: 2.02 }] },
+  { name: 'Tarjetas Totales Más/Menos', type: 'BKOU', selections: [{ name: 'Más de 4.5', price: 1.9 }, { name: 'Menos 4.5', price: 1.9 }] },
+  { name: 'Resultado del partido SuperCuotas', type: 'MRES', selections: [{ name: '1', price: 2.5 }] },
+];
+const IRL = { id: 2, sport: 'football', start: Date.parse(BETANO_EVENT.start), home: { name: 'Republic of Ireland' }, away: { name: 'Israel' } };
+
+test('traduce las cuotas reales de Betano', () => {
+  const offers = offersFromBetano(BETANO_MARKETS, BETANO_EVENT, IRL);
+  const find = (market, sel, line = null) => offers.filter((o) => o.market === market && o.sel === sel && o.line === line).map((o) => o.price);
+  assert.deepEqual(find('1X2', 'home'), [2.05], 'SuperCuotas no se mezcla');
+  assert.deepEqual(find('1X2', 'draw'), [3.35]);
+  assert.deepEqual(find('1X2', 'away'), [3.8]);
+  assert.deepEqual(find('OU', 'over', 2.5), [2.05]);
+  assert.deepEqual(find('OU', 'under', 2.5), [1.78]);
+  assert.deepEqual(find('DC', '1X'), [1.29]);
+  assert.deepEqual(find('DC', 'X2'), [1.82]);
+  assert.deepEqual(find('DC', '12'), [1.31]);
+  assert.deepEqual(find('BTTS', 'yes'), [1.82]);
+  assert.ok(!offers.some((o) => [0.5, 8.5, 4.5].includes(o.line)), 'sin primer tiempo, córners ni tarjetas');
+  assert.equal(offers.length, 10);
 });

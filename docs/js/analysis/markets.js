@@ -165,12 +165,13 @@ function offersFromBookmaker(source, markets, other, ev, swapped) {
   for (const m of markets || []) {
     const name = basicNorm(m.name);
     const type = m.type || '';
-    if (PARTIAL_ES.test(name) || /empate no valido|apuesta sin empate/.test(name)) continue;
+    // Mercados parciales, "empate no válido" y cuotas promocionales (SuperCuotas, con límites).
+    if (PARTIAL_ES.test(name) || /empate no valido|apuesta sin empate|super ?cuota|supercuota|boost|mejorada/.test(name)) continue;
     const isTeamSpecific = [other.home, other.away, ev.home.name, ev.away.name].some((n) => n && name.includes(basicNorm(n)));
     if (type === 'QA61' || name.includes('doble oportunidad')) {
       for (const s of m.selections) {
         const t = basicNorm(s.name);
-        const direct = { '1x': '1X', x2: 'X2', 12: '12' }[t.replace(/\s/g, '')];
+        const direct = { '1x': '1X', x1: '1X', x2: 'X2', '2x': 'X2', 12: '12', 21: '12' }[t.replace(/\s/g, '')];
         let sel = direct;
         if (!sel) {
           const hasDraw = /empate|draw/.test(t);

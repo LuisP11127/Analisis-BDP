@@ -63,7 +63,13 @@ async function collectInPage(waitMs) {
   const end = Date.now() + waitMs;
   const ready = () => KEYS.some((k) => window[k]) || (window.__bdpHook?.responses?.length || 0) > 0;
   while (Date.now() < end && !ready()) await new Promise((r) => setTimeout(r, 500));
-  await new Promise((r) => setTimeout(r, 3000)); // dar tiempo a que lleguen las cuotas
+  // Bajar por la página hace que la web cargue más ligas; luego se espera a las cuotas.
+  for (let i = 0; i < 4; i++) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  window.scrollTo(0, 0);
+  await new Promise((r) => setTimeout(r, 2000));
   const sources = [];
   for (const k of KEYS) {
     if (!window[k]) continue;
