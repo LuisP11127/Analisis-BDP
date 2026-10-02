@@ -64,7 +64,12 @@ export async function runInSiteTab(pageUrl, func, args = []) {
   }
   try {
     await waitForTabComplete(tabId);
-    const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func, args });
+    let res;
+    try {
+      [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func, args });
+    } catch (e) {
+      throw new FetchError(`La página ${origin} no cargó (sin conexión o bloqueada): ${e.message}`, { mode: 'tab', url: pageUrl });
+    }
     return res?.result;
   } finally {
     if (created) chrome.tabs.remove(tabId).catch(() => {});
@@ -109,15 +114,17 @@ export async function readPageGlobal(pageUrl, path, waitMs = 15000) {
 
 // Intenta "direct" y, si falla por bloqueo, repite dentro de una pestaña del sitio.
 export async function fetchData(url, { pageUrl, headers = {}, as = 'json', modes = ['direct', 'tab'] } = {}) {
-  let lastError;
+  const errors = [];
   for (const mode of modes) {
     try {
       const data = mode === 'direct' ? await fetchDirect(url, { headers, as }) : await fetchInTab(pageUrl, url, { headers, as });
       return { data, mode };
     } catch (e) {
-      lastError = e instanceof FetchError ? e : new FetchError(e.message, { mode, url });
-      lastError.mode ||= mode;
+      errors.push(e instanceof FetchError ? e : new FetchError(e.message, { mode, url }));
+      errors.at(-1).mode ||= mode;
     }
   }
-  throw lastError;
+  // Se informa el motivo de cada intento; el estado y la respuesta, del primero que los tenga.
+  const first = errors.find((e) => e.status) || errors[0];
+  throw new FetchError(errors.map((e) => `${e.mode}: ${e.message}`).join(' | '), { status: first.status, mode: first.mode, url, snippet: first.snippet });
 }

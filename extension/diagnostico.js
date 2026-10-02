@@ -62,7 +62,7 @@ function render(source) {
   if (r.ok) {
     body.append(el('ul', { class: 'rows' }, (r.sample || []).map((item) => el('li', {}, describe(item)))));
   } else {
-    body.append(el('div', { class: 'error' }, `${r.error}${r.status ? ` (HTTP ${r.status})` : ''}`));
+    body.append(el('div', { class: 'error' }, r.error));
     if (r.snippet) body.append(el('div', { class: 'meta' }, `Respuesta: ${r.snippet}`));
   }
   body.append(el('details', {}, el('summary', {}, 'Ver datos técnicos'), el('pre', {}, JSON.stringify(r, null, 2))));
