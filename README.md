@@ -26,9 +26,14 @@ resultados. Funciona en el **celular y en la PC**:
   moderada (60–70 %), con la mejor cuota entre Apuesta Total y Betano.
 - **Combinadas** de cuota 5 o más (y 10 o más) en una misma casa, con la mayor
   probabilidad estimada posible.
-- **Historial**: cada análisis se guarda con sus picks; el botón *Actualizar
-  resultados* los marca como ganados o perdidos y calcula aciertos, ganancia y
-  ROI por nivel, por método y de las combinadas.
+- **Ambos análisis**: hace el estadístico y el de red neuronal con los mismos
+  partidos (los datos se piden una sola vez). La pestaña Análisis los compara
+  (picks por nivel, cuántos coinciden) y deja ver el detalle de cada uno.
+- **Historial**: cada análisis se guarda con sus picks y se sigue **por
+  separado**: el botón *Actualizar resultados* los marca como ganados o
+  perdidos y calcula aciertos, ganancia y ROI por nivel y de las combinadas
+  para el análisis estadístico y para el de red neuronal. Si un mismo pick sale
+  en dos análisis del mismo día y método, cuenta una sola vez.
 
 Los niveles, la cuota mínima, las cuotas objetivo de las combinadas y el token de
 GitHub se cambian en **⚙ Ajustes**.
@@ -38,8 +43,8 @@ GitHub se cambian en **⚙ Ajustes**.
 1. Abre <https://luisp11127.github.io/Analisis-BDP/> en el celular o en la PC.
 2. Pega tu token de GitHub en **⚙ Ajustes** (una vez en cada dispositivo; ver
    abajo) para que el historial se guarde en el repositorio.
-3. Marca partidos o ligas y pulsa **Análisis estadístico** o **Análisis red
-   neuronal**. El análisis se guarda solo en el historial.
+3. Marca partidos o ligas y pulsa **Análisis estadístico**, **Análisis red
+   neuronal** o **Ambos análisis**. Cada análisis se guarda solo en el historial.
 4. Al día siguiente, en **Historial**, pulsa **Actualizar resultados**. Los
    partidos automáticos se liquidan con los resultados publicados (cada 2 horas);
    los de Sofascore necesitan la extensión.

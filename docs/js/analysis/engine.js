@@ -237,8 +237,12 @@ async function publishedData(events, details, sources, progress) {
   return out;
 }
 
-// events: partidos seleccionados (de Sofascore o automáticos). Devuelve el análisis completo.
-export async function analyze(events, { method = 'estadistico', settings = DEFAULT_SETTINGS, network = null, onProgress = () => {} } = {}) {
+export const METHODS = ['estadistico', 'red_neuronal'];
+
+// events: partidos seleccionados (de Sofascore o automáticos). Junta los datos
+// una sola vez y devuelve un análisis por cada método pedido:
+// { estadistico: análisis, red_neuronal: análisis }.
+export async function analyzeMany(events, { methods = ['estadistico'], settings = DEFAULT_SETTINGS, network = null, onProgress = () => {} } = {}) {
   const sources = {};
   const pending = events.filter((e) => e.state === 'pendiente');
   const auto = pending.filter((e) => provider.isAuto(e.id));
@@ -271,34 +275,42 @@ export async function analyze(events, { method = 'estadistico', settings = DEFAU
   if (auto.some((e) => xg.has(e.id))) sources.understat ||= { ok: true, matched: auto.filter((e) => xg.has(e.id)).length };
 
   onProgress('Calculando probabilidades', 0.9);
-  const candidates = [];
-  const eventInfo = {};
-  for (const ev of pending) {
-    const sofaOffers = offersFromSofascore(details[ev.id]?.odds, ev);
-    const all = [...sofaOffers, ...(offers.get(ev.id) || [])];
-    const { model, candidates: list } = analyzeEvent(ev, details[ev.id], all, { xg: xg.get(ev.id), network, method });
-    candidates.push(...list);
-    eventInfo[ev.id] = { ...summaryOf(ev), hasModel: Boolean(model), quality: model?.quality ?? 0, bookmakers: [...new Set(all.map((o) => o.source))] };
-  }
-
-  const picks = selectPicks(candidates, settings);
-  const combos = buildCombos(candidates, settings);
   const created = new Date().toISOString();
   const date = pending.length ? limaDateOf(Math.min(...pending.map((e) => e.start))) : null;
+  const out = {};
+  for (const method of methods) {
+    const net = method === 'red_neuronal' ? network : null;
+    const candidates = [];
+    const eventInfo = {};
+    for (const ev of pending) {
+      const sofaOffers = offersFromSofascore(details[ev.id]?.odds, ev);
+      const all = [...sofaOffers, ...(offers.get(ev.id) || [])];
+      const { model, candidates: list } = analyzeEvent(ev, details[ev.id], all, { xg: xg.get(ev.id), network: net, method });
+      candidates.push(...list);
+      eventInfo[ev.id] = { ...summaryOf(ev), hasModel: Boolean(model), quality: model?.quality ?? 0, bookmakers: [...new Set(all.map((o) => o.source))] };
+    }
+    out[method] = {
+      id: `${method === 'red_neuronal' ? 'rn' : 'est'}-${created.replace(/\D/g, '').slice(0, 14)}`,
+      method,
+      created,
+      run: created, // los análisis hechos juntos comparten "run"
+      date,
+      settings: { ...settings },
+      network: net ? { trained: net.trained, samples: net.meta?.samples || 0 } : null,
+      sources,
+      events: eventInfo,
+      candidates,
+      picks: selectPicks(candidates, settings),
+      combos: buildCombos(candidates, settings),
+      skipped: events.length - pending.length,
+      featureVersion: FEATURE_VERSION,
+    };
+  }
   onProgress('Listo', 1);
-  return {
-    id: `${method === 'red_neuronal' ? 'rn' : 'est'}-${created.replace(/\D/g, '').slice(0, 14)}`,
-    method,
-    created,
-    date,
-    settings: { ...settings },
-    network: network ? { trained: network.trained, samples: network.meta?.samples || 0 } : null,
-    sources,
-    events: eventInfo,
-    candidates,
-    picks,
-    combos,
-    skipped: events.length - pending.length,
-    featureVersion: FEATURE_VERSION,
-  };
+  return out;
+}
+
+// Un solo método (atajo de analyzeMany).
+export async function analyze(events, { method = 'estadistico', ...opts } = {}) {
+  return (await analyzeMany(events, { ...opts, methods: [method] }))[method];
 }

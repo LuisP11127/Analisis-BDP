@@ -22,6 +22,7 @@ export const dayPath = (date) => `data/historial/${date}.json`;
 export const rowsPath = (month) => `data/entrenamiento/${month}.json`;
 
 const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal' };
+const SUMMARY_VERSION = 2; // resúmenes por método (los anteriores se recalculan)
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
 
@@ -49,6 +50,7 @@ export function compactAnalysis(result) {
     id: result.id,
     method: result.method,
     created: result.created,
+    run: result.run || result.created,
     date: result.date,
     settings: result.settings,
     network: result.network,
@@ -106,16 +108,23 @@ function mergeRows(oldRows = [], newRows = []) {
   return [...map.values()];
 }
 
-export async function saveAnalysis(result) {
-  const stored = compactAnalysis(result);
-  const day = (await store.read(dayPath(result.date))) || { date: result.date, analyses: [] };
-  day.analyses = day.analyses.filter((a) => a.id !== stored.id).concat(stored);
-  await store.write(dayPath(result.date), day, `Historial: análisis ${METHOD_NAME[result.method]} del ${result.date}`);
+// Guarda uno o varios análisis del mismo día (p. ej. estadístico y red
+// neuronal hechos juntos) con un solo cambio por archivo.
+export async function saveAnalysis(input) {
+  const results = (Array.isArray(input) ? input : [input]).filter(Boolean);
+  if (!results.length) return null;
+  const { date } = results[0];
+  const stored = results.map(compactAnalysis);
+  const ids = new Set(stored.map((a) => a.id));
+  const day = (await store.read(dayPath(date))) || { date, analyses: [] };
+  day.analyses = day.analyses.filter((a) => !ids.has(a.id)).concat(stored);
+  const names = results.map((r) => METHOD_NAME[r.method]).join(' y ');
+  await store.write(dayPath(date), day, `Historial: análisis ${names} del ${date}`);
 
-  for (const [month, rows] of groupBy(trainingRows(result), (r) => r.date.slice(0, 7))) {
+  for (const [month, rows] of groupBy(results.flatMap(trainingRows), (r) => r.date.slice(0, 7))) {
     const file = (await store.read(rowsPath(month))) || { rows: [] };
     file.rows = mergeRows(file.rows, rows);
-    await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${result.date}`);
+    await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${date}`);
   }
   await refreshIndex([day]);
   return day;
@@ -139,36 +148,80 @@ function addResult(stats, status, odds) {
   else stats.pending++;
 }
 
+const comboKey = (k) => `${k.source}|${k.legs.map((l) => `${l.eventId}|${l.key}`).sort().join(',')}`;
+
+// Picks y combinadas de cada método sin repetir: si el mismo pick sale en
+// varios análisis del día, cuenta una sola vez (el del análisis más reciente).
+export function latestByMethod(day) {
+  const out = new Map(); // método -> { picks: Map, combos: Map }
+  const list = (day.analyses || []).slice().sort((a, b) => String(a.created).localeCompare(String(b.created)));
+  for (const a of list) {
+    if (!out.has(a.method)) out.set(a.method, { picks: new Map(), combos: new Map() });
+    const m = out.get(a.method);
+    for (const p of a.picks) m.picks.set(`${p.eventId}|${p.key}`, p);
+    for (const k of a.combos || []) m.combos.set(comboKey(k), k);
+  }
+  return out;
+}
+
+const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats() });
+
+// Resumen de un día: por método (methods) y la suma de ambos.
 export function daySummary(day) {
-  const out = { ...emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats() };
-  for (const a of day.analyses || []) {
-    out.byMethod[a.method] ||= emptyStats();
-    for (const p of a.picks) {
+  const out = { ...emptyStats(), v: SUMMARY_VERSION, byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
+  for (const [method, { picks, combos }] of latestByMethod(day)) {
+    const m = (out.methods[method] = methodStats());
+    for (const p of picks.values()) {
+      addResult(m, p.status, p.odds);
+      addResult((m.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
       addResult(out, p.status, p.odds);
       addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
-      addResult(out.byMethod[a.method], p.status, p.odds);
     }
-    for (const k of a.combos || []) addResult(out.combos, k.status, k.odds);
+    for (const k of combos.values()) {
+      addResult(m.combos, k.status, k.odds);
+      addResult(out.combos, k.status, k.odds);
+    }
+    const { byLevel: _levels, combos: _combos, ...plain } = m;
+    out.byMethod[method] = plain;
   }
   out.pendingAll = out.pending + out.combos.pending;
   return out;
 }
 
-export async function loadIndex() {
-  return (await store.read(INDEX)) || { days: {}, updated: null };
+// Recalcula los resúmenes de versiones anteriores desde el archivo de cada día.
+async function upgradeIndex(index) {
+  let changed = false;
+  for (const date of Object.keys(index.days || {})) {
+    if (index.days[date].v === SUMMARY_VERSION) continue;
+    const day = await store.read(dayPath(date));
+    if (!day) continue;
+    index.days[date] = daySummary(day);
+    changed = true;
+  }
+  return changed;
+}
+
+export async function loadIndex({ upgrade = false } = {}) {
+  const index = (await store.read(INDEX)) || { days: {}, updated: null };
+  if (upgrade && (await upgradeIndex(index)) && store.canWrite()) {
+    index.updated = new Date().toISOString();
+    await store.write(INDEX, index, 'Historial: resumen por método').catch(() => {});
+  }
+  return index;
 }
 
 async function refreshIndex(days) {
   const index = await loadIndex();
+  await upgradeIndex(index);
   for (const day of days) index.days[day.date] = daySummary(day);
   index.updated = new Date().toISOString();
   await store.write(INDEX, index, 'Historial: actualizar resumen');
   return index;
 }
 
-// Totales de todos los días: por nivel, por método y combinadas.
+// Totales de todos los días: por método (con sus niveles y combinadas) y en conjunto.
 export function totals(index) {
-  const out = { all: emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats() };
+  const out = { all: emptyStats(), byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
   const add = (a, b) => {
     for (const k of Object.keys(emptyStats())) a[k] += b[k] || 0;
   };
@@ -177,9 +230,17 @@ export function totals(index) {
     add(out.combos, s.combos || {});
     for (const [k, v] of Object.entries(s.byLevel || {})) add((out.byLevel[k] ||= emptyStats()), v);
     for (const [k, v] of Object.entries(s.byMethod || {})) add((out.byMethod[k] ||= emptyStats()), v);
+    for (const [method, m] of Object.entries(s.methods || {})) {
+      const t = (out.methods[method] ||= methodStats());
+      add(t, m);
+      add(t.combos, m.combos || {});
+      for (const [k, v] of Object.entries(m.byLevel || {})) add((t.byLevel[k] ||= emptyStats()), v);
+    }
   }
   return out;
 }
+
+export const emptyMethodStats = methodStats;
 
 export const hitRate = (s) => (s.won + s.lost ? s.won / (s.won + s.lost) : null);
 export const roi = (s) => (s.staked ? s.profit / s.staked : null);
