@@ -1,0 +1,85 @@
+name: Página
+
+# Publica la página (docs/ → GitHub Pages) con los datos automáticos al día:
+# partidos y resultados de Flashscore, cuotas de Apuesta Total y xG de
+# Understat (scripts/collect-data.mjs → data/fuente/). Corre cada 2 horas para
+# que la página funcione en el celular y en la PC sin la extensión.
+# Solo despliega si GitHub Pages está activado con «Source: GitHub Actions».
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - '!docs/data/**'
+      - scripts/collect-data.mjs
+      - extension/lib/**
+      - extension/sources/**
+      - .github/workflows/pagina.yml
+  schedule:
+    - cron: "7 */2 * * *" # cada 2 horas (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || true)
+          echo "GitHub Pages: ${build_type:-desactivado}"
+          if [ "$build_type" = "workflow" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Página sin publicar::Activa GitHub Pages con «Source: GitHub Actions» (ver README)."
+          fi
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Caché de los H2H (no cambian mucho en el día): la recolección tarda menos.
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: datos-${{ github.run_id }}
+          restore-keys: datos-
+
+      - name: Copiar la página
+        run: cp -r docs site
+
+      - name: Recolectar datos
+        run: |
+          node scripts/collect-data.mjs site
+          du -sh site/data/fuente
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

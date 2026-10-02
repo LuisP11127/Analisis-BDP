@@ -17,7 +17,7 @@ import { addDays, limaToday } from '../docs/js/util.js';
 import { compactDay, compactResult } from '../docs/js/data-format.js';
 
 const OUT = path.resolve(process.argv[2] || 'site', 'data/fuente');
-const CACHE = path.resolve('.cache/h2h');
+const CACHE = path.resolve('.cache/h2h-v2'); // subir la versión si cambia getH2H
 const CACHE_HOURS = 12;
 const AHEAD = [0, 1];
 const BACK = [-7, -6, -5, -4, -3, -2, -1];

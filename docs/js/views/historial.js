@@ -54,17 +54,24 @@ function statsTableInner(rows) {
 }
 
 function storageBanner(app) {
-  const { mode, info } = app.storage;
-  if (mode === 'github')
-    return h('div', { class: 'banner' }, h('b', {}, 'Guardando en GitHub: '), `${info.repo} (rama ${info.branch}). Lo ves desde cualquier dispositivo.`);
+  const { mode, info, tokenError } = app.storage;
+  if (mode === 'github-web' || mode === 'github')
+    return h(
+      'div',
+      { class: 'banner' },
+      h('b', {}, 'Guardando en GitHub: '),
+      `${info.repo} (rama ${info.branch}). Lo ves desde cualquier dispositivo donde hayas pegado tu token.`,
+    );
+  const settings = h('button', { class: 'btn small', onclick: () => document.querySelector('#open-settings').click() }, '⚙ Pegar token');
   if (mode === 'local')
     return h(
       'div',
       { class: 'banner warn' },
-      h('b', {}, 'Guardando solo en este navegador. '),
-      'Para verlo desde el celular y no perderlo, configura el token de GitHub en la extensión (clic en su ícono → Guardar en GitHub).',
+      h('b', {}, tokenError ? `El token de GitHub no funciona (${tokenError}). ` : 'Guardando solo en este navegador. '),
+      'Para verlo en el celular y en la PC y no perderlo, pega tu token de GitHub en Ajustes. ',
+      settings,
     );
-  return h('div', { class: 'banner' }, h('b', {}, 'Solo lectura: '), 'se muestran los datos publicados. Para actualizar resultados abre la página en la PC con la extensión.');
+  return h('div', { class: 'banner warn' }, h('b', {}, 'Este navegador no permite guardar datos '), '(¿modo incógnito?). Pega tu token de GitHub para guardar en el repositorio. ', settings);
 }
 
 function networkPanel(app) {
@@ -159,8 +166,8 @@ export function renderHistorial(root, app) {
   const actions = h(
     'div',
     { class: 'toolbar' },
-    h('button', { class: 'btn primary', disabled: !app.extOk || app.storage.mode === 'lectura', onclick: () => app.updateResults() }, 'Actualizar resultados'),
-    app.storage.mode === 'github' && state.localFiles > 0
+    h('button', { class: 'btn primary', disabled: app.storage.mode === 'lectura', onclick: () => app.updateResults() }, 'Actualizar resultados'),
+    app.storage.mode.startsWith('github') && state.localFiles > 0
       ? h('button', { class: 'btn', onclick: () => app.uploadLocal() }, `Subir a GitHub lo guardado en el navegador (${state.localFiles})`)
       : null,
     h('button', { class: 'btn small ghost', onclick: () => app.reloadHistory() }, '↻'),

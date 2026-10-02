@@ -170,10 +170,23 @@ function toLast(row, teamId) {
 // ev: partido con home.id / away.id de Flashscore. Devuelve los datos que usa el modelo.
 export async function getH2H({ fsId, homeId, awayId }) {
   const { data } = await feed(`df_hh_1_${fsId}`);
-  const sections = parseH2H(data);
+  return h2hData(parseH2H(data), homeId, awayId);
+}
+
+// Últimos partidos de cada equipo y balance de enfrentamientos a partir de las
+// secciones del H2H.
+export function h2hData(sections, homeId, awayId) {
+  // La sección de cada equipo es la de "Últimos partidos" donde aparece en
+  // (casi) todas las filas; en la del rival solo aparece si se enfrentaron.
+  const plays = (row, teamId) => row.homeId === teamId || row.awayId === teamId;
   const last = (teamId) => {
-    const s = sections.find((x) => /ltimos partidos/i.test(x.title) && x.rows.some((row) => row.homeId === teamId || row.awayId === teamId));
-    return (s?.rows || []).filter((row) => row.hs != null && row.as != null).map((row) => toLast(row, teamId)).sort((a, b) => b.start - a.start);
+    const count = (x) => x.rows.filter((row) => plays(row, teamId)).length;
+    const s = sections.filter((x) => /ltimos partidos/i.test(x.title)).sort((a, b) => count(b) - count(a))[0];
+    if (!s || !teamId || count(s) < s.rows.length / 2) return [];
+    return s.rows
+      .filter((row) => row.hs != null && row.as != null && plays(row, teamId))
+      .map((row) => toLast(row, teamId))
+      .sort((a, b) => b.start - a.start);
   };
   const duel = sections.find((x) => /enfrentamientos/i.test(x.title));
   let h2h = null;

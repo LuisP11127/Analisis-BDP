@@ -9,7 +9,6 @@ on:
     paths:
       - .github/workflows/probe-sources.yml
       - scripts/test-sources.mjs
-      - scripts/collect-data.mjs
       - extension/lib/**
       - extension/sources/**
 
@@ -29,23 +28,3 @@ jobs:
 
       - name: Probar conectores
         run: node scripts/test-sources.mjs
-
-      - name: Recolectar datos (prueba temporal)
-        if: always()
-        run: |
-          node scripts/collect-data.mjs site
-          du -sh site/data/fuente
-          find site/data/fuente -name '*.json' -size +1k -exec ls -la {} \; | awk '{print $5, $9}' | sort -n | tail -8
-          node -e "
-            const fs=require('fs');const d=new Date(Date.now()-5*3600e3).toISOString().slice(0,10);
-            const f=JSON.parse(fs.readFileSync('site/data/fuente/'+d+'/football.json'));
-            const id=Object.keys(f.offers)[0];const ev=f.events.find(e=>e.id===id);
-            console.log('EJEMPLO', JSON.stringify(ev));
-            console.log('OFERTAS', JSON.stringify(f.offers[id]).slice(0,400));
-            console.log('DETALLES', JSON.stringify(f.details[id]).slice(0,500));
-            console.log('XG', Object.keys(f.xg).length);
-            const ligas=[...new Set(f.events.filter(e=>f.offers[e.id]).sort((a,b)=>b.t[2]-a.t[2]).map(e=>e.c[0]+' ['+e.c[1]+']: '+e.t[1]+' ('+e.t[2]+')'))].slice(0,15);
-            console.log('LIGAS', ligas.join(' | '));
-            console.log('INDICE', fs.readFileSync('site/data/fuente/indice.json','utf8').slice(0,800));
-          "
-          gzip -c site/data/fuente/$(date -u -d '-5 hours' +%F)/football.json | wc -c

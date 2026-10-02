@@ -1,11 +1,15 @@
 // Análisis de los partidos seleccionados:
-//  1) Sofascore: forma, últimos partidos, H2H, bajas, votos y cuotas de referencia.
-//  2) Cuotas de Apuesta Total y Betano (emparejando cada partido).
+//  1) Estadísticas: de Sofascore (forma, últimos partidos, H2H, bajas, votos y
+//     cuotas de referencia, vía la extensión) o de los datos automáticos que
+//     publica GitHub Actions (partidos "fs:" de Flashscore: últimos partidos y H2H).
+//  2) Cuotas de Apuesta Total y Betano (emparejando cada partido). Sin la
+//     extensión se usan las cuotas de Apuesta Total publicadas cada 2 horas.
 //  3) xG de Understat (fútbol, 5 grandes ligas).
 //  4) Probabilidad del modelo + probabilidad del mercado -> probabilidad base.
 //  5) Red neuronal (opcional): corrige la probabilidad base.
 //  6) Picks por nivel de confianza y combinadas.
 import * as ext from '../ext.js';
+import * as provider from '../provider.js';
 import { sportOf } from '../sports.js';
 import { clamp, groupBy, limaDateOf, logit, sigmoid } from '../util.js';
 import { buildFeatures, FEATURE_VERSION } from './features.js';
@@ -217,13 +221,54 @@ const summaryOf = (ev) => ({
   url: ev.url || null,
 });
 
-// events: partidos de Sofascore seleccionados. Devuelve el análisis completo.
+// Estadísticas, cuotas y xG publicados para los partidos automáticos.
+async function publishedData(events, details, sources, progress) {
+  progress('Datos automáticos: estadísticas y cuotas', 0.1);
+  const out = await provider.detailsFor(events);
+  let withStats = 0;
+  for (const ev of events) {
+    const d = out.get(ev.id)?.details;
+    if (!d) continue;
+    details[ev.id] = d;
+    if (d.lastHome.length || d.lastAway.length) withStats++;
+  }
+  const generated = [...out.values()].map((x) => x?.generated).filter(Boolean).sort()[0] || null;
+  sources.flashscore = { ok: true, matched: withStats, generated };
+  return out;
+}
+
+// events: partidos seleccionados (de Sofascore o automáticos). Devuelve el análisis completo.
 export async function analyze(events, { method = 'estadistico', settings = DEFAULT_SETTINGS, network = null, onProgress = () => {} } = {}) {
   const sources = {};
   const pending = events.filter((e) => e.state === 'pendiente');
-  const details = await sofascoreDetails(pending, sources, onProgress);
-  const offers = await bookmakerOffers(pending, sources, onProgress);
-  const xg = await understatXg(pending, sources, onProgress);
+  const auto = pending.filter((e) => provider.isAuto(e.id));
+  const sofa = pending.filter((e) => !provider.isAuto(e.id));
+  const withExt = ext.available();
+  if (sofa.length && !withExt) throw new Error('Los partidos de Sofascore necesitan la extensión. Elige la fuente "Automático" o abre la página en la PC con la extensión.');
+
+  const details = sofa.length ? await sofascoreDetails(sofa, sources, onProgress) : {};
+  const published = auto.length ? await publishedData(auto, details, sources, onProgress) : new Map();
+  const offers = withExt ? await bookmakerOffers(pending, sources, onProgress) : new Map();
+  const xg = sofa.length && withExt ? await understatXg(sofa, sources, onProgress) : new Map();
+
+  // Partidos automáticos: cuotas publicadas de Apuesta Total si no se
+  // obtuvieron en vivo con la extensión.
+  let usedPublished = 0;
+  for (const ev of auto) {
+    const p = published.get(ev.id);
+    if (!p) continue;
+    const live = offers.get(ev.id) || [];
+    if (p.offers.length && !live.some((o) => o.source === 'apuestatotal')) {
+      offers.set(ev.id, [...live, ...p.offers]);
+      usedPublished++;
+    }
+    if (p.xg) xg.set(ev.id, p.xg);
+  }
+  if (usedPublished) {
+    const at = sources.apuestatotal;
+    sources.apuestatotal = { ok: true, matched: (at?.ok ? at.matched : 0) + usedPublished, published: true };
+  }
+  if (auto.some((e) => xg.has(e.id))) sources.understat ||= { ok: true, matched: auto.filter((e) => xg.has(e.id)).length };
 
   onProgress('Calculando probabilidades', 0.9);
   const candidates = [];
