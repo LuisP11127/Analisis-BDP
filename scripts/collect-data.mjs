@@ -34,6 +34,7 @@ const HISTORY = path.resolve('docs/data/historial');
 const STAT_SPORTS = new Set(['football', 'basketball', 'ice-hockey', 'tennis', 'baseball', 'american-football', 'handball', 'rugby']);
 const TEAM_MATCHES = 8; // últimos partidos de cada equipo para sus estadísticas
 const MAX_DETAIL_FETCHES = 6000; // por corrida (el resto queda para la siguiente; los feeds quedan en caché)
+const DETAIL_BUDGET_MS = 6 * 60000; // tiempo máximo para pedir feeds de detalle (la página se publica igual)
 const CACHE_HOURS = 12;
 const AHEAD = [0, 1];
 const BACK = [-7, -6, -5, -4, -3, -2, -1];
@@ -79,6 +80,8 @@ async function h2hCached(ev) {
 
 // Feeds de detalle de un partido terminado, con caché permanente.
 let fetches = 0;
+let detailStart = 0; // cuándo empezó a pedir feeds de detalle
+const detailTimeLeft = () => !detailStart || Date.now() - detailStart < DETAIL_BUDGET_MS;
 async function feedsCached(fsId, kinds) {
   const id = String(fsId).replace(/^fs:/, '');
   const file = path.join(DETAIL_CACHE, `${id}.json`);
@@ -89,7 +92,8 @@ async function feedsCached(fsId, kinds) {
     // sin caché
   }
   const missing = kinds.filter((k) => typeof cached[k] !== 'string');
-  if (missing.length && fetches < MAX_DETAIL_FETCHES) {
+  if (missing.length && fetches < MAX_DETAIL_FETCHES && detailTimeLeft()) {
+    detailStart ||= Date.now();
     fetches += missing.length;
     const got = await getMatchFeeds({ fsId: id, kinds: missing });
     for (const k of missing) if (typeof got[k] === 'string') cached[k] = got[k];
@@ -272,6 +276,7 @@ async function main() {
   // 4b) Registro completo (incidencias y estadísticas) de los partidos
   //     analizados que ya terminaron. Los de Sofascore se cruzan por nombre.
   const analyzed = await analyzedEvents(BACK.concat(AHEAD).map((d) => addDays(today, d)));
+  detailStart = 0; // los registros (para liquidar) tienen su propio tiempo
   const wanted = [];
   for (const [date, list] of Object.entries(finished)) {
     const bySport = new Map();

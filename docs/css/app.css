@@ -194,6 +194,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .day-lines { display: grid; gap: 4px; }
 .day-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
 .day-line b { min-width: 86px; }
+.chip.lvl { border-left-width: 4px; }
+.chip.lvl .lvl-name { font-weight: 600; }
+.chip.lvl-alta { border-left-color: var(--alta); }
+.chip.lvl-moderada_alta { border-left-color: var(--modalta); }
+.chip.lvl-moderada { border-left-color: var(--mod); }
+.chip.lvl-combo { border-left-color: #8957e5; }
+.day-tables { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-bottom: 10px; }
+.day-table h4 { margin: 4px 0 6px; }
 .method-tag { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 8px; color: #fff; background: var(--accent); }
 .method-tag.red_neuronal { background: var(--nn); }
 tr.total td { font-weight: 700; border-bottom: 0; }

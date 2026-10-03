@@ -189,6 +189,11 @@ async function withoutExtension(browser, errors) {
   check('el resumen guarda los resultados de cada método', index.methods.estadistico.won + index.methods.estadistico.lost > 0 && index.methods.red_neuronal.won + index.methods.red_neuronal.lost > 0, JSON.stringify(index.methods).slice(0, 160));
   await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
   check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
+  // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.
+  const levelChips = await page.$$eval('.day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
+  check('cada día cuenta los aciertos por nivel', levelChips.length > 0 && levelChips.every((t) => /^(Alta|Mod-alta|Moderada|Combinadas) \d+\/\d+/.test(t)), levelChips.join(' | '));
+  const dayTable = await page.textContent('.day-body .day-table');
+  check('el día abierto muestra la tabla por nivel', /Red neuronal: aciertos del día por nivel/.test(dayTable) && /Total picks/.test(dayTable), dayTable.replace(/\s+/g, ' ').slice(0, 160));
   await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });
   await page.click('.tabs button[data-tab="partidos"]');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
