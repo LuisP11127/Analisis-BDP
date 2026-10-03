@@ -16,6 +16,40 @@ const METHODS = [
 const SHORT = Object.fromEntries(METHODS.map(([id, , short]) => [id, short]));
 const ZERO = { won: 0, lost: 0, pending: 0, staked: 0, profit: 0 };
 
+const LEVEL_SHORT = { alta: 'Alta', moderada_alta: 'Mod-alta', moderada: 'Moderada' };
+
+// Aciertos de un día por nivel de confianza: "Alta 3/4" (acertadas / resueltas).
+function levelChips(m) {
+  const items = [...LEVELS.map((l) => [l.id, LEVEL_SHORT[l.id] || l.name, m.byLevel?.[l.id]]), ['combo', 'Combinadas', m.combos]];
+  return items
+    .filter(([, , st]) => st?.n)
+    .map(([id, name, st]) => {
+      const resolved = st.won + st.lost;
+      const title = `${name}: ${st.won} acertadas de ${resolved} resueltas${st.pending ? `, ${st.pending} pendientes` : ''}${st.void ? `, ${st.void} nulas` : ''}`;
+      return h('span', { class: `chip lvl lvl-${id}`, title }, h('span', { class: 'lvl-name' }, name), ` ${st.won}/${resolved}`, st.pending ? h('span', { class: 'note' }, ` +${st.pending}`) : null);
+    });
+}
+
+// Tabla del día por nivel (al abrir el día).
+function dayTables(s, filter) {
+  if (!s?.methods) return null;
+  const list = METHODS.filter(([id]) => s.methods[id] && (filter === 'ambos' || filter === id));
+  if (!list.length) return null;
+  return h(
+    'div',
+    { class: 'day-tables' },
+    list.map(([id]) => {
+      const m = s.methods[id];
+      return h(
+        'div',
+        { class: 'day-table' },
+        h('h4', {}, `${SHORT[id]}: aciertos del día por nivel`),
+        statsTable([...LEVELS.map((l) => statsRow(l.name, m.byLevel?.[l.id] || ZERO)), statsRow('Combinadas', m.combos || ZERO), statsRow('Total picks', m, 'total')]),
+      );
+    }),
+  );
+}
+
 const money = (x) => h('span', { class: x > 0 ? 'pos' : x < 0 ? 'neg' : '' }, `${x > 0 ? '+' : ''}${x.toFixed(2)} u`);
 const pill = (status) => h('span', { class: `status-pill ${status}` }, STATUS[status] || status);
 
@@ -251,8 +285,8 @@ export function renderHistorial(root, app) {
             { class: 'day-line' },
             name ? h('b', {}, name) : null,
             h('span', { class: 'chip' }, `${m.n} picks`),
-            m.won ? h('span', { class: 'chip ok' }, `${m.won} ganadas`) : null,
-            m.lost ? h('span', { class: 'chip err' }, `${m.lost} perdidas`) : null,
+            m.won + m.lost ? h('span', { class: m.won >= m.lost ? 'chip ok' : 'chip err', title: 'Acertadas de las resueltas' }, `${m.won}/${m.won + m.lost} aciertos`) : null,
+            ...levelChips(m),
             m.pending ? h('span', { class: 'chip' }, `${m.pending} pendientes`) : null,
             m.staked ? money(m.profit) : null,
           ),
@@ -260,7 +294,7 @@ export function renderHistorial(root, app) {
       ),
     );
     const box = h('div', { class: 'day' }, head);
-    if (open) box.append(h('div', { class: 'day-body' }, state.dayCache.has(date) ? dayBody(state.dayCache.get(date), filter) : h('div', { class: 'note' }, 'Cargando…')));
+    if (open) box.append(h('div', { class: 'day-body' }, dayTables(s, filter), state.dayCache.has(date) ? dayBody(state.dayCache.get(date), filter) : h('div', { class: 'note' }, 'Cargando…')));
     root.append(box);
   }
 }
