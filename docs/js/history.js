@@ -17,7 +17,7 @@ import { parseMarketId } from './analysis/catalog.js';
 import { profitOf } from './analysis/outcomes.js';
 import { mergeRecords, recordFromSofascore } from './analysis/records.js';
 import { flashscoreRecords } from './flashscore-link.js';
-import { Corrector } from './analysis/neural.js';
+import { Corrector, isResult } from './analysis/neural.js';
 import { LEVELS } from './analysis/picks.js';
 
 export const INDEX = 'data/historial/index.json';
@@ -117,6 +117,14 @@ export function trainingRows(result) {
   }));
 }
 
+// Archivo de filas de un mes. Si existe pero no trae la lista de filas (lectura
+// incompleta), se corta: guardar encima borraría los resultados ya aprendidos.
+async function readRows(month) {
+  const file = await store.read(rowsPath(month));
+  if (file && !Array.isArray(file.rows)) throw new Error(`No se pudo leer bien ${rowsPath(month)}; no se guardó nada para no perder datos`);
+  return file;
+}
+
 function mergeRows(oldRows = [], newRows = []) {
   const map = new Map(oldRows.map((r) => [r.key, r]));
   for (const r of newRows) {
@@ -140,7 +148,7 @@ export async function saveAnalysis(input) {
   await store.write(dayPath(date), day, `Historial: análisis ${names} del ${date}`);
 
   for (const [month, rows] of groupBy(results.flatMap(trainingRows), (r) => r.date.slice(0, 7))) {
-    const file = (await store.read(rowsPath(month))) || { rows: [] };
+    const file = (await readRows(month)) || { rows: [] };
     file.rows = mergeRows(file.rows, rows);
     await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${date}`);
   }
@@ -354,7 +362,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   }
   const rowFiles = [];
   for (const month of monthsBack(2)) {
-    const file = await store.read(rowsPath(month));
+    const file = await readRows(month);
     if (!file) continue;
     rowFiles.push({ month, file });
     for (const r of file.rows) {
@@ -492,9 +500,9 @@ export async function loadNetwork() {
 export async function trainNetwork() {
   const rows = [];
   for (const month of monthsBack(6)) {
-    const file = await store.read(rowsPath(month));
+    const file = await readRows(month);
     for (const r of file?.rows || []) {
-      if (!(r.y >= 0 && r.y <= 1)) continue;
+      if (!isResult(r.y)) continue;
       const x = upgradeFeatures(r.x, r.fv);
       if (x) rows.push({ ...r, x });
     }
@@ -522,6 +530,7 @@ export async function uploadLocalToGithub({ onProgress = () => {} } = {}) {
       await store.write(path, merged, `Historial: subir datos locales del ${local.date}`);
       days.push(merged);
     } else {
+      if (remote && !Array.isArray(remote.rows)) throw new Error(`No se pudo leer bien ${path} en GitHub; no se subió para no perder datos`);
       const merged = { rows: mergeRows(remote?.rows || [], local.rows || []) };
       await store.write(path, merged, 'Entrenamiento: subir datos locales');
     }

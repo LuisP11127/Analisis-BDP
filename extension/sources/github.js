@@ -67,8 +67,10 @@ export async function status() {
   return { ...base, ok: canWrite, canWrite, error: canWrite ? undefined : 'El token no tiene permiso de escritura (Contents: Read and write)' };
 }
 
-async function readMeta(cfg, path) {
-  const r = await gh(`/repos/${cfg.repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(cfg.branch)}`);
+// `fresh`: evita respuestas guardadas (justo después de un commit GitHub puede
+// devolver por unos segundos la versión anterior).
+async function readMeta(cfg, path, fresh = false) {
+  const r = await gh(`/repos/${cfg.repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(cfg.branch)}${fresh ? `&_=${Date.now()}` : ''}`);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`GitHub respondió HTTP ${r.status} al leer ${path}`);
   return r.json();
@@ -80,10 +82,13 @@ export async function getFile({ path }) {
   const meta = await readMeta(cfg, path);
   if (!meta) return null;
   if (meta.content && meta.encoding === 'base64') return { text: fromBase64(meta.content), sha: meta.sha };
-  // Archivos de más de 1 MB: la API no incluye el contenido, se pide en crudo.
-  const raw = await gh(`/repos/${cfg.repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(cfg.branch)}`, { accept: 'application/vnd.github.raw' });
-  if (!raw.ok) throw new Error(`GitHub respondió HTTP ${raw.status} al leer ${path}`);
-  return { text: await raw.text(), sha: meta.sha };
+  // Archivos de más de 1 MB: la API no incluye el contenido; se lee el "blob"
+  // (hasta 100 MB). Nunca se devuelve un archivo vacío por error.
+  const blob = await gh(`/repos/${cfg.repo}/git/blobs/${meta.sha}`);
+  if (!blob.ok) throw new Error(`GitHub respondió HTTP ${blob.status} al leer ${path}`);
+  const data = await blob.json();
+  if (data.encoding !== 'base64' || typeof data.content !== 'string') throw new Error(`No se pudo leer el contenido de ${path}`);
+  return { text: fromBase64(data.content), sha: meta.sha };
 }
 
 // Crea o reemplaza un archivo con un commit.
@@ -91,15 +96,26 @@ export async function putFile({ path, text, message }) {
   if (!WRITABLE.test(path)) throw new Error(`Ruta no permitida: ${path}`);
   const cfg = await getConfig();
   if (!cfg.token) throw new Error('Falta configurar el token de GitHub en la extensión');
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const meta = await readMeta(cfg, path);
+  const content = toBase64(text);
+  let last = '';
+  for (let attempt = 0; attempt < 5; attempt++) {
+    // Entre intentos se espera (1, 2, 4, 8 s) para que GitHub refleje el último commit.
+    if (attempt) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+    const meta = await readMeta(cfg, path, attempt > 0);
     const r = await gh(`/repos/${cfg.repo}/contents/${encodePath(path)}`, {
       method: 'PUT',
-      body: { message: message || `Actualizar ${path}`, content: toBase64(text), branch: cfg.branch, ...(meta ? { sha: meta.sha } : {}) },
+      body: { message: message || `Actualizar ${path}`, content, branch: cfg.branch, ...(meta ? { sha: meta.sha } : {}) },
     });
     if (r.ok) return { ok: true };
-    // 409/422: alguien cambió el archivo entre la lectura y la escritura; se reintenta.
-    if (r.status !== 409 && r.status !== 422) throw new Error(`GitHub respondió HTTP ${r.status} al guardar ${path}`);
+    let detail = '';
+    try {
+      detail = (await r.json())?.message || '';
+    } catch {
+      // sin detalle
+    }
+    last = `HTTP ${r.status}${detail ? `: ${detail}` : ''}`;
+    // 409/422: el archivo cambió entre la lectura y la escritura (o GitHub aún no lo refleja); se reintenta.
+    if (r.status !== 409 && r.status !== 422) throw new Error(`GitHub respondió ${last} al guardar ${path}`);
   }
-  throw new Error(`No se pudo guardar ${path} tras varios intentos`);
+  throw new Error(`No se pudo guardar ${path} tras varios intentos (${last})`);
 }
