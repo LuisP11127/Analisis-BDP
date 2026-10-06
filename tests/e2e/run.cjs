@@ -86,6 +86,7 @@ async function fixtures() {
 }
 
 // API de contenidos de GitHub en memoria.
+const BIG_FILE = 3000; // en la prueba, los archivos de más de 3 KB se tratan como los de más de 1 MB
 function githubMock(context) {
   const files = new Map();
   const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS' };
@@ -97,6 +98,11 @@ function githubMock(context) {
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     if (req.headers().authorization !== 'Bearer github_pat_prueba') return json(401, { message: 'Bad credentials' });
     if (url.pathname === '/repos/LuisP11127/Analisis-BDP') return json(200, { permissions: { push: true } });
+    const blob = url.pathname.match(/^\/repos\/LuisP11127\/Analisis-BDP\/git\/blobs\/(.+)$/);
+    if (blob) {
+      const f = [...files.values()].find((x) => x.sha === blob[1]);
+      return f ? json(200, { content: Buffer.from(f.text).toString('base64'), encoding: 'base64', sha: f.sha }) : json(404, { message: 'Not Found' });
+    }
     const m = url.pathname.match(/^\/repos\/LuisP11127\/Analisis-BDP\/contents\/(.+)$/);
     if (!m) return json(404, {});
     const file = decodeURIComponent(m[1]);
@@ -107,6 +113,8 @@ function githubMock(context) {
     }
     const f = files.get(file);
     if (!f) return json(404, { message: 'Not Found' });
+    // Como GitHub con los archivos de más de 1 MB: sin contenido; se lee el blob.
+    if (f.text.length > BIG_FILE) return json(200, { content: '', encoding: 'none', sha: f.sha, size: f.text.length });
     return json(200, { content: Buffer.from(f.text).toString('base64'), encoding: 'base64', sha: f.sha });
   });
   return files;
@@ -184,6 +192,9 @@ async function withoutExtension(browser, errors) {
   await page.waitForSelector('.day-body .status-pill');
   const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
   check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
+  const bigFiles = [...repo.entries()].filter(([, f]) => f.text.length > BIG_FILE).map(([p]) => p);
+  const trainRows = JSON.parse(repo.get(`docs/data/entrenamiento/${DAY.slice(0, 7)}.json`).text).rows;
+  check('los archivos grandes se leen completos (sin perder filas)', bigFiles.length > 0 && trainRows.length > 0 && trainRows.some((r) => r.y != null), `${bigFiles.join(', ')} · ${trainRows.length} filas`);
   check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.every((a) => a.picks.every((p) => p.status !== 'pending')));
   const index = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY];
   check('el resumen guarda los resultados de cada método', index.methods.estadistico.won + index.methods.estadistico.lost > 0 && index.methods.red_neuronal.won + index.methods.red_neuronal.lost > 0, JSON.stringify(index.methods).slice(0, 160));

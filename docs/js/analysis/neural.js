@@ -9,6 +9,10 @@
 import { logit, rng, sigmoid } from '../util.js';
 import { FEATURE_VERSION } from './features.js';
 
+// Resultado real de una fila: 1 ganó, 0 perdió, 0.75 / 0.25 medias apuestas.
+// Ojo: null >= 0 es verdadero en JavaScript; las pendientes (null) no cuentan.
+export const isResult = (y) => typeof y === 'number' && y >= 0 && y <= 1;
+
 export const MIN_SAMPLES = 200; // resultados mínimos para empezar a corregir
 const MIN_GAIN = 0.01; // la corrección debe bajar el error al menos un 1 %
 
@@ -129,7 +133,7 @@ export class Corrector {
   // rows: [{ x, pBase, y (0/1), start }]. Devuelve métricas del entrenamiento.
   train(rows, { epochs = 300, lr = 0.01, l2 = 0.003, valFraction = 0.2 } = {}) {
     const data = rows
-      .filter((r) => r.y >= 0 && r.y <= 1 && r.x?.length === this.inputs && r.pBase > 0 && r.pBase < 1)
+      .filter((r) => isResult(r.y) && r.x?.length === this.inputs && r.pBase > 0 && r.pBase < 1)
       .sort((a, b) => (a.start || 0) - (b.start || 0))
       .slice(-15000);
     if (data.length < MIN_SAMPLES) {

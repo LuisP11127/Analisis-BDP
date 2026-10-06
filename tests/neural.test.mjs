@@ -53,3 +53,17 @@ test('si no hay nada que corregir, no empeora', () => {
   const meta = net.train(rows);
   assert.ok(meta.nnLoss <= meta.baseLoss + 1e-9);
 });
+
+test('las filas pendientes (sin resultado) no se usan para entrenar', async () => {
+  const { isResult } = await import('../docs/js/analysis/neural.js');
+  assert.equal(isResult(null), false, 'null >= 0 es verdadero en JavaScript: no debe contar');
+  assert.equal(isResult(undefined), false);
+  assert.equal(isResult(-1), false);
+  assert.equal(isResult(0), true);
+  assert.equal(isResult(0.75), true);
+  const net = new Corrector({ inputs: 3 });
+  const rows = Array.from({ length: 300 }, (_, i) => ({ x: [i % 3, 1, 0], pBase: 0.6, y: null, start: i }));
+  const meta = net.train(rows);
+  assert.equal(meta.samples, 0);
+  assert.equal(net.trained, false);
+});
