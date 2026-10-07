@@ -66,7 +66,8 @@ button, input, select { font: inherit; color: inherit; }
 
 /* Barra superior */
 .topbar { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.brand { font-size: 18px; font-weight: 700; margin-right: auto; }
+.brand { font-size: 18px; font-weight: 700; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+.brand img { display: block; border-radius: 7px; }
 .brand b { color: var(--accent); }
 .date-nav { display: flex; gap: 6px; align-items: center; }
 .date-nav input { border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; background: var(--surface); }
