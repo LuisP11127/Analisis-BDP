@@ -197,6 +197,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .day-line b { min-width: 86px; }
 .chip.lvl { border-left-width: 4px; }
 .chip.lvl .lvl-name { font-weight: 600; }
+.chip .hit-pct { font-weight: 700; }
 .chip.lvl-alta { border-left-color: var(--alta); }
 .chip.lvl-moderada_alta { border-left-color: var(--modalta); }
 .chip.lvl-moderada { border-left-color: var(--mod); }

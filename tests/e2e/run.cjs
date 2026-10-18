@@ -203,6 +203,14 @@ async function withoutExtension(browser, errors) {
   // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.
   const levelChips = await page.$$eval('.day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
   check('cada día cuenta los aciertos por nivel', levelChips.length > 0 && levelChips.every((t) => /^(Alta|Mod-alta|Moderada|Combinadas) \d+\/\d+/.test(t)), levelChips.join(' | '));
+  // "29/41 · 71%": el porcentaje de acertadas coincide con la cuenta (sin resueltas, sin porcentaje).
+  const hitChips = await page.$$eval('.day-line .chip', (els) => els.map((e) => e.textContent.trim()).filter((t) => /\d+\/\d+/.test(t)));
+  const pctMatches = (t) => {
+    const [, won, resolved] = t.match(/(\d+)\/(\d+)/).map(Number);
+    const shown = t.match(/· (\d+)%/);
+    return resolved ? Boolean(shown) && Number(shown[1]) === Math.round((won / resolved) * 100) : !shown;
+  };
+  check('muestra el porcentaje de acertadas del día y de cada nivel', hitChips.some((t) => / aciertos · \d+%$/.test(t)) && hitChips.every(pctMatches), hitChips.join(' | '));
   const dayTable = await page.textContent('.day-body .day-table');
   check('el día abierto muestra la tabla por nivel', /Red neuronal: aciertos del día por nivel/.test(dayTable) && /Total picks/.test(dayTable), dayTable.replace(/\s+/g, ' ').slice(0, 160));
   await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });
