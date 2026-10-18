@@ -8,6 +8,8 @@
   --accent: #1f5fbf;
   --accent-text: #ffffff;
   --nn: #6a3fc1;
+  --rnd: #0e7c86;
+  --rnd-text: #ffffff;
   --ok: #1a7f37;
   --ok-bg: #e5f4e9;
   --err: #b42318;
@@ -32,6 +34,8 @@
     --accent: #6ea8ff;
     --accent-text: #0b1220;
     --nn: #b493ff;
+    --rnd: #3fc1c9;
+    --rnd-text: #0b1220;
     --ok: #5bd17a;
     --ok-bg: #15301e;
     --err: #ff8a7a;
@@ -115,6 +119,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 64px; }
 .segmented.wide { display: flex; margin: 0 0 14px; }
 .segmented.wide button { flex: 1; }
 .segmented .n { font-weight: 400; font-size: 13px; opacity: 0.85; }
+/* Con cuatro opciones (Todos, Estadístico, Red neuronal, Random) no caben en una fila del celular. */
+@media (max-width: 720px) {
+  .segmented.many { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+}
 .odds-badge { font-size: 11px; font-weight: 700; color: var(--ok); background: var(--ok-bg); border-radius: 999px; padding: 1px 7px; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
@@ -197,6 +205,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .day-line b { min-width: 86px; }
 .chip.lvl { border-left-width: 4px; }
 .chip.lvl .lvl-name { font-weight: 600; }
+.chip .hit-pct { font-weight: 700; }
 .chip.lvl-alta { border-left-color: var(--alta); }
 .chip.lvl-moderada_alta { border-left-color: var(--modalta); }
 .chip.lvl-moderada { border-left-color: var(--mod); }
@@ -205,6 +214,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .day-table h4 { margin: 4px 0 6px; }
 .method-tag { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 8px; color: #fff; background: var(--accent); }
 .method-tag.red_neuronal { background: var(--nn); }
+.method-tag.aleatorio { background: var(--rnd); color: var(--rnd-text); }
+
+/* Random bets */
+.random-ctl { display: inline-flex; gap: 6px; align-items: center; }
+.random-ctl input { width: 64px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 8px; background: var(--surface); }
+.btn.rnd { border-color: var(--rnd); color: var(--rnd); font-weight: 600; }
+.random-draw { margin-bottom: 14px; border-color: var(--rnd); }
+.random-draw .leg-list { margin: 10px 0 12px; }
+.random-actions { margin: 0; }
 tr.total td { font-weight: 700; border-bottom: 0; }
 .compare { margin-bottom: 14px; }
 .compare p { margin: 8px 0 0; }

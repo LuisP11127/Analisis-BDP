@@ -179,6 +179,35 @@ async function withoutExtension(browser, errors) {
   await page.click('.tabs button[data-tab="historial"]');
   await page.waitForSelector('.day');
   check('el historial muestra que guarda en GitHub', (await page.textContent('#tab-historial .banner')).includes('Guardando en GitHub'));
+
+  // Random bets: antes de que empiecen los partidos (a la 1:00 de Lima), entre los picks de los dos análisis.
+  await page.evaluate((t) => {
+    window.realNow = Date.now.bind(Date);
+    Date.now = () => t;
+  }, Date.parse(`${DAY}T06:00:00Z`));
+  await page.fill('.random-ctl input', '2');
+  await page.click('.random-ctl button:has-text("Random bets")');
+  await page.waitForSelector('.random-draw');
+  const drawNote = await page.textContent('.random-draw p.note');
+  const poolSize = Number(drawNote.match(/entre (\d+) picks?/)?.[1]);
+  const drawn = await page.$$eval('.random-draw .leg-list li', (els) => els.map((e) => e.textContent.trim()));
+  check('random bets: sortea el número de apuestas elegido', poolSize > 0 && drawn.length === Math.min(2, poolSize), `${drawn.length} de ${poolSize}: ${drawn.join(' | ')}`);
+  check('random bets: entre los picks de los dos análisis', /análisis guardados \(estadístico y red neuronal\)/.test(drawNote), drawNote);
+  await page.click('.random-draw button:has-text("Volver a sortear")');
+  check('random bets: se puede volver a sortear', (await page.$$('.random-draw .leg-list li')).length === drawn.length);
+  await page.click('.random-draw button:has-text("Guardar en el seguimiento")');
+  await page.waitForFunction(() => /random bets guardadas|No se/.test(document.querySelector('#toast').textContent), null, { timeout: 20000 });
+  const randomSaved = JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.filter((a) => a.method === 'aleatorio');
+  check(
+    'random bets: se guardan en el seguimiento como un análisis más',
+    randomSaved.length === 1 && randomSaved[0].picks.length === drawn.length && randomSaved[0].picks.every((p) => p.status === 'pending' && p.methods.length > 0) && !(await page.$('.random-draw')),
+    `${await page.textContent('#toast')} · ${JSON.stringify(randomSaved.map((a) => a.picks.map((p) => p.label)))}`,
+  );
+  const methodLines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
+  check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Estadístico,Red neuronal,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
+  check('sin desplazamiento horizontal (historial con random bets, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
+  await page.evaluate(() => (Date.now = window.realNow));
+
   await page.evaluate(() => {
     const real = Date.now.bind(Date);
     Date.now = () => real() + 36 * 3600000;
@@ -198,11 +227,20 @@ async function withoutExtension(browser, errors) {
   check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.every((a) => a.picks.every((p) => p.status !== 'pending')));
   const index = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY];
   check('el resumen guarda los resultados de cada método', index.methods.estadistico.won + index.methods.estadistico.lost > 0 && index.methods.red_neuronal.won + index.methods.red_neuronal.lost > 0, JSON.stringify(index.methods).slice(0, 160));
+  check('random bets: se liquidan con los demás y se siguen aparte', index.methods.aleatorio?.n === drawn.length && index.methods.aleatorio.pending === 0 && index.n === index.methods.estadistico.n + index.methods.red_neuronal.n, JSON.stringify(index.methods.aleatorio));
   await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
   check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
   // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.
   const levelChips = await page.$$eval('.day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
   check('cada día cuenta los aciertos por nivel', levelChips.length > 0 && levelChips.every((t) => /^(Alta|Mod-alta|Moderada|Combinadas) \d+\/\d+/.test(t)), levelChips.join(' | '));
+  // "29/41 · 71%": el porcentaje de acertadas coincide con la cuenta (sin resueltas, sin porcentaje).
+  const hitChips = await page.$$eval('.day-line .chip', (els) => els.map((e) => e.textContent.trim()).filter((t) => /\d+\/\d+/.test(t)));
+  const pctMatches = (t) => {
+    const [, won, resolved] = t.match(/(\d+)\/(\d+)/).map(Number);
+    const shown = t.match(/· (\d+)%/);
+    return resolved ? Boolean(shown) && Number(shown[1]) === Math.round((won / resolved) * 100) : !shown;
+  };
+  check('muestra el porcentaje de acertadas del día y de cada nivel', hitChips.some((t) => / aciertos · \d+%$/.test(t)) && hitChips.every(pctMatches), hitChips.join(' | '));
   const dayTable = await page.textContent('.day-body .day-table');
   check('el día abierto muestra la tabla por nivel', /Red neuronal: aciertos del día por nivel/.test(dayTable) && /Total picks/.test(dayTable), dayTable.replace(/\s+/g, ' ').slice(0, 160));
   await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });

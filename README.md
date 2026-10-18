@@ -45,11 +45,19 @@ resultados. Funciona en el **celular y en la PC**:
   separado**: el botón *Actualizar resultados* los marca como ganados o
   perdidos (o medio ganados/perdidos en líneas asiáticas) y calcula aciertos,
   ganancia y ROI por nivel y de las combinadas para el análisis estadístico y
-  para el de red neuronal. Se liquidan con el registro completo del partido
+  para el de red neuronal. Cada día muestra las acertadas y su porcentaje, en
+  total y por nivel (p. ej., «Alta 29/41 · 71%»). Se liquidan con el registro completo del partido
   (marcador por periodo, goles con minuto, tarjetas y estadísticas de
   Flashscore y Sofascore). Si un mismo pick sale en dos análisis del mismo día
   y método, cuenta una sola vez; una apuesta cuyo dato no publica ninguna
   fuente queda nula a los 4 días.
+- **Random bets** (en el Historial): eliges cuántas apuestas quieres y el botón
+  *🎲 Random bets* las sortea al azar entre los picks de todos los análisis
+  guardados (estadístico, red neuronal y los que haya), sin repetir, solo de
+  partidos que aún no empiezan y primero una por partido. Se puede volver a
+  sortear, copiarlas o *guardarlas en el seguimiento*: se liquidan con
+  *Actualizar resultados* y se siguen aparte (línea «Random» en cada día y su
+  tabla de aciertos, ganancia y ROI), sin sumarse a los otros análisis.
 
 Los niveles, la cuota mínima, las cuotas objetivo de las combinadas, **qué tipos
 de mercado pueden salir como pick** (principales, periodos, estadísticas,
