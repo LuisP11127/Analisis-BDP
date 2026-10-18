@@ -6,10 +6,10 @@ import * as store from './storage.js';
 import * as history from './history.js';
 import { analyzeMany } from './analysis/engine.js';
 import { DEFAULT_SETTINGS, MARKET_GROUPS } from './analysis/picks.js';
-import { addDays, h, limaToday } from './util.js';
+import { addDays, clamp, h, limaToday } from './util.js';
 import { PartidosView } from './views/partidos.js';
 import { analysisText, renderAnalisis } from './views/analisis.js';
-import { renderHistorial } from './views/historial.js';
+import { RANDOM_MAX, randomText, renderHistorial } from './views/historial.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LS = {
@@ -45,7 +45,9 @@ const app = {
     expanded: new Set(),
     analyses: { estadistico: null, red_neuronal: null }, // último análisis de cada método
     analysisView: 'estadistico', // método que se ve en la pestaña Análisis
-    histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' o un método
+    histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' (todos) o un método
+    randomN: LS.get('bdp:random-n', 5), // apuestas por sorteo de random bets
+    randomDraw: null, // último sorteo, aún sin guardar: { picks, all, pool, methods, requested }
     index: null,
     network: null,
     openDays: new Set(),
@@ -338,6 +340,76 @@ app.toggleDay = (date) => {
   else {
     openDays.add(date);
     if (!dayCache.has(date)) loadDay(date);
+  }
+  render();
+};
+
+// ---- Random bets ----
+
+// Sortea n apuestas entre los picks de todos los análisis guardados.
+app.drawRandom = async (value) => {
+  const n = Math.round(clamp(Number(value) || 1, 1, RANDOM_MAX));
+  app.state.randomN = n;
+  LS.set('bdp:random-n', n);
+  busy('Random bets', 'Leyendo los análisis guardados…', 0.4);
+  try {
+    const all = await history.randomPool();
+    app.state.randomDraw = { requested: n, all, pool: all.length, methods: [...new Set(all.flatMap((p) => p.methods))], picks: history.drawRandom(all, n) };
+  } catch (e) {
+    toast(`No se pudo sortear: ${e.message}`, 6000);
+  } finally {
+    idle();
+  }
+  render();
+};
+
+// Otro sorteo con las mismas apuestas disponibles (sin las que ya empezaron).
+app.redrawRandom = () => {
+  const d = app.state.randomDraw;
+  if (!d) return;
+  const all = d.all.filter((p) => p.start > Date.now());
+  app.state.randomDraw = { ...d, all, pool: all.length, picks: history.drawRandom(all, d.requested) };
+  render();
+};
+
+app.closeRandom = () => {
+  app.state.randomDraw = null;
+  render();
+};
+
+app.copyRandom = async () => {
+  try {
+    await navigator.clipboard.writeText(randomText(app.state.randomDraw));
+    toast('Apuestas copiadas');
+  } catch {
+    toast('No se pudo copiar');
+  }
+};
+
+// Guarda el sorteo en el historial: se liquida y se sigue como los otros análisis.
+app.saveRandom = async () => {
+  const d = app.state.randomDraw;
+  if (!d?.picks.length || !store.canWrite()) return;
+  busy('Guardando random bets…', '', 1);
+  try {
+    const r = await history.saveRandomDraw(d.picks, { requested: d.requested, pool: d.pool });
+    app.state.randomDraw = null;
+    app.state.index = await history.loadIndex();
+    for (const date of r.dates) {
+      app.state.dayCache.delete(date);
+      if (app.state.openDays.has(date)) loadDay(date);
+    }
+    const missing = d.picks.length - r.saved;
+    toast(
+      r.saved
+        ? `${r.saved} random bets guardadas ${store.isGithub() ? 'en GitHub' : 'en este navegador'}${missing ? ` (${missing} ya empezaron o ya estaban en otro sorteo)` : ''}`
+        : 'No se guardó nada: esos partidos ya empezaron o ya estaban en otro sorteo',
+      6000,
+    );
+  } catch (e) {
+    toast(`No se pudo guardar: ${e.message}`, 6000);
+  } finally {
+    idle();
   }
   render();
 };

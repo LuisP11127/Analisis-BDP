@@ -1,18 +1,21 @@
-// Pestaña "Historial": seguimiento por separado del análisis estadístico y del
-// de red neuronal (aciertos, ganancia y ROI por nivel y de las combinadas),
-// apuestas guardadas por día y estado de la red neuronal.
+// Pestaña "Historial": seguimiento por separado del análisis estadístico, del
+// de red neuronal y de las random bets (aciertos, ganancia y ROI por nivel y de
+// las combinadas), apuestas guardadas por día, sorteo de random bets y estado
+// de la red neuronal.
 import { MIN_SAMPLES } from '../analysis/neural.js';
 import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
-import { emptyMethodStats, hitRate, roi, totals } from '../history.js';
+import { RANDOM, emptyMethodStats, hitRate, roi, totals } from '../history.js';
 import { sportOf } from '../sports.js';
-import { fmtDateTime, fmtDay, fmtTime, h, pct } from '../util.js';
+import { fmtDateTime, fmtDay, fmtTime, h, limaDateOf, limaToday, pct } from '../util.js';
 
 const STATUS = { won: 'Ganada', lost: 'Perdida', void: 'Nula', pending: 'Pendiente', half_won: 'Medio ganada', half_lost: 'Medio perdida' };
 const LEVEL_NAME = Object.fromEntries(LEVELS.map((l) => [l.id, l.name]));
 const METHODS = [
   ['estadistico', 'Análisis estadístico', 'Estadístico'],
   ['red_neuronal', 'Análisis con red neuronal', 'Red neuronal'],
+  [RANDOM, 'Random bets', 'Random'],
 ];
+export const RANDOM_MAX = 50; // apuestas por sorteo
 const SHORT = Object.fromEntries(METHODS.map(([id, , short]) => [id, short]));
 const ZERO = { won: 0, lost: 0, pending: 0, staked: 0, profit: 0 };
 
@@ -46,15 +49,17 @@ function dayTables(s, filter) {
     { class: 'day-tables' },
     list.map(([id]) => {
       const m = s.methods[id];
-      return h(
-        'div',
-        { class: 'day-table' },
-        h('h4', {}, `${SHORT[id]}: aciertos del día por nivel`),
-        statsTable([...LEVELS.map((l) => statsRow(l.name, m.byLevel?.[l.id] || ZERO)), statsRow('Combinadas', m.combos || ZERO), statsRow('Total picks', m, 'total')]),
-      );
+      return h('div', { class: 'day-table' }, h('h4', {}, `${SHORT[id]}: aciertos del día por nivel`), statsTable(levelRows(m, id !== RANDOM)));
     }),
   );
 }
+
+// Filas por nivel, combinadas (las random bets no tienen) y total de picks.
+const levelRows = (m, combos = true) => [
+  ...LEVELS.map((l) => statsRow(l.name, m.byLevel?.[l.id] || ZERO)),
+  combos ? statsRow('Combinadas', m.combos || ZERO) : null,
+  statsRow('Total picks', m, 'total'),
+];
 
 const money = (x) => h('span', { class: x > 0 ? 'pos' : x < 0 ? 'neg' : '' }, `${x > 0 ? '+' : ''}${x.toFixed(2)} u`);
 const pill = (status) => h('span', { class: `status-pill ${status}` }, STATUS[status] || status);
@@ -101,16 +106,102 @@ function statsTableInner(rows) {
 }
 
 // Resultados de un método: por nivel, combinadas y total de picks.
-function methodPanel(title, m = emptyMethodStats()) {
+function methodPanel(id, title, m = emptyMethodStats()) {
+  return h('div', { class: 'panel' }, h('h3', {}, title), statsTable(levelRows(m, id !== RANDOM)));
+}
+
+// ---- Random bets ----
+
+const ORDER = METHODS.map(([id]) => id);
+const rank = (id) => (ORDER.includes(id) ? ORDER.indexOf(id) : ORDER.length);
+const joinY = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} y ${xs.at(-1)}` : xs[0] || '');
+// "Estadístico y Red neuronal": los análisis que dieron un pick.
+const methodNames = (ids = []) => joinY([...ids].sort((a, b) => rank(a) - rank(b)).map((id) => SHORT[id] || id));
+// Hora del partido; con la fecha si no es hoy.
+const whenOf = (ms) => (limaDateOf(ms) === limaToday() ? fmtTime(ms) : fmtDateTime(ms));
+const levelTag = (level) => h('span', { class: 'lvl', style: `color:var(--${level === 'alta' ? 'alta' : level === 'moderada_alta' ? 'modalta' : 'mod'})` }, LEVEL_NAME[level]);
+
+// Texto para copiar las apuestas sorteadas.
+export function randomText(draw) {
+  const lines = [`Random bets · ${draw.picks.length} apuestas al azar`];
+  for (const p of draw.picks) lines.push(`• ${p.match} (${whenOf(p.start)}): ${p.label} @ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`);
+  return lines.join('\n');
+}
+
+// Número de apuestas y botón para sortear (en la barra del Historial).
+function randomControls(app) {
+  const input = h('input', {
+    type: 'number',
+    min: 1,
+    max: RANDOM_MAX,
+    step: 1,
+    value: app.state.randomN,
+    'aria-label': 'Número de apuestas a sortear',
+    oninput: (e) => (app.state.randomN = e.target.value),
+    onkeydown: (e) => e.key === 'Enter' && app.drawRandom(input.value),
+  });
+  return h(
+    'span',
+    { class: 'random-ctl' },
+    h('label', {}, 'Apuestas', input),
+    h('button', { class: 'btn rnd', title: 'Sortea apuestas al azar entre los picks de todos los análisis guardados', onclick: () => app.drawRandom(input.value) }, '🎲 Random bets'),
+  );
+}
+
+// Las apuestas del último sorteo, para guardarlas en el seguimiento.
+function randomPanel(app) {
+  const d = app.state.randomDraw;
+  if (!d) return null;
+  const close = h('button', { class: 'btn small ghost', onclick: () => app.closeRandom() }, 'Cerrar');
+  if (!d.picks.length)
+    return h(
+      'div',
+      { class: 'panel random-draw' },
+      h('h3', {}, '🎲 Random bets'),
+      h('p', { class: 'note' }, 'No hay apuestas para sortear: los análisis guardados no tienen picks de partidos que aún no empiezan (o ya salieron todos en un sorteo). Haz un análisis y vuelve a intentar.'),
+      close,
+    );
   return h(
     'div',
-    { class: 'panel' },
-    h('h3', {}, title),
-    statsTable([
-      ...LEVELS.map((l) => statsRow(l.name, m.byLevel[l.id] || ZERO)),
-      statsRow('Combinadas', m.combos),
-      statsRow('Total picks', m, 'total'),
-    ]),
+    { class: 'panel random-draw' },
+    h('h3', {}, `🎲 Random bets: ${d.picks.length} ${d.picks.length === 1 ? 'apuesta' : 'apuestas'} al azar`),
+    h(
+      'p',
+      { class: 'note' },
+      `Sorteadas entre ${d.pool} ${d.pool === 1 ? 'pick' : 'picks'} de los análisis guardados (${methodNames(d.methods).toLowerCase()}) de partidos que aún no empiezan, sin repetir y primero una por partido.`,
+      d.picks.length < d.requested ? ` Pediste ${d.requested}, pero solo había ${d.picks.length}.` : '',
+    ),
+    h(
+      'ul',
+      { class: 'leg-list' },
+      d.picks.map((p) =>
+        h(
+          'li',
+          {},
+          levelTag(p.level),
+          h('span', {}, `${sportOf(p.sport).icon} ${p.match} (${whenOf(p.start)}): `),
+          h('b', {}, p.label),
+          h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)} · ${methodNames(p.methods)}`),
+        ),
+      ),
+    ),
+    h(
+      'div',
+      { class: 'toolbar random-actions' },
+      h(
+        'button',
+        {
+          class: 'btn primary',
+          disabled: !app.canSave(),
+          title: app.canSave() ? 'Se liquidan con "Actualizar resultados" y se siguen aparte, como los otros análisis' : 'Este navegador no permite guardar',
+          onclick: () => app.saveRandom(),
+        },
+        'Guardar en el seguimiento',
+      ),
+      h('button', { class: 'btn', onclick: () => app.redrawRandom() }, '🎲 Volver a sortear'),
+      h('button', { class: 'btn', onclick: () => app.copyRandom() }, 'Copiar'),
+      close,
+    ),
   );
 }
 
@@ -190,7 +281,7 @@ function legLine(l, extra = []) {
 function dayBody(day, filter) {
   if (!day) return h('div', { class: 'note' }, 'No se encontró el detalle de este día.');
   const list = day.analyses.filter((a) => filter === 'ambos' || a.method === filter);
-  if (!list.length) return h('div', { class: 'note' }, `Sin análisis ${SHORT[filter]?.toLowerCase() || ''} este día.`);
+  if (!list.length) return h('div', { class: 'note' }, filter === RANDOM ? 'Sin random bets este día.' : `Sin análisis ${SHORT[filter]?.toLowerCase() || ''} este día.`);
   return list
     .slice()
     .reverse()
@@ -202,7 +293,8 @@ function dayBody(day, filter) {
           'h4',
           {},
           h('span', { class: `method-tag ${a.method}` }, SHORT[a.method] || a.method),
-          ` ${fmtDateTime(Date.parse(a.created))} · ${Object.keys(a.events || {}).length} partidos`,
+          ` ${fmtDateTime(Date.parse(a.created))} · `,
+          a.method === RANDOM ? `${a.picks.length} apuestas sorteadas entre ${a.draw?.pool ?? a.picks.length} picks` : `${Object.keys(a.events || {}).length} partidos`,
         ),
         a.picks.length
           ? h(
@@ -210,7 +302,7 @@ function dayBody(day, filter) {
               { class: 'leg-list' },
               a.picks.map((p) =>
                 legLine(p, [
-                  h('span', { class: 'lvl', style: `color:var(--${p.level === 'alta' ? 'alta' : p.level === 'moderada_alta' ? 'modalta' : 'mod'})` }, LEVEL_NAME[p.level]),
+                  levelTag(p.level),
                   h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`),
                 ]),
               ),
@@ -236,20 +328,25 @@ export function renderHistorial(root, app) {
     'div',
     { class: 'toolbar' },
     h('button', { class: 'btn primary', disabled: app.storage.mode === 'lectura', onclick: () => app.updateResults() }, 'Actualizar resultados'),
+    randomControls(app),
     app.storage.mode.startsWith('github') && state.localFiles > 0
       ? h('button', { class: 'btn', onclick: () => app.uploadLocal() }, `Subir a GitHub lo guardado en el navegador (${state.localFiles})`)
       : null,
     h('button', { class: 'btn small ghost', onclick: () => app.reloadHistory() }, '↻'),
   );
   root.append(actions);
+  const draw = randomPanel(app);
+  if (draw) root.append(draw);
 
   const index = state.index || { days: {} };
   const t = totals(index);
+  // Las random bets aparecen cuando ya hay alguna guardada.
+  const methods = METHODS.filter(([id]) => id !== RANDOM || t.methods[RANDOM]);
   root.append(
     h(
       'div',
       { class: 'grid2' },
-      METHODS.map(([id, title]) => methodPanel(title, t.methods[id])),
+      methods.map(([id, title]) => methodPanel(id, title, t.methods[id])),
       networkPanel(app),
     ),
   );
@@ -267,8 +364,8 @@ export function renderHistorial(root, app) {
       h('span', { class: 'note' }, 'Detalle de cada día:'),
       h(
         'div',
-        { class: 'segmented', role: 'group', 'aria-label': 'Análisis a mostrar en cada día' },
-        [['ambos', 'Ambos'], ...METHODS.map(([id, , short]) => [id, short])].map(([id, name]) =>
+        { class: `segmented${methods.length > 2 ? ' many' : ''}`, role: 'group', 'aria-label': 'Análisis a mostrar en cada día' },
+        [['ambos', methods.length > 2 ? 'Todos' : 'Ambos'], ...methods.map(([id, , short]) => [id, short])].map(([id, name]) =>
           h('button', { class: id === filter ? 'active' : '', onclick: () => app.setHistMethod(id) }, name),
         ),
       ),

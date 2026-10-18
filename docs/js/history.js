@@ -25,7 +25,8 @@ export const MODEL = 'data/modelo/red-neuronal.json';
 export const dayPath = (date) => `data/historial/${date}.json`;
 export const rowsPath = (month) => `data/entrenamiento/${month}.json`;
 
-const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal' };
+export const RANDOM = 'aleatorio'; // random bets: picks sorteados de los otros análisis
+const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets' };
 const SUMMARY_VERSION = 2; // resúmenes por método (los anteriores se recalculan)
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
@@ -203,25 +204,31 @@ export function latestByMethod(day) {
 
 const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats() });
 
-// Resumen de un día: por método (methods) y la suma de ambos.
+// Resumen de un día: por método (methods) y la suma de los análisis. Las random
+// bets repiten picks de los otros análisis: no se suman dos veces, pero sus
+// pendientes cuentan para liquidarlas.
 export function daySummary(day) {
   const out = { ...emptyStats(), v: SUMMARY_VERSION, byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
+  let randomPending = 0;
   for (const [method, { picks, combos }] of latestByMethod(day)) {
     const m = (out.methods[method] = methodStats());
+    const inSum = method !== RANDOM;
     for (const p of picks.values()) {
       addResult(m, p.status, p.odds);
       addResult((m.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
-      addResult(out, p.status, p.odds);
-      addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
+      if (inSum) {
+        addResult(out, p.status, p.odds);
+        addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
+      } else if (p.status === 'pending') randomPending++;
     }
     for (const k of combos.values()) {
       addResult(m.combos, k.status, k.odds);
-      addResult(out.combos, k.status, k.odds);
+      if (inSum) addResult(out.combos, k.status, k.odds);
     }
     const { byLevel: _levels, combos: _combos, ...plain } = m;
     out.byMethod[method] = plain;
   }
-  out.pendingAll = out.pending + out.combos.pending;
+  out.pendingAll = out.pending + out.combos.pending + randomPending;
   return out;
 }
 
@@ -282,6 +289,86 @@ export const emptyMethodStats = methodStats;
 export const hitRate = (s) => (s.won + s.lost ? s.won / (s.won + s.lost) : null);
 export const roi = (s) => (s.staked ? s.profit / s.staked : null);
 export { LEVELS };
+
+// ---- Random bets ----
+
+const pickKey = (p) => `${p.eventId}|${p.key}`;
+
+// Picks de un día que se pueden sortear: de todos sus análisis (estadístico,
+// red neuronal y los que haya), sin repetir (vale el del análisis más
+// reciente), pendientes y de partidos que aún no empiezan; sin los que ya
+// salieron en un sorteo guardado. methods: qué análisis dieron cada pick.
+export function randomCandidates(day, now) {
+  const drawn = new Set();
+  const pool = new Map();
+  const list = (day?.analyses || []).slice().sort((a, b) => String(a.created).localeCompare(String(b.created)));
+  for (const a of list)
+    for (const p of a.picks || []) {
+      const key = pickKey(p);
+      if (a.method === RANDOM) drawn.add(key);
+      else if (p.status === 'pending' && p.start > now) pool.set(key, { ...p, date: day.date, methods: [...new Set([...(pool.get(key)?.methods || []), a.method])] });
+    }
+  return [...pool.values()].filter((p) => !drawn.has(pickKey(p)));
+}
+
+// Todo lo que se puede sortear: los días guardados desde ayer (partidos que
+// empiezan pasada la medianoche) en adelante.
+export async function randomPool(now = Date.now()) {
+  const index = await loadIndex();
+  const from = addDays(limaDateOf(now), -1);
+  const pool = [];
+  for (const date of Object.keys(index.days || {}).filter((d) => d >= from).sort()) pool.push(...randomCandidates(await store.read(dayPath(date)), now));
+  return pool;
+}
+
+// Sorteo de n apuestas al azar y sin repetir: primero una por partido y, si se
+// piden más que partidos, se completan con otras de los mismos partidos.
+export function drawRandom(pool, n, rand = Math.random) {
+  const order = pool.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const out = new Set();
+  const matches = new Set();
+  for (const p of order) if (out.size < n && !matches.has(p.eventId)) (out.add(p), matches.add(p.eventId));
+  for (const p of order) if (out.size < n) out.add(p);
+  return [...out].sort((a, b) => a.start - b.start || String(a.match).localeCompare(String(b.match)));
+}
+
+// Guarda el sorteo en el historial (en el archivo del día de cada pick) como un
+// análisis más, para seguir sus resultados igual que los otros. No guarda las
+// que ya empezaron ni las que ya estaban en otro sorteo.
+export async function saveRandomDraw(picks, { requested = picks.length, pool = picks.length } = {}, now = Date.now()) {
+  const created = new Date(now).toISOString();
+  const days = [];
+  let saved = 0;
+  for (const [date, list] of groupBy(picks, (p) => p.date)) {
+    const day = await store.read(dayPath(date));
+    if (!day) continue;
+    const drawn = new Set(day.analyses.filter((a) => a.method === RANDOM).flatMap((a) => a.picks.map(pickKey)));
+    const fresh = list.filter((p) => p.start > now && !drawn.has(pickKey(p)));
+    if (!fresh.length) continue;
+    const events = {};
+    for (const a of day.analyses) for (const p of fresh) if (a.events?.[p.eventId]) events[p.eventId] = a.events[p.eventId];
+    day.analyses.push({
+      id: `${RANDOM}-${now.toString(36)}`,
+      method: RANDOM,
+      created,
+      run: created,
+      date,
+      draw: { requested, pool },
+      events,
+      picks: fresh.map(({ prices: _prices, factors: _factors, date: _date, ...p }) => ({ ...p, status: 'pending', score: null })),
+      combos: [],
+    });
+    await store.write(dayPath(date), day, `Historial: random bets del ${date}`);
+    days.push(day);
+    saved += fresh.length;
+  }
+  if (days.length) await refreshIndex(days);
+  return { saved, dates: days.map((d) => d.date) };
+}
 
 // ---- Actualizar resultados ----
 

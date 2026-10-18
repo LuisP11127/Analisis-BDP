@@ -85,3 +85,60 @@ test('medias apuestas, combinadas con medias y apuestas sin datos', async () => 
   const withRecord = { ...res, record: { state: 'finalizado', final: [2, 1], stats: { corners: { ft: [6, 4] } } } };
   assert.deepEqual(legStatus(leg, withRecord, leg.start + 3 * 3600000), { status: 'won' });
 });
+
+test('random bets: se sortea entre los picks de todos los análisis, sin repetir', async () => {
+  const { RANDOM, drawRandom, randomCandidates } = await import('../docs/js/history.js');
+  const { rng } = await import('../docs/js/util.js');
+  const now = Date.parse('2026-10-18T12:00:00Z');
+  const later = (h) => now + h * 3600000;
+  const p = (eventId, key, level, start, status = 'pending') => ({ ...pick(eventId, key, level, status), start, match: `Partido ${eventId}` });
+  const day = {
+    date: '2026-10-18',
+    analyses: [
+      { id: 'est', method: 'estadistico', created: '2026-10-18T08:00:00Z', picks: [p('a', 'OU|over|1.5', 'alta', later(2)), p('a', '1X2|home|', 'moderada', later(2)), p('b', 'DC|1X|', 'alta', later(-1))] },
+      { id: 'rn', method: 'red_neuronal', created: '2026-10-18T08:00:00Z', picks: [p('a', 'OU|over|1.5', 'moderada_alta', later(2)), p('c', 'BTTS|yes|', 'moderada', later(5)), p('d', 'OU|under|3.5', 'alta', later(6), 'won')] },
+      { id: 'otro', method: 'otro', created: '2026-10-18T09:00:00Z', picks: [p('e', 'ML|home|', 'alta', later(3))] },
+      { id: 'r1', method: RANDOM, created: '2026-10-18T10:00:00Z', picks: [p('c', 'BTTS|yes|', 'moderada', later(5))] },
+    ],
+  };
+  const pool = randomCandidates(day, now);
+  const byKey = Object.fromEntries(pool.map((x) => [`${x.eventId}|${x.key}`, x]));
+  // Sin el partido ya empezado (b), el liquidado (d) ni el que ya salió en un sorteo (c).
+  assert.deepEqual(Object.keys(byKey).sort(), ['a|1X2|home|', 'a|OU|over|1.5', 'e|ML|home|']);
+  assert.deepEqual(byKey['a|OU|over|1.5'].methods, ['estadistico', 'red_neuronal'], 'el mismo pick de los dos análisis cuenta una vez');
+  assert.equal(byKey['e|ML|home|'].methods[0], 'otro', 'también entran los otros análisis');
+  assert.equal(byKey['a|OU|over|1.5'].date, '2026-10-18');
+
+  // Primero una por partido; si se piden más que partidos, se completan.
+  const two = drawRandom(pool, 2, rng(7));
+  assert.equal(two.length, 2);
+  assert.deepEqual(two.map((x) => x.eventId).sort(), ['a', 'e']);
+  const all = drawRandom(pool, 10, rng(7));
+  assert.equal(all.length, 3, 'no hay más que las disponibles');
+  assert.equal(new Set(all.map((x) => `${x.eventId}|${x.key}`)).size, 3, 'sin repetir');
+  assert.ok(all.every((x, i) => i === 0 || all[i - 1].start <= x.start), 'ordenadas por hora');
+  assert.deepEqual(drawRandom([], 5), []);
+  // Al azar: con muchas apuestas, cada una sale más o menos igual de seguido.
+  const big = Array.from({ length: 10 }, (_, i) => p(`m${i}`, 'OU|over|1.5', 'alta', later(1)));
+  const counts = {};
+  const r = rng(3);
+  for (let i = 0; i < 4000; i++) for (const x of drawRandom(big, 3, r)) counts[x.eventId] = (counts[x.eventId] || 0) + 1;
+  assert.ok(Object.values(counts).every((c) => c > 1000 && c < 1400), JSON.stringify(counts));
+});
+
+test('random bets: se siguen aparte y no se suman dos veces', async () => {
+  const { RANDOM } = await import('../docs/js/history.js');
+  const s = daySummary({
+    analyses: [
+      ...day.analyses,
+      { id: 'r1', method: RANDOM, created: '2026-10-02T16:00:00Z', picks: [pick(1, '1X2|home|', 'alta', 'won', 1.4), pick(3, 'DC|1X|', 'moderada_alta', 'pending', 1.3)], combos: [] },
+    ],
+  });
+  assert.equal(s.methods[RANDOM].n, 2);
+  assert.equal(s.methods[RANDOM].won, 1);
+  assert.equal(s.methods[RANDOM].byLevel.alta.won, 1);
+  assert.equal(s.n, 4, 'la suma del día es la de los análisis estadístico y de red neuronal');
+  assert.equal(s.pendingAll, 2, 'pero sus pendientes se liquidan');
+  const t = totals({ days: { '2026-10-02': s } });
+  assert.equal(t.methods[RANDOM].won, 1);
+});
