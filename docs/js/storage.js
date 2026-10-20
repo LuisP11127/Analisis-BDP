@@ -75,14 +75,15 @@ export const getInfo = () => info;
 export const canWrite = () => mode !== 'lectura';
 export const isGithub = () => mode.startsWith('github');
 
-// path: ruta lógica, p. ej. "data/historial/2026-10-02.json".
-export async function read(path) {
+// path: ruta lógica, p. ej. "data/historial/2026-10-02.json". fresh: en GitHub,
+// la última versión aunque se acabe de guardar.
+export async function read(path, { fresh = false } = {}) {
   if (mode === 'github-web') {
-    const file = await gh.getFile({ path: `docs/${path}` });
+    const file = await gh.getFile({ path: `docs/${path}`, fresh });
     return file ? JSON.parse(file.text) : null;
   }
   if (mode === 'github') {
-    const file = await ext.call('github', 'getFile', { path: `docs/${path}` }, { timeout: 60000 });
+    const file = await ext.call('github', 'getFile', { path: `docs/${path}`, fresh }, { timeout: 60000 });
     return file ? JSON.parse(file.text) : null;
   }
   if (mode === 'local') return (await idb('get', path)) ?? null;

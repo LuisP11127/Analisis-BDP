@@ -450,3 +450,22 @@ function evalSpec(spec, sel, line, rec) {
 export function profitOf(status, odds) {
   return { won: odds - 1, lost: -1, half_won: (odds - 1) / 2, half_lost: -0.5, void: 0 }[status] ?? 0;
 }
+
+// Combinada: perdida si falla una; las medias apuestas multiplican su parte
+// (media ganada: (cuota + 1) / 2; media perdida: 1/2).
+export function comboStatus(combo) {
+  const st = combo.legs.map((l) => l.status);
+  if (st.includes('lost')) return 'lost';
+  if (st.includes('pending')) return 'pending';
+  return st.some((x) => x === 'won' || x === 'half_won' || x === 'half_lost') ? 'won' : 'void';
+}
+
+// Cuota final de la combinada: sin las anuladas y con las medias apuestas.
+export function comboOdds(combo) {
+  return combo.legs.reduce((x, l) => {
+    if (l.status === 'void') return x;
+    if (l.status === 'half_won') return (x * (l.price + 1)) / 2;
+    if (l.status === 'half_lost') return x / 2;
+    return x * l.price;
+  }, 1);
+}

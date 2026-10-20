@@ -30,6 +30,7 @@ const OUT = path.resolve(process.argv[2] || 'site', 'data/fuente');
 const CACHE = path.resolve('.cache/h2h-v3'); // subir la versión si cambia getH2H
 const DETAIL_CACHE = path.resolve('.cache/detalle-v1'); // feeds de partidos terminados (no cambian)
 const HISTORY = path.resolve('docs/data/historial');
+const DEMO_BETS = path.resolve('docs/data/apuestas/demo.json');
 // Deportes con estadísticas por partido en Flashscore (para los mercados de estadísticas).
 const STAT_SPORTS = new Set(['football', 'basketball', 'ice-hockey', 'tennis', 'baseball', 'american-football', 'handball', 'rugby']);
 const TEAM_MATCHES = 8; // últimos partidos de cada equipo para sus estadísticas
@@ -118,14 +119,24 @@ async function analyzedEvents(days) {
       for (const [id, e] of Object.entries(a.events || {})) {
         if (!out.has(id) && e?.home && e?.away) out.set(id, { id, sport: e.sport, start: e.start, home: e.home, away: e.away });
       }
-      for (const leg of [...(a.picks || []), ...(a.combos || []).flatMap((k) => k.legs || [])]) {
-        if (out.has(String(leg.eventId)) || !leg.match) continue;
-        const [home, away] = leg.match.split(' vs ');
-        if (home && away) out.set(String(leg.eventId), { id: String(leg.eventId), sport: leg.sport, start: leg.start, home, away });
-      }
+      for (const leg of [...(a.picks || []), ...(a.combos || []).flatMap((k) => k.legs || [])]) addLeg(out, leg);
     }
   }
+  // Partidos de las apuestas demo (pestaña Apuestas) de esos días.
+  try {
+    const wallet = JSON.parse(await fs.readFile(DEMO_BETS, 'utf8'));
+    const from = Date.parse(`${days[0]}T00:00:00-05:00`);
+    for (const b of wallet.bets || []) for (const leg of b.legs || []) if (leg.start >= from) addLeg(out, leg);
+  } catch {
+    // sin apuestas demo
+  }
   return out;
+}
+
+function addLeg(out, leg) {
+  if (out.has(String(leg.eventId)) || !leg.match) return;
+  const [home, away] = leg.match.split(' vs ');
+  if (home && away) out.set(String(leg.eventId), { id: String(leg.eventId), sport: leg.sport, start: leg.start, home, away });
 }
 
 // Borra de la caché los feeds de más de 30 días.

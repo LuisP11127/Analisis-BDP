@@ -85,6 +85,24 @@ async function fixtures() {
   return { DAY, files };
 }
 
+// Un partido publicado (Apuesta Total) que también está en el Betano de la extensión simulada.
+async function betanoDay() {
+  const { compactDay } = await import(pathToFileURL(path.join(ROOT, 'docs/js/data-format.js')).href);
+  const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+  const ev = { id: 'fs:b1', sport: 'football', start: Date.parse(`${DAY}T05:00:00Z`) + 13 * 3600000, tournament: { id: 'premier-league', name: 'Premier League', priority: 1000 }, category: { name: 'INGLATERRA', alpha2: 'EN' }, home: { id: 'b1h', name: 'Arsenal' }, away: { id: 'b1a', name: 'Chelsea' }, state: 'pendiente', score: null };
+  const o = (sel, price) => ({ source: 'apuestatotal', market: '1X2', sel, line: null, price });
+  const football = compactDay({ date: DAY, sport: 'football', generated: new Date().toISOString(), events: [ev], offers: { 'fs:b1': [o('home', 1.5), o('draw', 4.2), o('away', 6)] } });
+  return { DAY, files: { 'indice.json': { generated: football.generated, today: DAY, days: { [DAY]: { football: { events: 1, withOdds: 1 } } } }, [`${DAY}/football.json`]: football } };
+}
+
+const toastIs = (page, re) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector('#toast').textContent), re.source, { timeout: 20000 });
+// Apuesta del boleto: borra el aviso anterior y espera el de esta apuesta.
+async function placeBet(page) {
+  await page.evaluate(() => (document.querySelector('#toast').textContent = ''));
+  await page.click('.sb-place');
+  await toastIs(page, /realizada|No se|Saldo insuficiente/);
+}
+
 // API de contenidos de GitHub en memoria.
 const BIG_FILE = 3000; // en la prueba, los archivos de más de 3 KB se tratan como los de más de 1 MB
 function githubMock(context) {
@@ -206,6 +224,38 @@ async function withoutExtension(browser, errors) {
   const methodLines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
   check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Estadístico,Red neuronal,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
   check('sin desplazamiento horizontal (historial con random bets, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
+
+  // Apuestas demo (celular, sin extensión): cuotas publicadas de Apuesta Total y S/ 10 000 de saldo.
+  await page.click('.tabs button[data-tab="apuestas"]');
+  await page.waitForSelector('.sb-ev');
+  check('apuestas demo: empieza con S/ 10 000', (await page.textContent('.sb-balance')).includes('10,000.00'), await page.textContent('.sb-balance'));
+  const sbRows = await page.$$eval('.sb-ev .sb-teams', (els) => els.map((e) => e.textContent));
+  check('apuestas demo: partidos por empezar con cuotas, por liga', sbRows.length === 3 && sbRows[0].includes('Arsenal'), sbRows.join(' | '));
+  await page.locator('.sb-ev').nth(0).locator('.sb-odds .odd').first().click();
+  await page.locator('.sb-ev').nth(1).locator('.sb-odds .odd').first().click();
+  check('apuestas demo: con dos partidos el boleto pasa a combinada', /2\s*Combinada/.test(await page.textContent('.sb-slipbar')), await page.textContent('.sb-slipbar'));
+  await page.click('.sb-slipbar');
+  await page.fill('.sb-slip .sb-stake input', '100');
+  await placeBet(page);
+  let demo = JSON.parse(repo.get('docs/data/apuestas/demo.json')?.text || '{}');
+  check(
+    'apuestas demo: la combinada se guarda en GitHub y descuenta el saldo',
+    demo.bets?.length === 1 && demo.bets[0].kind === 'combinada' && demo.bets[0].stake === 100 && demo.bets[0].legs.length === 2 && (await page.textContent('.sb-balance')).includes('9,900.00'),
+    `${await page.textContent('#toast')} · ${JSON.stringify(demo.bets?.map((b) => [b.kind, b.stake, b.legs.length]))}`,
+  );
+  await page.locator('.sb-more').nth(2).click();
+  await page.waitForSelector('.sb-mkt');
+  const sbMarkets = await page.$$eval('.sb-mkt-h span:first-child', (els) => els.map((e) => e.textContent));
+  check('apuestas demo: el partido muestra todos sus mercados', ['Resultado final', 'Doble oportunidad', 'Total de goles'].every((m) => sbMarkets.includes(m)), sbMarkets.join(' | '));
+  await page.click('.sb-mkt:has-text("Total de goles") .odd:has-text("Más de 2.5")');
+  await page.click('.sb-slipbar');
+  await page.fill('.sb-slip .sb-stake input', '50');
+  await placeBet(page);
+  demo = JSON.parse(repo.get('docs/data/apuestas/demo.json').text);
+  check('apuestas demo: una simple a más de 2.5 goles', demo.bets.length === 2 && demo.bets[1]?.kind === 'simple' && demo.bets[1]?.legs[0].market === 'OU' && demo.bets[1]?.legs[0].line === 2.5 && (await page.textContent('.sb-balance')).includes('9,850.00'), JSON.stringify(demo.bets[1]?.legs?.[0]).slice(0, 160));
+  check('sin desplazamiento horizontal (apuestas, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
+  await page.screenshot({ path: path.join(OUT, '9-celular-apuestas.png'), fullPage: false });
+  await page.click('.tabs button[data-tab="historial"]');
   await page.evaluate(() => (Date.now = window.realNow));
 
   await page.evaluate(() => {
@@ -227,6 +277,13 @@ async function withoutExtension(browser, errors) {
   check('los resultados quedan en GitHub', JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.every((a) => a.picks.every((p) => p.status !== 'pending')));
   const index = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY];
   check('el resumen guarda los resultados de cada método', index.methods.estadistico.won + index.methods.estadistico.lost > 0 && index.methods.red_neuronal.won + index.methods.red_neuronal.lost > 0, JSON.stringify(index.methods).slice(0, 160));
+  demo = JSON.parse(repo.get('docs/data/apuestas/demo.json').text);
+  const [combo, single] = demo.bets;
+  check(
+    'apuestas demo: se liquidan con "Actualizar resultados" y pagan',
+    combo.status === 'won' && Math.abs(combo.payout - Math.round(100 * combo.legs[0].price * combo.legs[1].price * 100) / 100) < 0.011 && single.status === 'lost' && single.payout === 0 && /2 apuestas demo liquidadas/.test(toast),
+    `${toast} · ${JSON.stringify(demo.bets.map((b) => [b.kind, b.status, b.payout]))}`,
+  );
   check('random bets: se liquidan con los demás y se siguen aparte', index.methods.aleatorio?.n === drawn.length && index.methods.aleatorio.pending === 0 && index.n === index.methods.estadistico.n + index.methods.red_neuronal.n, JSON.stringify(index.methods.aleatorio));
   await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
   check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
@@ -368,6 +425,35 @@ async function withoutExtension(browser, errors) {
     check('resultados por nivel de cada método', panels.includes('Análisis estadístico') && panels.includes('Análisis con red neuronal'), panels.join(', '));
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);
+
+    // 5b) Apuestas demo con la extensión: cuotas de Betano y todos sus mercados.
+    const bday = await betanoDay();
+    await context.route('**/data/fuente/**', (route) => {
+      const rel = new globalThis.URL(route.request().url()).pathname.split('/data/fuente/')[1];
+      return bday.files[rel] ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bday.files[rel]) }) : route.fulfill({ status: 404, body: '' });
+    });
+    await page.evaluate((t) => {
+      window.realNow = Date.now.bind(Date);
+      Date.now = () => t;
+    }, Date.parse(`${bday.DAY}T06:00:00Z`));
+    await page.click('.tabs button[data-tab="apuestas"]');
+    await page.waitForSelector('.sb-ev');
+    await page.waitForFunction(() => /Cuotas de Betano en 1 partidos/.test(document.querySelector('.sb-src')?.textContent || ''), null, { timeout: 20000 }).catch(() => {});
+    check('apuestas demo: con la extensión usa las cuotas de Betano', /Cuotas de Betano en 1 partidos/.test(await page.textContent('.sb-src')), await page.textContent('.sb-src'));
+    await page.click('.sb-more');
+    await page.waitForFunction(() => /todos los mercados\)/.test(document.querySelector('.sb-evhead')?.textContent || ''), null, { timeout: 20000 }).catch(() => {});
+    const bTabs = await page.$$eval('.sb-tabs button', (els) => els.map((e) => e.textContent));
+    check('apuestas demo: todos los mercados de Betano, por pestañas', ['Principales', 'Mitades', 'Córners', 'Tarjetas'].every((t) => bTabs.includes(t)) && /todos los mercados\)/.test(await page.textContent('.sb-evhead')), bTabs.join(' | '));
+    await page.click('.sb-tabs button:has-text("Córners")');
+    await page.locator('.sb-mkt .odd').first().click();
+    await page.fill('.sb-slip .sb-stake input', '25');
+    await placeBet(page);
+    const localDemo = await page.evaluate(async () => (await import(new URL('js/storage.js', location.href).href)).read('data/apuestas/demo.json'));
+    const bLeg = localDemo?.bets?.[0]?.legs?.[0];
+    check('apuestas demo: sin token se guardan en el navegador (córners de Betano)', localDemo?.bets?.length === 1 && bLeg.source === 'betano' && String(bLeg.market).startsWith('OU.corners') && localDemo.bets[0].stake === 25, JSON.stringify(bLeg).slice(0, 180));
+    await page.screenshot({ path: path.join(OUT, '5b-apuestas-betano.png'), fullPage: false });
+    await page.evaluate(() => (Date.now = window.realNow));
+    await page.click('.tabs button[data-tab="historial"]');
 
     // 6) Celular
     await page.setViewportSize({ width: 390, height: 844 });

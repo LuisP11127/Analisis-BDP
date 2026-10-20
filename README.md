@@ -58,6 +58,21 @@ resultados. Funciona en el **celular y en la PC**:
   sortear, copiarlas o *guardarlas en el seguimiento*: se liquidan con
   *Actualizar resultados* y se siguen aparte (línea «Random» en cada día y su
   tabla de aciertos, ganancia y ROI), sin sumarse a los otros análisis.
+- **Apuestas (demo)**: una casa de apuestas con dinero ficticio, ordenada como
+  Betano. Empiezas con **S/ 10 000** y puedes reiniciar el saldo cuando quieras
+  (las apuestas anteriores quedan archivadas).
+  - Deportes y ligas a la izquierda, partidos de hoy y mañana con sus cuotas
+    1-X-2 al centro y el boleto a la derecha (en el celular, una barra abajo).
+  - Cada partido abre todos sus mercados por pestañas: Principales, Goles,
+    Hándicaps, Mitades, Córners, Tarjetas, Marcador, Combinadas, etc.
+  - Cuotas: las de Apuesta Total que publica GitHub Actions y, con la extensión
+    en la PC, las de Betano (con todos los mercados de la página del partido).
+  - Simples o combinada (sin repetir partido), con monto y ganancia potencial.
+    Solo antes de que empiece el partido.
+  - *Mis apuestas* muestra las abiertas y las liquidadas, con el saldo y la
+    ganancia neta. Se liquidan con *Actualizar resultados*, con los mismos datos
+    que los picks (córners y tarjetas incluidos); si nadie publica el dato, se
+    anulan y se devuelve el monto. Se guardan en `docs/data/apuestas/demo.json`.
 
 Los niveles, la cuota mínima, las cuotas objetivo de las combinadas, **qué tipos
 de mercado pueden salir como pick** (principales, periodos, estadísticas,

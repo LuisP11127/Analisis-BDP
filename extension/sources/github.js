@@ -77,9 +77,9 @@ async function readMeta(cfg, path, fresh = false) {
 }
 
 // Devuelve { text, sha } o null si el archivo no existe.
-export async function getFile({ path }) {
+export async function getFile({ path, fresh = false }) {
   const cfg = await getConfig();
-  const meta = await readMeta(cfg, path);
+  const meta = await readMeta(cfg, path, fresh);
   if (!meta) return null;
   if (meta.content && meta.encoding === 'base64') return { text: fromBase64(meta.content), sha: meta.sha };
   // Archivos de más de 1 MB: la API no incluye el contenido; se lee el "blob"
