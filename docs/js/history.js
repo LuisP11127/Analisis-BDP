@@ -7,6 +7,7 @@
 //   data/historial/AAAA-MM-DD.json    análisis del día con sus picks y combinadas
 //   data/entrenamiento/AAAA-MM.json   selecciones analizadas + resultado real (para la red)
 //   data/modelo/red-neuronal.json     pesos de la red neuronal
+import * as bets from './bets.js';
 import * as ext from './ext.js';
 import * as provider from './provider.js';
 import * as store from './storage.js';
@@ -14,7 +15,7 @@ import { addDays, groupBy, limaDateOf, limaToday } from './util.js';
 import { FEATURE_VERSION, FEATURES, upgradeFeatures } from './analysis/features.js';
 import { settle } from './analysis/markets.js';
 import { parseMarketId } from './analysis/catalog.js';
-import { profitOf } from './analysis/outcomes.js';
+import { comboOdds, comboStatus, profitOf } from './analysis/outcomes.js';
 import { mergeRecords, recordFromSofascore } from './analysis/records.js';
 import { flashscoreRecords } from './flashscore-link.js';
 import { Corrector, isResult } from './analysis/neural.js';
@@ -288,7 +289,7 @@ export const emptyMethodStats = methodStats;
 
 export const hitRate = (s) => (s.won + s.lost ? s.won / (s.won + s.lost) : null);
 export const roi = (s) => (s.staked ? s.profit / s.staked : null);
-export { LEVELS };
+export { LEVELS, comboOdds, comboStatus };
 
 // ---- Random bets ----
 
@@ -394,24 +395,6 @@ function resolveLeg(leg, results, now) {
   return true;
 }
 
-// Combinada: perdida si falla una; las medias apuestas multiplican su parte
-// (media ganada: (cuota + 1) / 2; media perdida: 1/2).
-export function comboStatus(combo) {
-  const st = combo.legs.map((l) => l.status);
-  if (st.includes('lost')) return 'lost';
-  if (st.includes('pending')) return 'pending';
-  return st.some((x) => x === 'won' || x === 'half_won' || x === 'half_lost') ? 'won' : 'void';
-}
-
-// Cuota final de la combinada: sin las anuladas y con las medias apuestas.
-export function comboOdds(combo) {
-  return combo.legs.reduce((x, l) => {
-    if (l.status === 'void') return x;
-    if (l.status === 'half_won') return (x * (l.price + 1)) / 2;
-    if (l.status === 'half_lost') return x / 2;
-    return x * l.price;
-  }, 1);
-}
 
 const monthsBack = (n) => {
   const out = [];
@@ -447,6 +430,11 @@ export async function updateResults({ onProgress = () => {} } = {}) {
       }
     }
   }
+  // Apuestas demo abiertas (pestaña Apuestas): se liquidan con los mismos resultados.
+  const wallet = await bets.loadWallet().catch(() => null);
+  const demoLegs = bets.pendingLegs(wallet);
+  for (const leg of demoLegs) if (due(leg)) (ids.add(leg.eventId), note(leg));
+  const legs = [...dayFiles.flatMap((day) => day.analyses.flatMap((a) => [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)])), ...demoLegs];
   const rowFiles = [];
   for (const month of monthsBack(2)) {
     const file = await readRows(month);
@@ -465,17 +453,15 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   // Partidos con apuestas que necesitan estadísticas o incidencias, y su deporte.
   const detailIds = new Set();
   const sports = new Map();
-  for (const day of dayFiles)
-    for (const a of day.analyses)
-      for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) {
-        sports.set(leg.eventId, leg.sport);
-        if (due(leg) && needsRecord(leg.market)) detailIds.add(leg.eventId);
-      }
+  for (const leg of legs) {
+    sports.set(leg.eventId, leg.sport);
+    if (due(leg) && needsRecord(leg.market)) detailIds.add(leg.eventId);
+  }
   for (const { file } of rowFiles) for (const r of file.rows) if (r.y == null && needsRecord(r.market)) (detailIds.add(r.eventId), sports.set(r.eventId, r.sport));
   // Partidos automáticos (Flashscore): resultados publicados cada 2 horas.
   const auto = list.filter(provider.isAuto);
   const starts = new Map();
-  for (const day of dayFiles) for (const a of day.analyses) for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) starts.set(leg.eventId, leg.start);
+  for (const leg of legs) starts.set(leg.eventId, leg.start);
   for (const { file } of rowFiles) for (const r of file.rows) starts.set(r.eventId, r.start);
   const dates = new Set(auto.filter((id) => Number.isFinite(starts.get(id))).flatMap((id) => [limaDateOf(starts.get(id)), limaDateOf(starts.get(id) + 86400000)]));
   if (auto.length) onProgress('Resultados publicados', 0.1);
@@ -510,11 +496,10 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   // Con la extensión: registros de Flashscore de los partidos de Sofascore que
   // los necesitan y que GitHub Actions no publicó (historial solo en el navegador).
   if (ext.available()) {
-    const legs = [];
-    for (const day of dayFiles) for (const a of day.analyses) for (const leg of [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)]) if (due(leg) && !provider.isAuto(leg.eventId) && detailIds.has(leg.eventId) && !fsRecords[leg.eventId]) legs.push(leg);
-    if (legs.length) {
+    const wanted = legs.filter((leg) => due(leg) && !provider.isAuto(leg.eventId) && detailIds.has(leg.eventId) && !fsRecords[leg.eventId]);
+    if (wanted.length) {
       onProgress('Flashscore: estadísticas de los partidos', 0.72);
-      for (const [id, rec] of await flashscoreRecords(legs)) fsRecords[id] = rec;
+      for (const [id, rec] of await flashscoreRecords(wanted)) fsRecords[id] = rec;
     }
   }
   // Sofascore + Flashscore: se juntan los dos registros del partido.
@@ -548,6 +533,14 @@ export async function updateResults({ onProgress = () => {} } = {}) {
       changedDays.push(day);
     }
   }
+  // Apuestas demo: se liquidan las selecciones y, con ellas, cada apuesta.
+  let demo = 0;
+  let demoChanged = false;
+  for (const leg of demoLegs) if (resolveLeg(leg, results, now)) demoChanged = true;
+  if (demoChanged) {
+    demo = bets.settleWallet(wallet);
+    await bets.saveSettled(wallet);
+  }
   let newRows = 0;
   for (const { month, file } of rowFiles) {
     let changed = false;
@@ -573,7 +566,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
     network = await trainNetwork();
   }
   onProgress('Listo', 1);
-  return { checked: list.length, resolved, newRows, skipped, network: network?.meta || null };
+  return { checked: list.length, resolved, demo, newRows, skipped, network: network?.meta || null };
 }
 
 // ---- Red neuronal ----

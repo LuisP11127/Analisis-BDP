@@ -7,6 +7,7 @@ import * as history from './history.js';
 import { analyzeMany } from './analysis/engine.js';
 import { DEFAULT_SETTINGS, MARKET_GROUPS } from './analysis/picks.js';
 import { addDays, clamp, h, limaToday } from './util.js';
+import { ApuestasView } from './views/apuestas.js';
 import { PartidosView } from './views/partidos.js';
 import { analysisText, renderAnalisis } from './views/analisis.js';
 import { RANDOM_MAX, randomText, renderHistorial } from './views/historial.js';
@@ -68,6 +69,8 @@ function toast(text, ms = 3500) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
+
+app.toast = toast;
 
 function busy(title, text = '', fraction = 0) {
   $('#busy').hidden = false;
@@ -140,12 +143,15 @@ function render() {
   if (app.state.tab === 'partidos') views.partidos.render();
   if (app.state.tab === 'analisis') renderAnalisis($('#tab-analisis'), app);
   if (app.state.tab === 'historial') renderHistorial($('#tab-historial'), app);
+  if (app.state.tab === 'apuestas') views.apuestas.render();
 }
 
 function showTab(tab) {
   app.state.tab = tab;
   for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('active', b.dataset.tab === tab);
-  for (const t of ['partidos', 'analisis', 'historial']) $(`#tab-${t}`).hidden = t !== tab;
+  for (const t of ['partidos', 'analisis', 'historial', 'apuestas']) $(`#tab-${t}`).hidden = t !== tab;
+  document.body.classList.toggle('tab-apuestas', tab === 'apuestas');
+  if (tab === 'apuestas' && views.apuestas.s.status === 'idle') return views.apuestas.load();
   render();
 }
 
@@ -321,6 +327,7 @@ app.reloadHistory = async () => {
     toast(`No se pudo leer el historial: ${e.message}`, 6000);
   }
   for (const date of app.state.openDays) loadDay(date);
+  if (views.apuestas?.s.walletLoaded) await views.apuestas.loadWallet(); // saldo y apuestas demo al día
   render();
 };
 
@@ -421,6 +428,7 @@ app.updateResults = async () => {
     await app.reloadHistory();
     const parts = [
       r.checked ? `Resultados: ${r.resolved} apuestas liquidadas` : 'No hay partidos terminados pendientes de liquidar',
+      r.demo ? `${r.demo} apuestas demo liquidadas` : '',
       r.network ? (r.network.reason ? `red neuronal: ${r.network.reason.toLowerCase()}` : `red neuronal reentrenada con ${r.network.samples} resultados`) : '',
       r.skipped ? `${r.skipped} partidos de Sofascore esperan a la extensión` : '',
     ];
@@ -560,6 +568,7 @@ function closeSettings(action) {
 
 async function init() {
   views.partidos = new PartidosView($('#tab-partidos'), app);
+  views.apuestas = new ApuestasView($('#tab-apuestas'), app);
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => showTab(b.dataset.tab));
   $('#date').addEventListener('change', (e) => e.target.value && setDate(e.target.value));
   $('#prev-day').addEventListener('click', () => setDate(addDays(app.state.date, -1)));
