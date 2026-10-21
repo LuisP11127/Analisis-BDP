@@ -285,6 +285,19 @@ async function withoutExtension(browser, errors) {
     `${toast} · ${JSON.stringify(demo.bets.map((b) => [b.kind, b.status, b.payout]))}`,
   );
   check('random bets: se liquidan con los demás y se siguen aparte', index.methods.aleatorio?.n === drawn.length && index.methods.aleatorio.pending === 0 && index.n === index.methods.estadistico.n + index.methods.red_neuronal.n, JSON.stringify(index.methods.aleatorio));
+
+  // Resumen pisado con una copia vieja (resultados como pendientes): "Actualizar resultados" lo repara.
+  const idxFile = repo.get('docs/data/historial/index.json');
+  const good = JSON.parse(idxFile.text);
+  const bad = structuredClone(good);
+  Object.assign(bad.days[DAY].methods.estadistico, { won: 0, lost: 0, pending: good.days[DAY].methods.estadistico.n });
+  bad.days[DAY].pendingAll = good.days[DAY].methods.estadistico.n;
+  repo.set('docs/data/historial/index.json', { text: JSON.stringify(bad), sha: `${idxFile.sha}-viejo` });
+  await page.evaluate(() => (document.querySelector('#toast').textContent = ''));
+  await page.click('#tab-historial >> text=Actualizar resultados');
+  await toastIs(page, /Resultados:|No hay partidos|No se pudieron/);
+  const healed = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY].methods.estadistico;
+  check('un resumen pisado se repara al actualizar resultados', healed.won === good.days[DAY].methods.estadistico.won && healed.pending === 0, JSON.stringify(healed).slice(0, 120));
   await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
   check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
   // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.

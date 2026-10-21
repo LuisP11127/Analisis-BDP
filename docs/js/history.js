@@ -28,7 +28,9 @@ export const rowsPath = (month) => `data/entrenamiento/${month}.json`;
 
 export const RANDOM = 'aleatorio'; // random bets: picks sorteados de los otros análisis
 const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets' };
-const SUMMARY_VERSION = 2; // resúmenes por método (los anteriores se recalculan)
+// Resúmenes por método; los de otra versión se recalculan desde el archivo de
+// cada día (3: repara resúmenes pisados con una copia vieja de GitHub).
+const SUMMARY_VERSION = 3;
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
 const NO_DATA_MS = 96 * 3600000; // terminado sin los datos de esa apuesta (p. ej. córners): nula tras 4 días
@@ -121,8 +123,8 @@ export function trainingRows(result) {
 
 // Archivo de filas de un mes. Si existe pero no trae la lista de filas (lectura
 // incompleta), se corta: guardar encima borraría los resultados ya aprendidos.
-async function readRows(month) {
-  const file = await store.read(rowsPath(month));
+async function readRows(month, { fresh = false } = {}) {
+  const file = await store.read(rowsPath(month), { fresh });
   if (file && !Array.isArray(file.rows)) throw new Error(`No se pudo leer bien ${rowsPath(month)}; no se guardó nada para no perder datos`);
   return file;
 }
@@ -144,13 +146,13 @@ export async function saveAnalysis(input) {
   const { date } = results[0];
   const stored = results.map(compactAnalysis);
   const ids = new Set(stored.map((a) => a.id));
-  const day = (await store.read(dayPath(date))) || { date, analyses: [] };
+  const day = (await store.read(dayPath(date), { fresh: true })) || { date, analyses: [] };
   day.analyses = day.analyses.filter((a) => !ids.has(a.id)).concat(stored);
   const names = results.map((r) => METHOD_NAME[r.method]).join(' y ');
   await store.write(dayPath(date), day, `Historial: análisis ${names} del ${date}`);
 
   for (const [month, rows] of groupBy(results.flatMap(trainingRows), (r) => r.date.slice(0, 7))) {
-    const file = (await readRows(month)) || { rows: [] };
+    const file = (await readRows(month, { fresh: true })) || { rows: [] };
     file.rows = mergeRows(file.rows, rows);
     await store.write(rowsPath(month), file, `Entrenamiento: selecciones del ${date}`);
   }
@@ -238,7 +240,7 @@ async function upgradeIndex(index) {
   let changed = false;
   for (const date of Object.keys(index.days || {})) {
     if (index.days[date].v === SUMMARY_VERSION) continue;
-    const day = await store.read(dayPath(date));
+    const day = await store.read(dayPath(date), { fresh: true });
     if (!day) continue;
     index.days[date] = daySummary(day);
     changed = true;
@@ -246,8 +248,11 @@ async function upgradeIndex(index) {
   return changed;
 }
 
-export async function loadIndex({ upgrade = false } = {}) {
-  const index = (await store.read(INDEX)) || { days: {}, updated: null };
+// fresh: la última versión de GitHub (siempre que se va a volver a guardar:
+// justo después de un guardado, GitHub puede devolver unos segundos la copia
+// anterior y se perderían los resultados recién guardados).
+export async function loadIndex({ upgrade = false, fresh = upgrade } = {}) {
+  const index = (await store.read(INDEX, { fresh })) || { days: {}, updated: null };
   if (upgrade && (await upgradeIndex(index)) && store.canWrite()) {
     index.updated = new Date().toISOString();
     await store.write(INDEX, index, 'Historial: resumen por método').catch(() => {});
@@ -256,7 +261,7 @@ export async function loadIndex({ upgrade = false } = {}) {
 }
 
 async function refreshIndex(days) {
-  const index = await loadIndex();
+  const index = await loadIndex({ fresh: true });
   await upgradeIndex(index);
   for (const day of days) index.days[day.date] = daySummary(day);
   index.updated = new Date().toISOString();
@@ -345,7 +350,7 @@ export async function saveRandomDraw(picks, { requested = picks.length, pool = p
   const days = [];
   let saved = 0;
   for (const [date, list] of groupBy(picks, (p) => p.date)) {
-    const day = await store.read(dayPath(date));
+    const day = await store.read(dayPath(date), { fresh: true });
     if (!day) continue;
     const drawn = new Set(day.analyses.filter((a) => a.method === RANDOM).flatMap((a) => a.picks.map(pickKey)));
     const fresh = list.filter((p) => p.start > now && !drawn.has(pickKey(p)));
@@ -409,7 +414,7 @@ const monthsBack = (n) => {
 export async function updateResults({ onProgress = () => {} } = {}) {
   const now = Date.now();
   const today = limaToday();
-  const index = await loadIndex();
+  const index = await loadIndex({ fresh: true });
   let skipped = 0; // partidos de Sofascore sin la extensión
   const due = (x) => x.status === 'pending' && x.start < now - GRACE_MS;
 
@@ -419,7 +424,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   const urls = {}; // para leer la página del partido si el API de Sofascore no responde
   const note = (x) => x.url && (urls[x.eventId] = x.url);
   for (const date of Object.keys(index.days).filter((d) => d <= today && index.days[d].pendingAll > 0)) {
-    const day = await store.read(dayPath(date));
+    const day = await store.read(dayPath(date), { fresh: true });
     if (!day) continue;
     dayFiles.push(day);
     for (const a of day.analyses) {
@@ -437,7 +442,7 @@ export async function updateResults({ onProgress = () => {} } = {}) {
   const legs = [...dayFiles.flatMap((day) => day.analyses.flatMap((a) => [...a.picks, ...(a.combos || []).flatMap((k) => k.legs)])), ...demoLegs];
   const rowFiles = [];
   for (const month of monthsBack(2)) {
-    const file = await readRows(month);
+    const file = await readRows(month, { fresh: true });
     if (!file) continue;
     rowFiles.push({ month, file });
     for (const r of file.rows) {
@@ -558,7 +563,10 @@ export async function updateResults({ onProgress = () => {} } = {}) {
     }
     if (changed) await store.write(rowsPath(month), file, `Entrenamiento: resultados de ${month}`);
   }
-  if (changedDays.length) await refreshIndex(changedDays);
+  // Días cuyo resumen no coincide con su archivo (p. ej. pisado por una copia
+  // vieja): se vuelve a calcular aunque no haya resultados nuevos.
+  const stale = dayFiles.filter((d) => !changedDays.includes(d) && JSON.stringify(daySummary(d)) !== JSON.stringify(index.days[d.date]));
+  if (changedDays.length || stale.length) await refreshIndex([...changedDays, ...stale]);
 
   let network = null;
   if (newRows) {
@@ -580,7 +588,7 @@ export async function loadNetwork() {
 export async function trainNetwork() {
   const rows = [];
   for (const month of monthsBack(6)) {
-    const file = await readRows(month);
+    const file = await readRows(month, { fresh: true });
     for (const r of file?.rows || []) {
       if (!isResult(r.y)) continue;
       const x = upgradeFeatures(r.x, r.fv);
@@ -602,7 +610,7 @@ export async function uploadLocalToGithub({ onProgress = () => {} } = {}) {
   for (const [i, path] of paths.entries()) {
     onProgress(`Subiendo ${path}`, i / Math.max(1, paths.length));
     const local = await store.readLocal(path);
-    const remote = await store.read(path);
+    const remote = await store.read(path, { fresh: true });
     if (path.startsWith('data/historial/')) {
       const merged = remote || { date: local.date, analyses: [] };
       const ids = new Set(merged.analyses.map((a) => a.id));
