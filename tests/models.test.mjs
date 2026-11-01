@@ -77,3 +77,17 @@ test('tenis: el ranking pesa', () => {
 test('sin datos no hay modelo', () => {
   assert.equal(goalsModel(ev('football'), { lastHome: [], lastAway: weak }, sportOf('football'), {}), null);
 });
+
+test('córners solo con hándicap: el promedio no se dispara y el cálculo termina', async () => {
+  const { fitStatMeans } = await import('../docs/js/analysis/calibrate.js');
+  const prior = { h: 5.2, a: 4.6, k: 12, n: 0 };
+  const p = new Map([
+    ['HCP.corners|home|1.5', 0.48],
+    ['HCP.corners|away|1.5', 0.52],
+  ]);
+  const t = Date.now();
+  const out = fitStatMeans({ corners: prior }, p).corners;
+  assert.ok(Date.now() - t < 2000, `tardó ${Date.now() - t} ms`);
+  assert.ok(out.h > 1 && out.h < 21 && out.a > 1 && out.a < 19, JSON.stringify(out));
+  assert.ok(Math.abs(out.h + out.a - (prior.h + prior.a)) < 4, 'el total queda cerca del de los equipos');
+});

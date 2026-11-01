@@ -168,7 +168,16 @@ export function fitStatMeans(priors, pMarket) {
       continue;
     }
     const max = (m) => Math.ceil(m + 8 * Math.sqrt(m * (1 + m / (prior.k || 1e9))) + 5);
-    const loss = ([a, b]) => {
+    // Solo con hándicap (o 1X2) la casa fija la diferencia pero no el total: sin
+    // ancla los promedios crecían sin límite (miles de córners) y el cálculo no
+    // terminaba. El total se ancla a los equipos y los promedios no salen de ×4.
+    const la = Math.log(prior.h);
+    const lb = Math.log(prior.a);
+    const hasTotal = targets.some((t) => t.spec.t === 'OU' || t.spec.t === 'OU3');
+    const bound = (x, l) => clamp(x, l - Math.log(4), l + Math.log(4));
+    const loss = ([a0, b0]) => {
+      const a = bound(a0, la);
+      const b = bound(b0, lb);
       const mh = Math.exp(a);
       const ma = Math.exp(b);
       const ph = nbPmf(mh, prior.k, max(mh));
@@ -177,9 +186,12 @@ export function fitStatMeans(priors, pMarket) {
       for (const t of targets) s += (logit(clamp(statProb(t.spec, t.sel, t.line, ph, pa), 0.002, 0.998)) - logit(t.p)) ** 2;
       // Con un solo tipo de mercado (p. ej. solo el total) se respeta el reparto de los equipos.
       s += 0.3 * (a - b - Math.log(prior.h / prior.a)) ** 2;
+      if (!hasTotal) s += 0.3 * (a + b - la - lb) ** 2;
       return s;
     };
-    const [a, b] = minimize(loss, [Math.log(prior.h), Math.log(prior.a)], [0.12, 0.12], 60);
+    const fit = minimize(loss, [la, lb], [0.12, 0.12], 60);
+    const a = bound(fit[0], la);
+    const b = bound(fit[1], lb);
     // Mezcla en escala log: con datos de los equipos pesa 25 %; sin datos, casi todo el mercado.
     const w = prior.n >= 4 ? 0.75 : 0.9;
     out[name] = { ...prior, h: Math.exp(w * a + (1 - w) * Math.log(prior.h)), a: Math.exp(w * b + (1 - w) * Math.log(prior.a)), market: true };

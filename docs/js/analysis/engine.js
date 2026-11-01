@@ -420,6 +420,17 @@ async function publishedData(events, details, sources, progress) {
   return out;
 }
 
+// Espera a que la página se dibuje; con la pestaña oculta (sin cuadros) o en
+// Node sigue a los 50 ms.
+function nextFrame() {
+  return new Promise((resolve) => {
+    let done = false;
+    const go = () => !done && ((done = true), setTimeout(resolve, 0));
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go);
+    setTimeout(go, 50);
+  });
+}
+
 export const METHODS = ['estadistico', 'red_neuronal'];
 
 // events: partidos seleccionados (de Sofascore o automáticos). Junta los datos
@@ -478,7 +489,7 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
   let simulated = 0;
   for (const [i, ev] of pending.entries()) {
     onProgress(`Calculando probabilidades ${i + 1} de ${pending.length}`, 0.86 + (0.12 * i) / Math.max(1, pending.length));
-    await new Promise((r) => setTimeout(r, 0)); // deja que la página se actualice
+    await nextFrame(); // deja que la página muestre el avance antes del cálculo
     const sofaOffers = offersFromSofascore(details[ev.id]?.odds, ev);
     const all = [...sofaOffers, ...(offers.get(ev.id) || [])];
     // xG: Understat o, si no, el promedio de Flashscore de los últimos partidos.
