@@ -507,9 +507,12 @@ export function parseMarket(rawName, selections = [], ctx = {}) {
         const line = side === 'away' ? -value : value;
         add(spec, side, line, s);
       }
-      // En hándicap con empate todas las selecciones comparten la línea del local.
-      if (type === 'HCP3') {
-        const homeLine = out.find((o) => o.sel === 'home')?.line ?? (out.find((o) => o.sel === 'draw')?.line);
+      // En hándicap con empate las tres selecciones de cada línea comparten la del
+      // local ("Local -1", "Empate, Local -1", "Visita +1"). Si el mercado trae
+      // varias líneas (Apuesta Total pone -1, -2, -3... juntas) cada selección
+      // conserva la suya; solo con una línea se unifica.
+      if (type === 'HCP3' && new Set(out.map((o) => o.line)).size === 1) {
+        const homeLine = out.find((o) => o.sel === 'home')?.line ?? out.find((o) => o.sel === 'draw')?.line;
         for (const o of out) o.line = homeLine;
       }
       break;
@@ -1089,7 +1092,8 @@ export function labelOf(market, sel, line, sport, names = {}) {
       text = `${side(s)} ${fmt(s === 'home' ? line : -line)} (hándicap${spec.stat !== 'score' ? ` de ${what}` : ''})`;
       break;
     case 'HCP3':
-      text = `Hándicap ${home} ${fmt(line)}: ${s === 'draw' ? 'empate' : side(s)}`;
+      // Como lo escribe la casa: "Borac -2", "Empate, Mjallby +2" (hándicap 1x2).
+      text = `${s === 'home' ? `${home} ${fmt(line)}` : s === 'away' ? `${away} ${fmt(-line)}` : `Empate, ${home} ${fmt(line)}`} (hándicap 1x2${spec.stat !== 'score' ? ` de ${what}` : ''})`;
       break;
     case 'BTTS':
       text = `${spec.stat === 'score' ? 'Ambos marcan' : `Ambos con ${what}`}${spec.n ? ` ${spec.n}+` : ''}: ${yes(s)}`;
