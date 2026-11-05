@@ -507,9 +507,12 @@ export function parseMarket(rawName, selections = [], ctx = {}) {
         const line = side === 'away' ? -value : value;
         add(spec, side, line, s);
       }
-      // En hándicap con empate todas las selecciones comparten la línea del local.
-      if (type === 'HCP3') {
-        const homeLine = out.find((o) => o.sel === 'home')?.line ?? (out.find((o) => o.sel === 'draw')?.line);
+      // En hándicap con empate las tres selecciones de cada línea comparten la del
+      // local ("Local -1", "Empate, Local -1", "Visita +1"). Si el mercado trae
+      // varias líneas (Apuesta Total pone -1, -2, -3... juntas) cada selección
+      // conserva la suya; solo con una línea se unifica.
+      if (type === 'HCP3' && new Set(out.map((o) => o.line)).size === 1) {
+        const homeLine = out.find((o) => o.sel === 'home')?.line ?? out.find((o) => o.sel === 'draw')?.line;
         for (const o of out) o.line = homeLine;
       }
       break;

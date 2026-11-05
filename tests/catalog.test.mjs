@@ -130,3 +130,18 @@ test('etiquetas en español para cualquier mercado', () => {
   assert.equal(labelOf('HCP', 'away', 1.5, 'football', names), 'Alianza -1.5 (hándicap)');
   assert.equal(labelOf('OU@i1-5', 'under', 4.5, 'baseball', names), 'Menos de 4.5 carreras (primeras 5 entradas)');
 });
+
+test('hándicap 1x2 con varias líneas en el mismo mercado (Apuesta Total)', async () => {
+  const { parseMarket } = await import('../docs/js/analysis/catalog.js');
+  const names = ['Local FC -2', 'Empate, Local FC -2', 'Visita FC +2', 'Local FC -1', 'Empate, Local FC -1', 'Visita FC +1'];
+  const r = parseMarket('Hándicap 1x2', names.map((name, i) => ({ name, price: 2 + i, line: 0 })), { sport: 'football', home: 'Local FC', away: 'Visita FC' });
+  assert.deepEqual(r.outcomes.map((o) => `${o.sel} ${o.line}`), ['home -2', 'draw -2', 'away -2', 'home -1', 'draw -1', 'away -1']);
+  const { evaluate } = await import('../docs/js/analysis/outcomes.js');
+  const rec = (h, a) => ({ sport: 'football', state: 'finalizado', final: [h, a], per: [[h, a], [0, 0]], nReg: 2 });
+  // Local -1: gana por 2 o más; empate -1: gana por 1 exacto; visita +1: el local no gana.
+  assert.equal(evaluate('HCP3', 'home', -1, rec(2, 0)), 'won');
+  assert.equal(evaluate('HCP3', 'home', -1, rec(1, 0)), 'lost');
+  assert.equal(evaluate('HCP3', 'draw', -1, rec(1, 0)), 'won');
+  assert.equal(evaluate('HCP3', 'away', -1, rec(1, 1)), 'won');
+  assert.equal(evaluate('HCP3', 'away', -1, rec(1, 0)), 'lost');
+});

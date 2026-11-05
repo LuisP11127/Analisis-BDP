@@ -275,6 +275,7 @@ function legLine(l, extra = []) {
     h('b', {}, l.label),
     h('span', { class: 'note' }, score),
     l.noData ? h('span', { class: 'note' }, ' · sin datos para liquidarla') : null,
+    l.badLine ? h('span', { class: 'note' }, ' · anulada: la línea de Apuesta Total se leyó mal') : null,
   );
 }
 
