@@ -1092,7 +1092,8 @@ export function labelOf(market, sel, line, sport, names = {}) {
       text = `${side(s)} ${fmt(s === 'home' ? line : -line)} (hándicap${spec.stat !== 'score' ? ` de ${what}` : ''})`;
       break;
     case 'HCP3':
-      text = `Hándicap ${home} ${fmt(line)}: ${s === 'draw' ? 'empate' : side(s)}`;
+      // Como lo escribe la casa: "Borac -2", "Empate, Mjallby +2" (hándicap 1x2).
+      text = `${s === 'home' ? `${home} ${fmt(line)}` : s === 'away' ? `${away} ${fmt(-line)}` : `Empate, ${home} ${fmt(line)}`} (hándicap 1x2${spec.stat !== 'score' ? ` de ${what}` : ''})`;
       break;
     case 'BTTS':
       text = `${spec.stat === 'score' ? 'Ambos marcan' : `Ambos con ${what}`}${spec.n ? ` ${spec.n}+` : ''}: ${yes(s)}`;
