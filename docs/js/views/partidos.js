@@ -79,6 +79,12 @@ export class PartidosView {
       h('button', { class: 'btn small', onclick: () => this.expandAll(true) }, 'Abrir todo'),
       h('button', { class: 'btn small', onclick: () => this.expandAll(false) }, 'Cerrar todo'),
       h('button', { class: 'btn small', onclick: () => app.clearSelection() }, 'Quitar marcas'),
+      h(
+        'div',
+        { class: 'segmented', role: 'group', 'aria-label': 'Orden de ligas y partidos' },
+        h('button', { class: state.sortAZ ? 'active' : '', title: 'Ligas y partidos en orden alfabético', onclick: () => !state.sortAZ && app.setSortAZ(true) }, 'A–Z'),
+        h('button', { class: state.sortAZ ? '' : 'active', title: 'Ligas por importancia y partidos por hora', onclick: () => state.sortAZ && app.setSortAZ(false) }, 'Hora'),
+      ),
       h('button', { class: 'btn small ghost', onclick: () => app.loadSport(state.sport, { force: true }), title: 'Volver a pedir los partidos' }, '↻'),
     );
     this.root.append(this.chips, toolbar, this.list);
@@ -153,14 +159,23 @@ export class PartidosView {
         basicNorm(`${e.home.name} ${e.away.name} ${e.tournament.name} ${e.category.name}`).includes(q),
       );
     }
+    // A–Z: ligas por país y nombre, partidos por equipo local. Si no, por importancia y hora.
+    const az = state.sortAZ;
+    const byName = (a, b) => a.home.name.localeCompare(b.home.name, 'es') || a.away.name.localeCompare(b.away.name, 'es') || a.start - b.start;
+    const byTime = (a, b) => a.start - b.start;
+    const sortEvents = (list) => list.sort(az ? byName : byTime);
+    // Los fijados van arriba, en su propio grupo (aunque la búsqueda o los filtros los oculten).
+    const pinned = sortEvents(data.items.filter((e) => state.pinned.has(e.id)));
+    items = items.filter((e) => !state.pinned.has(e.id));
     const groups = [...groupBy(items, (e) => `${e.category.name}|${e.tournament.id}`).entries()]
-      .map(([key, events]) => ({ key, events: events.sort((a, b) => a.start - b.start), first: events[0] }))
+      .map(([key, events]) => ({ key, events: sortEvents(events), first: events[0] }))
       .sort(
         (a, b) =>
-          (b.first.tournament.priority || 0) - (a.first.tournament.priority || 0) ||
-          a.first.category.name.localeCompare(b.first.category.name) ||
-          a.first.tournament.name.localeCompare(b.first.tournament.name),
+          (az ? 0 : (b.first.tournament.priority || 0) - (a.first.tournament.priority || 0)) ||
+          a.first.category.name.localeCompare(b.first.category.name, 'es') ||
+          a.first.tournament.name.localeCompare(b.first.tournament.name, 'es'),
       );
+    if (pinned.length) groups.unshift({ key: '__fijados', pinned: true, events: pinned, first: pinned[0] });
     return { data, groups };
   }
 
@@ -222,7 +237,7 @@ export class PartidosView {
     }
     const searching = Boolean(state.search.trim());
     groups.forEach((g, i) => {
-      const open = state.expanded.has(g.key) || (searching && i < MAX_EXPANDED_ON_SEARCH) || g.events.some((e) => state.selected.has(e.id));
+      const open = g.pinned || state.expanded.has(g.key) || (searching && i < MAX_EXPANDED_ON_SEARCH) || g.events.some((e) => state.selected.has(e.id));
       this.list.append(this.league(g, open));
     });
   }
@@ -266,7 +281,9 @@ export class PartidosView {
       onchange: (e) => app.toggle(selectable, e.target.checked),
     });
     check.indeterminate = nSel > 0 && nSel < selectable.length;
-    const title = h(
+    const title = g.pinned
+      ? h('span', { class: 'league-title' }, h('span', {}, '📌'), h('span', { class: 'name' }, 'Fijados'))
+      : h(
       'button',
       {
         class: 'league-title',
@@ -280,7 +297,7 @@ export class PartidosView {
       h('span', { class: 'name' }, g.first.tournament.name),
     );
     const head = h('div', { class: 'league-head' }, check, title, h('span', { class: 'count' }, `${nSel ? `${nSel}/` : ''}${g.events.length}`));
-    const box = h('div', { class: 'league' }, head);
+    const box = h('div', { class: `league${g.pinned ? ' pinned' : ''}` }, head);
     if (open) box.append(h('div', { class: 'matches' }, g.events.map((e) => this.match(e))));
     return box;
   }
@@ -294,12 +311,29 @@ export class PartidosView {
       e.state === 'pendiente' ? '' : live ? 'EN VIVO' : e.state === 'finalizado' ? 'Final' : e.statusText || e.state;
     const withOdds = app.state.events.get(app.eventsKey())?.withOdds;
     const oddsBadge = selectable && withOdds?.has(e.id) ? h('span', { class: 'odds-badge', title: 'Tiene cuotas de Apuesta Total' }, 'cuotas') : stateText;
+    const pinned = app.state.pinned.has(e.id);
+    const pin = h(
+      'button',
+      {
+        class: `pin${pinned ? ' on' : ''}`,
+        title: pinned ? 'Quitar de fijados' : 'Fijar arriba',
+        'aria-label': pinned ? 'Quitar de fijados' : 'Fijar arriba',
+        'aria-pressed': pinned ? 'true' : 'false',
+        onclick: (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          app.togglePin(e);
+        },
+      },
+      '📌',
+    );
     const row = h(
       'label',
       { class: `match${selectable ? '' : ' disabled'}${selected ? ' selected' : ''}` },
       h('input', { type: 'checkbox', disabled: !selectable, checked: selected, onchange: (ev) => app.toggle([e], ev.target.checked) }),
       h('span', { class: 'time' }, fmtTime(e.start)),
       h('span', { class: 'teams' }, h('span', {}, e.home.name), h('span', {}, e.away.name)),
+      pin,
       h(
         'span',
         { class: 'score' },

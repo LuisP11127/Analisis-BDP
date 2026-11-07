@@ -341,8 +341,24 @@ async function withoutExtension(browser, errors) {
     check('con la extensión empieza con Sofascore', (await page.textContent('.segmented button.active')) === 'Sofascore');
     const leagues = await page.$$eval('.league .name', (els) => els.map((e) => e.textContent));
     check('muestra las ligas de fútbol ordenadas por importancia', leagues.join(',') === 'Premier League,Serie A,Liga 1', leagues.join(', '));
+    await page.click('.league:has-text("Liga 1") .league-title');
+    await page.waitForSelector('.league:has-text("Liga 1") .match');
+    const homes = await page.$$eval('.league:has-text("Liga 1") .match .teams span:first-child', (els) => els.map((e) => e.textContent));
+    check('partidos de cada liga en orden alfabético (A–Z)', homes.length > 2 && homes.join() === [...homes].sort((a, b) => a.localeCompare(b, 'es')).join(), homes.join(' | '));
+    await page.click('#tab-partidos .segmented button:has-text("Hora")');
     const times = await page.$$eval('.league:has-text("Liga 1") .match .time', (els) => els.map((e) => e.textContent));
-    check('partidos de cada liga ordenados por hora', times.join() === [...times].sort().join(), times.join(' '));
+    check('con "Hora", partidos de cada liga ordenados por hora', times.length > 2 && times.join() === [...times].sort().join(), times.join(' '));
+    await page.click('#tab-partidos .segmented button:has-text("A–Z")');
+    // Fijar un partido: sube a "Fijados", sigue fijado al recargar y se puede quitar.
+    const pinTeam = await page.textContent('.league:has-text("Liga 1") .match:last-child .teams span:first-child');
+    await page.click('.league:has-text("Liga 1") .match:last-child .pin');
+    const firstGroup = await page.textContent('.league >> nth=0');
+    check('un partido fijado sube arriba en "Fijados"', firstGroup.includes('Fijados') && firstGroup.includes(pinTeam), firstGroup.replace(/\s+/g, ' ').slice(0, 120));
+    await page.reload();
+    await page.waitForSelector('.league');
+    check('los fijados se mantienen al recargar', (await page.textContent('.league >> nth=0')).includes(pinTeam));
+    await page.click('.league.pinned .pin');
+    check('se puede quitar un fijado', !(await page.$('.league.pinned')));
     await page.click('.league:has-text("Premier League") .league-head input');
     await page.click('.league:has-text("Liga 1") .league-head input');
     await page.click('.sport:has-text("Básquet")');

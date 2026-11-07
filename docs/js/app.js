@@ -40,6 +40,9 @@ const app = {
     source: LS.get('bdp:fuente', null), // 'auto' (datos publicados) o 'sofascore' (extensión)
     events: new Map(), // "fuente|fecha|deporte" -> { status, items, error, withOdds, generated }
     onlyOdds: LS.get('bdp:solo-cuotas', true),
+    // Partidos fijados arriba en Partidos (se olvidan dos días después del partido).
+    pinned: new Map(LS.get('bdp:fijados', []).filter((e) => e.start > Date.now() - 2 * 86400000).map((e) => [e.id, e])),
+    sortAZ: LS.get('bdp:orden-az', true), // ligas y partidos en orden alfabético (o por importancia y hora)
     selected: new Map(), // id -> evento (del día elegido)
     search: '',
     onlyPending: true,
@@ -187,6 +190,20 @@ app.setSource = (source) => {
   app.state.source = source;
   LS.set('bdp:fuente', source);
   app.loadSport(app.state.sport);
+};
+
+app.togglePin = (e) => {
+  const { pinned } = app.state;
+  if (pinned.has(e.id)) pinned.delete(e.id);
+  else pinned.set(e.id, { id: e.id, sport: e.sport, start: e.start, home: e.home.name, away: e.away.name });
+  LS.set('bdp:fijados', [...pinned.values()]);
+  views.partidos.renderList();
+};
+
+app.setSortAZ = (on) => {
+  app.state.sortAZ = on;
+  LS.set('bdp:orden-az', on);
+  views.partidos.render();
 };
 
 app.setOnlyOdds = (on) => {
