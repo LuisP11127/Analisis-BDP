@@ -167,3 +167,11 @@ test('el mismo partido da siempre las mismas probabilidades simuladas', () => {
   const b = analyzeEvent(ev, details, offers, {}).candidates.map((c) => c.p);
   assert.deepEqual(a, b);
 });
+
+test('el análisis se guarda en el día de la mayoría de sus partidos', async () => {
+  const { analysisDate } = await import('../docs/js/analysis/engine.js');
+  const at = (s) => ({ start: Date.parse(s) });
+  // Uno del viernes a las 23:30 (Lima) y tres del sábado.
+  assert.equal(analysisDate([at('2026-11-07T04:30:00Z'), at('2026-11-07T18:00:00Z'), at('2026-11-07T20:00:00Z'), at('2026-11-08T01:00:00Z')]), '2026-11-07');
+  assert.equal(analysisDate([]), null);
+});
