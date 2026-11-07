@@ -431,6 +431,13 @@ function nextFrame() {
   });
 }
 
+export function analysisDate(events) {
+  if (!events.length) return null;
+  const count = new Map();
+  for (const e of events) count.set(limaDateOf(e.start), (count.get(limaDateOf(e.start)) || 0) + 1);
+  return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+}
+
 export const METHODS = ['estadistico', 'red_neuronal'];
 
 // events: partidos seleccionados (de Sofascore o automáticos). Junta los datos
@@ -482,7 +489,9 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
   if (sources.noticias) sources.noticias.events = withNews;
 
   const created = new Date().toISOString();
-  const date = pending.length ? limaDateOf(Math.min(...pending.map((e) => e.start))) : null;
+  // Día del análisis: el de la mayoría de los partidos (si se cuela uno de la
+  // noche anterior, el análisis no se guarda en el día de ese partido).
+  const date = analysisDate(pending);
   // Probabilidades de cada partido (una sola vez para todos los métodos).
   const base = [];
   const eventInfo = {};
