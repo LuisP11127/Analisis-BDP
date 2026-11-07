@@ -10,6 +10,20 @@ import { basicNorm } from '../analysis/matching.js';
 
 const MAX_EXPANDED_ON_SEARCH = 60;
 
+// Chincheta de contorno (fijar una liga arriba).
+const SVG = 'http://www.w3.org/2000/svg';
+function pinIcon() {
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ['M9 3h6', 'M10 3v6l-3 4v2h10v-2l-3-4V3', 'M12 15v6']) {
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
 export class PartidosView {
   constructor(root, app) {
     this.root = root;
@@ -164,18 +178,17 @@ export class PartidosView {
     const byName = (a, b) => a.home.name.localeCompare(b.home.name, 'es') || a.away.name.localeCompare(b.away.name, 'es') || a.start - b.start;
     const byTime = (a, b) => a.start - b.start;
     const sortEvents = (list) => list.sort(az ? byName : byTime);
-    // Los fijados van arriba, en su propio grupo (aunque la búsqueda o los filtros los oculten).
-    const pinned = sortEvents(data.items.filter((e) => state.pinned.has(e.id)));
-    items = items.filter((e) => !state.pinned.has(e.id));
+    // Las ligas fijadas van primero.
+    const pins = state.pinnedLeagues;
     const groups = [...groupBy(items, (e) => `${e.category.name}|${e.tournament.id}`).entries()]
-      .map(([key, events]) => ({ key, events: sortEvents(events), first: events[0] }))
+      .map(([key, events]) => ({ key, events: sortEvents(events), first: events[0], pinned: pins.has(key) }))
       .sort(
         (a, b) =>
+          b.pinned - a.pinned ||
           (az ? 0 : (b.first.tournament.priority || 0) - (a.first.tournament.priority || 0)) ||
           a.first.category.name.localeCompare(b.first.category.name, 'es') ||
           a.first.tournament.name.localeCompare(b.first.tournament.name, 'es'),
       );
-    if (pinned.length) groups.unshift({ key: '__fijados', pinned: true, events: pinned, first: pinned[0] });
     return { data, groups };
   }
 
@@ -237,7 +250,7 @@ export class PartidosView {
     }
     const searching = Boolean(state.search.trim());
     groups.forEach((g, i) => {
-      const open = g.pinned || state.expanded.has(g.key) || (searching && i < MAX_EXPANDED_ON_SEARCH) || g.events.some((e) => state.selected.has(e.id));
+      const open = state.expanded.has(g.key) || (searching && i < MAX_EXPANDED_ON_SEARCH) || g.events.some((e) => state.selected.has(e.id));
       this.list.append(this.league(g, open));
     });
   }
@@ -281,9 +294,7 @@ export class PartidosView {
       onchange: (e) => app.toggle(selectable, e.target.checked),
     });
     check.indeterminate = nSel > 0 && nSel < selectable.length;
-    const title = g.pinned
-      ? h('span', { class: 'league-title' }, h('span', {}, '📌'), h('span', { class: 'name' }, 'Fijados'))
-      : h(
+    const title = h(
       'button',
       {
         class: 'league-title',
@@ -296,7 +307,18 @@ export class PartidosView {
       h('span', { class: 'country' }, g.first.category.name),
       h('span', { class: 'name' }, g.first.tournament.name),
     );
-    const head = h('div', { class: 'league-head' }, check, title, h('span', { class: 'count' }, `${nSel ? `${nSel}/` : ''}${g.events.length}`));
+    const pin = h(
+      'button',
+      {
+        class: `pin${g.pinned ? ' on' : ''}`,
+        title: g.pinned ? 'Quitar de fijadas' : 'Fijar la liga arriba',
+        'aria-label': `${g.pinned ? 'Quitar de fijadas' : 'Fijar'} ${g.first.tournament.name}`,
+        'aria-pressed': g.pinned ? 'true' : 'false',
+        onclick: () => app.togglePinLeague(g.key),
+      },
+      pinIcon(),
+    );
+    const head = h('div', { class: 'league-head' }, check, title, h('span', { class: 'count' }, `${nSel ? `${nSel}/` : ''}${g.events.length}`), pin);
     const box = h('div', { class: `league${g.pinned ? ' pinned' : ''}` }, head);
     if (open) box.append(h('div', { class: 'matches' }, g.events.map((e) => this.match(e))));
     return box;
@@ -311,29 +333,12 @@ export class PartidosView {
       e.state === 'pendiente' ? '' : live ? 'EN VIVO' : e.state === 'finalizado' ? 'Final' : e.statusText || e.state;
     const withOdds = app.state.events.get(app.eventsKey())?.withOdds;
     const oddsBadge = selectable && withOdds?.has(e.id) ? h('span', { class: 'odds-badge', title: 'Tiene cuotas de Apuesta Total' }, 'cuotas') : stateText;
-    const pinned = app.state.pinned.has(e.id);
-    const pin = h(
-      'button',
-      {
-        class: `pin${pinned ? ' on' : ''}`,
-        title: pinned ? 'Quitar de fijados' : 'Fijar arriba',
-        'aria-label': pinned ? 'Quitar de fijados' : 'Fijar arriba',
-        'aria-pressed': pinned ? 'true' : 'false',
-        onclick: (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          app.togglePin(e);
-        },
-      },
-      '📌',
-    );
     const row = h(
       'label',
       { class: `match${selectable ? '' : ' disabled'}${selected ? ' selected' : ''}` },
       h('input', { type: 'checkbox', disabled: !selectable, checked: selected, onchange: (ev) => app.toggle([e], ev.target.checked) }),
       h('span', { class: 'time' }, fmtTime(e.start)),
       h('span', { class: 'teams' }, h('span', {}, e.home.name), h('span', {}, e.away.name)),
-      pin,
       h(
         'span',
         { class: 'score' },

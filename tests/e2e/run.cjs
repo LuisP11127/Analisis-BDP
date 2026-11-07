@@ -349,16 +349,16 @@ async function withoutExtension(browser, errors) {
     const times = await page.$$eval('.league:has-text("Liga 1") .match .time', (els) => els.map((e) => e.textContent));
     check('con "Hora", partidos de cada liga ordenados por hora', times.length > 2 && times.join() === [...times].sort().join(), times.join(' '));
     await page.click('#tab-partidos .segmented button:has-text("A–Z")');
-    // Fijar un partido: sube a "Fijados", sigue fijado al recargar y se puede quitar.
-    const pinTeam = await page.textContent('.league:has-text("Liga 1") .match:last-child .teams span:first-child');
-    await page.click('.league:has-text("Liga 1") .match:last-child .pin');
-    const firstGroup = await page.textContent('.league >> nth=0');
-    check('un partido fijado sube arriba en "Fijados"', firstGroup.includes('Fijados') && firstGroup.includes(pinTeam), firstGroup.replace(/\s+/g, ' ').slice(0, 120));
+    // Fijar una liga: sube primera, sigue fijada al recargar y se puede quitar.
+    check('los partidos no tienen pin', (await page.$$('.match .pin')).length === 0);
+    await page.click('.league:has-text("Liga 1") .league-head .pin');
+    const order = async () => page.$$eval('.league .name', (els) => els.map((e) => e.textContent));
+    check('una liga fijada sube primera', (await order())[0] === 'Liga 1' && Boolean(await page.$('.league.pinned:has-text("Liga 1")')), (await order()).join(', '));
     await page.reload();
     await page.waitForSelector('.league');
-    check('los fijados se mantienen al recargar', (await page.textContent('.league >> nth=0')).includes(pinTeam));
+    check('las ligas fijadas se mantienen al recargar', (await order())[0] === 'Liga 1');
     await page.click('.league.pinned .pin');
-    check('se puede quitar un fijado', !(await page.$('.league.pinned')));
+    check('se puede quitar una liga fijada', !(await page.$('.league.pinned')) && (await order())[0] === 'Premier League', (await order()).join(', '));
     await page.click('.league:has-text("Premier League") .league-head input');
     await page.click('.league:has-text("Liga 1") .league-head input');
     await page.click('.sport:has-text("Básquet")');

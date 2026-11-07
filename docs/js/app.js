@@ -40,8 +40,8 @@ const app = {
     source: LS.get('bdp:fuente', null), // 'auto' (datos publicados) o 'sofascore' (extensión)
     events: new Map(), // "fuente|fecha|deporte" -> { status, items, error, withOdds, generated }
     onlyOdds: LS.get('bdp:solo-cuotas', true),
-    // Partidos fijados arriba en Partidos (se olvidan dos días después del partido).
-    pinned: new Map(LS.get('bdp:fijados', []).filter((e) => e.start > Date.now() - 2 * 86400000).map((e) => [e.id, e])),
+    // Ligas fijadas arriba en Partidos (país|id del torneo), en cualquier día y deporte.
+    pinnedLeagues: new Set(LS.get('bdp:ligas-fijadas', [])),
     sortAZ: LS.get('bdp:orden-az', true), // ligas y partidos en orden alfabético (o por importancia y hora)
     selected: new Map(), // id -> evento (del día elegido)
     search: '',
@@ -192,11 +192,10 @@ app.setSource = (source) => {
   app.loadSport(app.state.sport);
 };
 
-app.togglePin = (e) => {
-  const { pinned } = app.state;
-  if (pinned.has(e.id)) pinned.delete(e.id);
-  else pinned.set(e.id, { id: e.id, sport: e.sport, start: e.start, home: e.home.name, away: e.away.name });
-  LS.set('bdp:fijados', [...pinned.values()]);
+app.togglePinLeague = (key) => {
+  const pins = app.state.pinnedLeagues;
+  pins.has(key) ? pins.delete(key) : pins.add(key);
+  LS.set('bdp:ligas-fijadas', [...pins]);
   views.partidos.renderList();
 };
 
