@@ -4,6 +4,7 @@
 // de la red neuronal.
 import { MIN_SAMPLES } from '../analysis/neural.js';
 import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
+import { STAT_NAME } from '../analysis/catalog.js';
 import { RANDOM, emptyMethodStats, hitRate, roi, totals } from '../history.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtDay, fmtTime, h, limaDateOf, limaToday, pct } from '../util.js';
@@ -102,6 +103,40 @@ function statsTableInner(rows) {
       ),
     ),
     h('tbody', {}, rows),
+  );
+}
+
+// Aciertos por deporte y por tipo de mercado (picks, sin combinadas) de un método.
+const MARKET_NAME = {
+  resultado: 'Resultado (1X2, doble oportunidad, ganador)', total: 'Más/menos (total)', handicap: 'Hándicap', ambos: 'Ambos marcan',
+  periodo: 'Mitades, cuartos, sets y periodos', corners: 'Córners', cards: 'Tarjetas', reds: 'Tarjetas rojas', marcador: 'Marcador exacto',
+  margen: 'Margen de victoria', combinado: 'Combinados de la casa', otro: 'Otros',
+};
+const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
+function breakdownPanel(app, t, methods) {
+  const method = methods.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : methods[0][0];
+  const m = t.methods[method] || emptyMethodStats();
+  const rows = (map, name) =>
+    Object.entries(map || {})
+      .sort(([, a], [, b]) => b.won + b.lost - (a.won + a.lost) || b.n - a.n)
+      .map(([k, st]) => statsRow(name(k), st));
+  const section = (title) => h('tr', { class: 'section' }, h('td', { colspan: 6 }, title));
+  const sports = rows(m.bySport, (k) => `${sportOf(k).icon} ${sportOf(k).name}`);
+  const markets = rows(m.byMarket, marketName);
+  return h(
+    'div',
+    { class: 'panel breakdown' },
+    h('h3', {}, 'Por deporte y tipo de mercado'),
+    h(
+      'div',
+      { class: 'segmented', role: 'group', 'aria-label': 'Método' },
+      methods.map(([id, , short]) => h('button', { class: id === method ? 'active' : '', onclick: () => app.setBreakdown(id) }, short)),
+    ),
+    sports.length || markets.length
+      ? statsTable([section('Deportes'), ...sports, section('Tipos de mercado'), ...markets])
+      : h('p', { class: 'note' }, 'Todavía no hay picks de este método.'),
+    h('p', { class: 'note' }, 'Solo picks (las combinadas mezclan deportes y mercados).'),
   );
 }
 
@@ -348,6 +383,7 @@ export function renderHistorial(root, app) {
       'div',
       { class: 'grid2' },
       methods.map(([id, title]) => methodPanel(id, title, t.methods[id])),
+      breakdownPanel(app, t, methods),
       networkPanel(app),
     ),
   );

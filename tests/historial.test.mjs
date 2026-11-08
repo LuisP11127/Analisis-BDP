@@ -142,3 +142,15 @@ test('random bets: se siguen aparte y no se suman dos veces', async () => {
   const t = totals({ days: { '2026-10-02': s } });
   assert.equal(t.methods[RANDOM].won, 1);
 });
+
+test('aciertos por deporte y por tipo de mercado', () => {
+  const p = (eventId, market, sport, status) => ({ eventId, key: `${market}|x|`, market, sport, level: 'alta', status, odds: 2 });
+  const s = daySummary({
+    analyses: [{ id: 'e', method: 'estadistico', created: 'x', picks: [p(1, '1X2', 'football', 'won'), p(2, 'OU.corners', 'football', 'lost'), p(3, 'ML', 'tennis', 'won')], combos: [] }],
+  });
+  const m = totals({ days: { d: s } }).methods.estadistico;
+  assert.equal(m.bySport.football.won + m.bySport.football.lost, 2);
+  assert.equal(m.bySport.tennis.won, 1);
+  assert.equal(m.byMarket.resultado.won, 2);
+  assert.equal(m.byMarket.corners.lost, 1);
+});

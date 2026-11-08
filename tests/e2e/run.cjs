@@ -298,7 +298,7 @@ async function withoutExtension(browser, errors) {
   await toastIs(page, /Resultados:|No hay partidos|No se pudieron/);
   const healed = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY].methods.estadistico;
   check('un resumen pisado se repara al actualizar resultados', healed.won === good.days[DAY].methods.estadistico.won && healed.pending === 0, JSON.stringify(healed).slice(0, 120));
-  await page.click('#tab-historial .segmented button:has-text("Red neuronal")');
+  await page.click('#tab-historial [aria-label="Análisis a mostrar en cada día"] button:has-text("Red neuronal")');
   check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
   // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.
   const levelChips = await page.$$eval('.day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
@@ -452,6 +452,10 @@ async function withoutExtension(browser, errors) {
     await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
     const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
     check('resultados por nivel de cada método', panels.includes('Análisis estadístico') && panels.includes('Análisis con red neuronal'), panels.join(', '));
+    const breakdown = await page.textContent('#tab-historial .panel.breakdown');
+    check('panel por deporte y tipo de mercado', /Deportes/.test(breakdown) && /Fútbol/.test(breakdown) && /Tipos de mercado/.test(breakdown) && /%/.test(breakdown), breakdown.replace(/\s+/g, ' ').slice(0, 160));
+    await page.click('#tab-historial .panel.breakdown .segmented button:has-text("Red neuronal")');
+    check('el panel por deporte cambia de método', (await page.textContent('#tab-historial .panel.breakdown .segmented button.active')) === 'Red neuronal');
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);
 
