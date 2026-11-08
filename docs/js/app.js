@@ -49,6 +49,7 @@ const app = {
     expanded: new Set(),
     analyses: { estadistico: null, red_neuronal: null }, // último análisis de cada método
     analysisView: 'estadistico', // método que se ve en la pestaña Análisis
+    breakdownMethod: 'estadistico', // método del panel por deporte y tipo de mercado
     histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' (todos) o un método
     randomN: LS.get('bdp:random-n', 5), // apuestas por sorteo de random bets
     randomDraw: null, // último sorteo, aún sin guardar: { picks, all, pool, methods, requested }
@@ -308,6 +309,11 @@ async function runAnalysis(methods) {
     idle();
   }
 }
+
+app.setBreakdown = (method) => {
+  app.state.breakdownMethod = method;
+  render();
+};
 
 app.setHistMethod = (method) => {
   app.state.histMethod = method;

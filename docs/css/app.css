@@ -369,3 +369,6 @@ body.tab-apuestas main { max-width: 1440px; }
 .pin.on { color: var(--accent); border-color: var(--accent); }
 .pin.on svg { fill: currentColor; fill-opacity: 0.25; }
 .league.pinned { border-color: var(--accent); }
+.breakdown .segmented { margin-bottom: 8px; }
+tr.section td { font-weight: 700; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 12px; }
+td.num { white-space: nowrap; }
