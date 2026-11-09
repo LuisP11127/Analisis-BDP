@@ -432,7 +432,11 @@ async function withoutExtension(browser, errors) {
     check('la red neuronal registra los resultados para aprender', /Faltan resultados: [1-9]\d* de 200/.test(netPanel), netPanel.replace(/\s+/g, ' ').slice(0, 200));
     await page.screenshot({ path: path.join(OUT, '3-historial.png'), fullPage: true });
 
-    // 5) Análisis con red neuronal
+    // 5) Análisis con red neuronal (tras analizar, los partidos quedan desmarcados)
+    check('tras el análisis los partidos quedan desmarcados', (await page.textContent('#sel-count')).startsWith('0 ') && (await page.$eval('#run-nn', (b) => b.disabled)));
+    await page.click('.tabs button[data-tab="partidos"]');
+    await page.waitForSelector('.league:has-text("Premier League")');
+    await page.click('.league:has-text("Premier League") .league-head input');
     await page.click('#run-nn');
     await page.waitForSelector('#tab-analisis .summary h2:has-text("red neuronal")', { timeout: 60000 });
     const nnBanner = await page.textContent('#tab-analisis .summary .banner');

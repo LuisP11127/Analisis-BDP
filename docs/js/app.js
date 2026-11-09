@@ -239,7 +239,12 @@ app.loadSport = async (sport, { force = false } = {}) => {
       state.events.set(key, { status: 'ok', items });
     }
     // Actualiza los datos de los partidos ya marcados (estado, marcador).
-    for (const e of state.events.get(key).items || []) if (state.selected.has(e.id)) state.selected.set(e.id, e);
+    // Los que ya empezaron o terminaron no se pueden analizar: se desmarcan.
+    for (const e of state.events.get(key).items || []) {
+      if (!state.selected.has(e.id)) continue;
+      if (e.state === 'pendiente') state.selected.set(e.id, e);
+      else state.selected.delete(e.id);
+    }
     saveSelection();
   } catch (e) {
     state.events.set(key, { status: 'error', error: e.message });
@@ -297,6 +302,9 @@ async function runAnalysis(methods) {
     });
     Object.assign(app.state.analyses, results);
     app.state.analysisView = methods[0];
+    // Ya analizados: se desmarcan para que la próxima selección empiece limpia.
+    for (const e of events) app.state.selected.delete(e.id);
+    saveSelection();
     idle();
     showTab('analisis');
     if (store.canWrite()) {
