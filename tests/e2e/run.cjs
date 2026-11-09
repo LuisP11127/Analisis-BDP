@@ -452,10 +452,13 @@ async function withoutExtension(browser, errors) {
     await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
     const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
     check('resultados por nivel de cada método', panels.includes('Análisis estadístico') && panels.includes('Análisis con red neuronal'), panels.join(', '));
-    const breakdown = await page.textContent('#tab-historial .panel.breakdown');
-    check('panel por deporte y tipo de mercado', /Deportes/.test(breakdown) && /Fútbol/.test(breakdown) && /Tipos de mercado/.test(breakdown) && /%/.test(breakdown), breakdown.replace(/\s+/g, ' ').slice(0, 160));
-    await page.click('#tab-historial .panel.breakdown .segmented button:has-text("Red neuronal")');
-    check('el panel por deporte cambia de método', (await page.textContent('#tab-historial .panel.breakdown .segmented button.active')) === 'Red neuronal');
+    const dayFilter = '#tab-historial [aria-label="Análisis a mostrar en cada día"]';
+    await page.click(`${dayFilter} button:has-text("Por deporte")`);
+    const sportTab = await page.textContent('#tab-historial .sport-view');
+    check('pestaña "Por deporte": cada deporte con sus mercados', /Fútbol/.test(sportTab) && (await page.$$('#tab-historial .sport-view tr.sub')).length > 0 && /%/.test(sportTab) && !(await page.$('#tab-historial .day')), sportTab.replace(/\s+/g, ' ').slice(0, 160));
+    await page.click('#tab-historial .sport-view .segmented button:has-text("Red neuronal")');
+    check('la pestaña "Por deporte" cambia de método', (await page.textContent('#tab-historial .sport-view .segmented button.active')) === 'Red neuronal');
+    await page.click(`${dayFilter} button:has-text("Ambos")`);
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);
 

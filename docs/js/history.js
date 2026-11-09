@@ -30,7 +30,7 @@ export const RANDOM = 'aleatorio'; // random bets: picks sorteados de los otros 
 const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets' };
 // Resúmenes por método; los de otra versión se recalculan desde el archivo de
 // cada día (3: repara resúmenes pisados con una copia vieja de GitHub).
-const SUMMARY_VERSION = 4; // 4: aciertos por deporte y por tipo de mercado
+const SUMMARY_VERSION = 5; // 5: aciertos por deporte y, dentro de cada uno, por tipo de mercado
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
 const NO_DATA_MS = 96 * 3600000; // terminado sin los datos de esa apuesta (p. ej. córners): nula tras 4 días
@@ -205,7 +205,7 @@ export function latestByMethod(day) {
   return out;
 }
 
-const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {} });
+const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {}, bySportMarket: {} });
 // Tipo de mercado de un pick (resultado, total, hándicap, córners...).
 export const marketType = (market) => familyOf(parseMarketId(market));
 
@@ -223,6 +223,7 @@ export function daySummary(day) {
       addResult((m.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
       addResult((m.bySport[p.sport || 'otro'] ||= emptyStats()), p.status, p.odds);
       addResult((m.byMarket[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
+      addResult(((m.bySportMarket[p.sport || 'otro'] ||= {})[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
       if (inSum) {
         addResult(out, p.status, p.odds);
         addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
@@ -232,7 +233,7 @@ export function daySummary(day) {
       addResult(m.combos, k.status, k.odds);
       if (inSum) addResult(out.combos, k.status, k.odds);
     }
-    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, ...plain } = m;
+    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, bySportMarket: _sm, ...plain } = m;
     out.byMethod[method] = plain;
   }
   out.pendingAll = out.pending + out.combos.pending + randomPending;
@@ -291,6 +292,7 @@ export function totals(index) {
       for (const [k, v] of Object.entries(m.byLevel || {})) add((t.byLevel[k] ||= emptyStats()), v);
       for (const [k, v] of Object.entries(m.bySport || {})) add((t.bySport[k] ||= emptyStats()), v);
       for (const [k, v] of Object.entries(m.byMarket || {})) add((t.byMarket[k] ||= emptyStats()), v);
+      for (const [sp, fams] of Object.entries(m.bySportMarket || {})) for (const [k, v] of Object.entries(fams)) add(((t.bySportMarket[sp] ||= {})[k] ||= emptyStats()), v);
     }
   }
   return out;

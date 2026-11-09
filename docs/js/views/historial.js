@@ -114,29 +114,33 @@ const MARKET_NAME = {
 };
 const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
 const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
-function breakdownPanel(app, t, methods) {
-  const method = methods.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : methods[0][0];
-  const m = t.methods[method] || emptyMethodStats();
-  const rows = (map, name) =>
-    Object.entries(map || {})
-      .sort(([, a], [, b]) => b.won + b.lost - (a.won + a.lost) || b.n - a.n)
-      .map(([k, st]) => statsRow(name(k), st));
-  const section = (title) => h('tr', { class: 'section' }, h('td', { colspan: 6 }, title));
-  const sports = rows(m.bySport, (k) => `${sportOf(k).icon} ${sportOf(k).name}`);
-  const markets = rows(m.byMarket, marketName);
+// Pestaña "Por deporte" del detalle: cada deporte con sus tipos de mercado
+// (todos los días; solo picks, las combinadas mezclan deportes y mercados).
+function sportView(app, t, methods) {
+  const list = methods.filter(([id]) => t.methods[id]);
+  if (!list.length) return h('div', { class: 'empty' }, 'Todavía no hay picks.');
+  const method = list.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : list[0][0];
+  const m = t.methods[method];
+  const resolved = (st) => st.won + st.lost;
+  const sports = Object.entries(m.bySport || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
   return h(
     'div',
-    { class: 'panel breakdown' },
-    h('h3', {}, 'Por deporte y tipo de mercado'),
+    { class: 'panel sport-view' },
     h(
       'div',
-      { class: 'segmented', role: 'group', 'aria-label': 'Método' },
-      methods.map(([id, , short]) => h('button', { class: id === method ? 'active' : '', onclick: () => app.setBreakdown(id) }, short)),
+      { class: 'toolbar' },
+      h('span', { class: 'note' }, 'Método:'),
+      h('div', { class: 'segmented', role: 'group', 'aria-label': 'Método' }, list.map(([id, , short]) => h('button', { class: id === method ? 'active' : '', onclick: () => app.setBreakdown(id) }, short))),
     ),
-    sports.length || markets.length
-      ? statsTable([section('Deportes'), ...sports, section('Tipos de mercado'), ...markets])
-      : h('p', { class: 'note' }, 'Todavía no hay picks de este método.'),
-    h('p', { class: 'note' }, 'Solo picks (las combinadas mezclan deportes y mercados).'),
+    statsTable(
+      sports.flatMap(([sp, st]) => [
+        statsRow(`${sportOf(sp).icon} ${sportOf(sp).name}`, st, 'sport-total'),
+        ...Object.entries(m.bySportMarket?.[sp] || {})
+          .sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n)
+          .map(([k, v]) => statsRow(marketName(k), v, 'sub')),
+      ]),
+    ),
+    h('p', { class: 'note' }, 'Todos los días · solo picks (las combinadas mezclan deportes y mercados).'),
   );
 }
 
@@ -383,7 +387,6 @@ export function renderHistorial(root, app) {
       'div',
       { class: 'grid2' },
       methods.map(([id, title]) => methodPanel(id, title, t.methods[id])),
-      breakdownPanel(app, t, methods),
       networkPanel(app),
     ),
   );
@@ -401,13 +404,17 @@ export function renderHistorial(root, app) {
       h('span', { class: 'note' }, 'Detalle de cada día:'),
       h(
         'div',
-        { class: `segmented${methods.length > 2 ? ' many' : ''}`, role: 'group', 'aria-label': 'Análisis a mostrar en cada día' },
-        [['ambos', methods.length > 2 ? 'Todos' : 'Ambos'], ...methods.map(([id, , short]) => [id, short])].map(([id, name]) =>
+        { class: 'segmented many', role: 'group', 'aria-label': 'Análisis a mostrar en cada día' },
+        [['ambos', methods.length > 2 ? 'Todos' : 'Ambos'], ...methods.map(([id, , short]) => [id, short]), ['deportes', 'Por deporte']].map(([id, name]) =>
           h('button', { class: id === filter ? 'active' : '', onclick: () => app.setHistMethod(id) }, name),
         ),
       ),
     ),
   );
+  if (filter === 'deportes') {
+    root.append(sportView(app, t, methods));
+    return;
+  }
   for (const date of dates) {
     const s = index.days[date];
     const open = state.openDays.has(date);
