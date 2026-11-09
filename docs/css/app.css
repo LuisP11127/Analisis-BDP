@@ -372,3 +372,6 @@ body.tab-apuestas main { max-width: 1440px; }
 .breakdown .segmented { margin-bottom: 8px; }
 tr.section td { font-weight: 700; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; padding-top: 12px; }
 td.num { white-space: nowrap; }
+tr.sport-total td { font-weight: 700; background: var(--surface-2); }
+tr.sub td:first-child { padding-left: 22px; color: var(--muted); }
+.sport-view .toolbar { margin-bottom: 8px; }
