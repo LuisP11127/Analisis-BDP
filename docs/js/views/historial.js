@@ -17,6 +17,12 @@ const METHODS = [
   [RANDOM, 'Random bets', 'Random'],
 ];
 export const RANDOM_MAX = 50; // apuestas por sorteo
+// Orden dentro de cada día: primero la red neuronal, luego el estadístico.
+const DAY_METHODS = ['red_neuronal', 'estadistico', RANDOM].map((id) => METHODS.find(([m]) => m === id));
+const dayRank = (id) => {
+  const i = DAY_METHODS.findIndex(([m]) => m === id);
+  return i < 0 ? DAY_METHODS.length : i;
+};
 const SHORT = Object.fromEntries(METHODS.map(([id, , short]) => [id, short]));
 const ZERO = { won: 0, lost: 0, pending: 0, staked: 0, profit: 0 };
 
@@ -43,7 +49,7 @@ function levelChips(m) {
 // Tabla del día por nivel (al abrir el día).
 function dayTables(s, filter) {
   if (!s?.methods) return null;
-  const list = METHODS.filter(([id]) => s.methods[id] && (filter === 'ambos' || filter === id));
+  const list = DAY_METHODS.filter(([id]) => s.methods[id] && (filter === 'ambos' || filter === id));
   if (!list.length) return null;
   return h(
     'div',
@@ -356,7 +362,7 @@ function dayBody(app, date, day, filter) {
   if (!day) return h('div', { class: 'note' }, 'No se encontró el detalle de este día.');
   const list = day.analyses.filter((a) => filter === 'ambos' || a.method === filter);
   if (!list.length) return h('div', { class: 'note' }, filter === RANDOM ? 'Sin random bets este día.' : `Sin análisis ${SHORT[filter]?.toLowerCase() || ''} este día.`);
-  const methods = [...new Set(list.map((a) => a.method))].sort((a, b) => rank(a) - rank(b));
+  const methods = [...new Set(list.map((a) => a.method))].sort((a, b) => dayRank(a) - dayRank(b));
   return methods.map((method) => {
     const runs = list.filter((a) => a.method === method).sort((a, b) => Date.parse(a.created) - Date.parse(b.created));
     const multi = runs.length > 1;
@@ -470,7 +476,7 @@ export function renderHistorial(root, app) {
   for (const date of dates) {
     const s = index.days[date];
     const open = state.openDays.has(date);
-    const lines = s.methods ? METHODS.filter(([id]) => s.methods[id] && (filter === 'ambos' || filter === id)).map(([id]) => [SHORT[id], s.methods[id]]) : [['', s]];
+    const lines = s.methods ? DAY_METHODS.filter(([id]) => s.methods[id] && (filter === 'ambos' || filter === id)).map(([id]) => [SHORT[id], s.methods[id]]) : [['', s]];
     const head = h(
       'button',
       { class: 'day-head', onclick: () => app.toggleDay(date) },

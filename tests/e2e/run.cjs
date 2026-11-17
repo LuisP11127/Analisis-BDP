@@ -222,7 +222,7 @@ async function withoutExtension(browser, errors) {
     `${await page.textContent('#toast')} · ${JSON.stringify(randomSaved.map((a) => a.picks.map((p) => p.label)))}`,
   );
   const methodLines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
-  check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Estadístico,Red neuronal,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
+  check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Red neuronal,Estadístico,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
   check('sin desplazamiento horizontal (historial con random bets, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
 
   // Apuestas demo (celular, sin extensión): cuotas publicadas de Apuesta Total y S/ 10 000 de saldo.
@@ -457,7 +457,7 @@ async function withoutExtension(browser, errors) {
     await page.click('.tabs button[data-tab="historial"]');
     await page.waitForSelector('.day-line');
     const lines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
-    check('el historial sigue cada método por separado', lines.join(',') === 'Estadístico,Red neuronal', lines.join(', '));
+    check('el historial sigue cada método por separado (primero la red neuronal)', lines.join(',') === 'Red neuronal,Estadístico', lines.join(', '));
     await page.waitForSelector('.day-body .method-tag'); // el día quedó abierto desde el paso 4
     await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
     const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
