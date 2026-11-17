@@ -467,6 +467,7 @@ async function withoutExtension(browser, errors) {
     const dayFilter = '#tab-historial [aria-label="Análisis a mostrar en cada día"]';
     await page.click(`${dayFilter} button:has-text("Por deporte")`);
     const sportTab = await page.textContent('#tab-historial .sport-view');
+    check('"Por deporte" cuenta desde el 31 de octubre', /Desde el 31 de octubre/.test(sportTab));
     check('pestaña "Por deporte": cada deporte con sus mercados', /Fútbol/.test(sportTab) && (await page.$$('#tab-historial .sport-view tr.sub')).length > 0 && /%/.test(sportTab) && !(await page.$('#tab-historial .day')), sportTab.replace(/\s+/g, ' ').slice(0, 160));
     await page.click('#tab-historial .sport-view .segmented button:has-text("Red neuronal")');
     check('la pestaña "Por deporte" cambia de método', (await page.textContent('#tab-historial .sport-view .segmented button.active')) === 'Red neuronal');
