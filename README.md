@@ -51,6 +51,20 @@ resultados. Funciona en el **celular y en la PC**:
   Flashscore y Sofascore). Si un mismo pick sale en dos análisis del mismo día
   y método, cuenta una sola vez; una apuesta cuyo dato no publica ninguna
   fuente queda nula a los 4 días.
+- **Selector** (pestaña antes del Historial): al terminar un análisis
+  (estadístico, red neuronal o ambos) toma sus picks de los tres niveles, sin
+  los que tienen la etiqueta de valor ni las combinadas, y elige los que caen
+  en un mercado de una liga con **al menos 10 apuestas resueltas** y **67% o
+  más** de acierto. Si el mercado tiene **33% o menos**, el pick aparece con
+  *Elegir inversa* y se apuesta lo contrario (más ↔ menos, sí ↔ no, local ↔
+  visitante; en doble oportunidad, el resultado que queda fuera: 1X → gana el
+  visitante). Las cifras son las de *Por deporte* de cada método, desde el 31
+  de octubre, y se recalculan en cada análisis. Tiene dos secciones: **General**
+  (tipo de mercado de la liga, como *Ligas y mercados*) y **Por lado** (cada
+  lado del mercado, como *Ligas y lados*). Si los dos análisis dan la misma
+  apuesta sale una vez como «Est + Red Neu». Las dos secciones se guardan con
+  el análisis, se liquidan con *Actualizar resultados* y tienen su propio
+  seguimiento por día (directas e inversas), sin sumarse a los otros análisis.
 - **Random bets** (en el Historial): eliges cuántas apuestas quieres y el botón
   *🎲 Random bets* las sortea al azar entre los picks de todos los análisis
   guardados (estadístico, red neuronal y los que haya), sin repetir, solo de
@@ -130,7 +144,8 @@ workflow**.
 docs/                 página web (GitHub Pages)
   index.html, css/    interfaz
   js/app.js           une todo
-  js/views/           pestañas Partidos, Análisis e Historial
+  js/views/           pestañas Partidos, Análisis, Selector e Historial
+  js/selector.js      reglas del selector (lados, inversas, mercados que califican)
   js/analysis/        modelos, cuotas, emparejamiento, picks, combinadas, red neuronal
     catalog.js        traduce los mercados de Betano y Apuesta Total a un formato común
     outcomes.js       liquida cualquier mercado con el registro del partido

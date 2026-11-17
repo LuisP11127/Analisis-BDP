@@ -56,7 +56,7 @@ async function fixtures() {
     sport: 'football',
     generated: new Date(Date.now() - 35 * 60000).toISOString(),
     events,
-    offers: { 'fs:e1': book(1.35, 4.8, 8.5), 'fs:e2': book(1.5, 4.0, 6.5), 'fs:e4': book(1.45, 4.5, 6.8) },
+    offers: { 'fs:e1': book(1.22, 5.6, 11), 'fs:e2': book(1.3, 5.0, 8.5), 'fs:e4': book(1.26, 5.4, 9.5) },
     details: Object.fromEntries(['e1', 'e2', 'e4'].map((id) => [`fs:${id}`, { lastHome: strong, lastAway: weak, h2h: { homeWins: 4, draws: 1, awayWins: 1 } }])),
   });
   const generated = football.generated;
@@ -164,6 +164,32 @@ async function withoutExtension(browser, errors) {
   check('solo muestra los deportes publicados', chips.length === 2 && chips[0].includes('Fútbol'), chips.join(' | '));
   await page.screenshot({ path: path.join(OUT, '6-celular-automatico.png'), fullPage: false });
 
+  // Historial anterior (para el selector): en la Premier el resultado acierta 90%
+  // (directa) y en la Liga 1, 17% (inversa); por lado, el local de la Liga 1
+  // acierta 90% en el estadístico y el de la Premier, 80% en la red neuronal.
+  const S = (won, lost) => ({ n: won + lost, won, lost, void: 0, pending: 0, profit: 0, staked: won + lost });
+  const PL = 'Premier League|INGLATERRA';
+  const L1 = 'Liga 1|PERÚ';
+  const pastMethod = (pl, l1, sides) => ({
+    ...S(pl[0] + l1[0], pl[1] + l1[1]),
+    byLevel: { alta: S(pl[0] + l1[0], pl[1] + l1[1]) },
+    combos: S(0, 0),
+    bySport: { football: S(pl[0] + l1[0], pl[1] + l1[1]) },
+    byMarket: { resultado: S(pl[0] + l1[0], pl[1] + l1[1]) },
+    bySportMarket: { football: { resultado: S(pl[0] + l1[0], pl[1] + l1[1]) } },
+    bySportLeague: { football: { [PL]: S(...pl), [L1]: S(...l1) } },
+    bySportLeagueMarket: { football: { [PL]: { resultado: S(...pl) }, [L1]: { resultado: S(...l1) } } },
+    bySportLeagueSide: { football: sides },
+  });
+  const est = pastMethod([9, 1], [2, 10], { [PL]: { resultado: { home: S(5, 5) } }, [L1]: { resultado: { home: S(9, 1), away: S(0, 2) } } });
+  const rnPast = pastMethod([8, 2], [0, 0], { [PL]: { resultado: { home: S(8, 2) } } });
+  const { byLevel: _l, combos: _c, bySport: _s, byMarket: _m, bySportMarket: _sm, bySportLeague: _sl, bySportLeagueMarket: _slm, bySportLeagueSide: _sls, ...plainEst } = est;
+  const PAST = '2026-11-01';
+  repo.set('docs/data/historial/index.json', {
+    text: JSON.stringify({ days: { [PAST]: { ...S(19, 13), v: 8, byLevel: { alta: S(19, 13) }, byMethod: { estadistico: plainEst }, combos: S(0, 0), methods: { estadistico: est, red_neuronal: rnPast }, pendingAll: 0 } }, updated: null }),
+    sha: 'pasado',
+  });
+
   // Token de GitHub en Ajustes
   await page.click('#open-settings');
   await page.fill('input[name="ghToken"]', 'github_pat_prueba');
@@ -186,16 +212,40 @@ async function withoutExtension(browser, errors) {
   const cards = await page.$$('#tab-analisis .card');
   check('hay picks con datos automáticos', cards.length > 0, `${cards.length} tarjetas`);
   check('guarda el análisis en GitHub', repo.has(`docs/data/historial/${DAY}.json`) && repo.has('docs/data/historial/index.json'), [...repo.keys()].join(', '));
-  const saved = JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.map((a) => a.method);
+  const saved = JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.map((a) => a.method).filter((m) => !m.startsWith('selector'));
   check('"Ambos" guarda los dos análisis por separado', saved.sort().join() === 'estadistico,red_neuronal', saved.join(', '));
   check('"Ambos" compara los dos con los mismos partidos', (await page.textContent('#tab-analisis .compare')).includes('Coinciden'));
   await page.click('#tab-analisis .segmented button:has-text("Red neuronal")');
   check('muestra el análisis con red neuronal', (await page.textContent('#tab-analisis .summary h2')) === 'Análisis con red neuronal');
   await page.screenshot({ path: path.join(OUT, '7-celular-analisis.png'), fullPage: false });
 
+  // Selector: con el historial anterior
+  await page.click('#tab-analisis button:has-text("Selector:")');
+  await page.waitForSelector('#tab-selector .sel-sections');
+  const secs = await page.$$eval('#tab-selector .sel-sections .panel', (els) => els.map((e) => ({ title: e.querySelector('h3').textContent, items: [...e.querySelectorAll('.sel-item')].map((li) => li.textContent) })));
+  const [gen, lado] = secs;
+  check(
+    'selector general: directa en la Premier e inversas en la Liga 1',
+    gen.items.length === 2 && gen.items.filter((t) => t.includes('Elegir inversa')).length === 1 && gen.items.some((t) => /Arsenal vs Chelsea/.test(t) && t.includes('Est + Red Neu') && !t.includes('Elegir inversa')) && gen.items.some((t) => /Gana Alianza Lima.*→ Gana Sporting Cristal/.test(t)),
+    gen.items.join(' | '),
+  );
+  check(
+    'selector por lado: el local acierta 90% (Liga 1, Est) y 80% (Premier, Red Neu)',
+    lado.items.length === 2 && lado.items.every((t) => !t.includes('Elegir inversa')) && lado.items.some((t) => /Alianza Lima.*Est: .* · Local 90% de 10/.test(t)) && lado.items.some((t) => /Arsenal.*Red Neu: .* · Local 80% de 10/.test(t)),
+    lado.items.join(' | '),
+  );
+  const selSaved = JSON.parse(repo.get(`docs/data/historial/${DAY}.json`).text).analyses.filter((a) => a.method.startsWith('selector'));
+  check(
+    'el selector se guarda con el análisis, cada sección aparte',
+    selSaved.map((a) => a.method).sort().join() === 'selector,selector_lado' && selSaved.find((a) => a.method === 'selector').picks.filter((p) => p.inverse).every((p) => p.sel === 'away' && p.orig.sel === 'home'),
+    selSaved.map((a) => `${a.method}:${a.picks.length}`).join(', '),
+  );
+  check('sin desplazamiento horizontal (selector, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
+  await page.screenshot({ path: path.join(OUT, '7b-celular-selector.png'), fullPage: true });
+
   // Liquidación con los resultados publicados
   await page.click('.tabs button[data-tab="historial"]');
-  await page.waitForSelector('.day');
+  await page.waitForSelector('#tab-historial .day');
   check('el historial muestra que guarda en GitHub', (await page.textContent('#tab-historial .banner')).includes('Guardando en GitHub'));
 
   // Random bets: antes de que empiecen los partidos (a la 1:00 de Lima), entre los picks de los dos análisis.
@@ -221,7 +271,7 @@ async function withoutExtension(browser, errors) {
     randomSaved.length === 1 && randomSaved[0].picks.length === drawn.length && randomSaved[0].picks.every((p) => p.status === 'pending' && p.methods.length > 0) && !(await page.$('.random-draw')),
     `${await page.textContent('#toast')} · ${JSON.stringify(randomSaved.map((a) => a.picks.map((p) => p.label)))}`,
   );
-  const methodLines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
+  const methodLines = await page.locator('#tab-historial .day').first().locator('.day-line b').allTextContents();
   check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Red neuronal,Estadístico,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
   check('sin desplazamiento horizontal (historial con random bets, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
 
@@ -262,22 +312,22 @@ async function withoutExtension(browser, errors) {
     const real = Date.now.bind(Date);
     Date.now = () => real() + 36 * 3600000;
   });
-  await page.click('text=Actualizar resultados');
+  await page.click('#tab-historial >> text=Actualizar resultados');
   await page.waitForFunction(() => /Resultados:|No hay partidos|No se pudieron/.test(document.querySelector('#toast').textContent), null, { timeout: 30000 });
   const toast = await page.textContent('#toast');
   check('liquida con los resultados publicados', /Resultados: [1-9]\d* apuestas liquidadas/.test(toast), toast);
   await page.waitForTimeout(500);
-  await page.click('.day-head');
-  await page.waitForSelector('.day-body .fold');
-  const folds = await page.$$eval('.day-body .fold', (els) => els.map((e) => [e.open, e.querySelector('summary').textContent.trim()]));
+  await page.click('#tab-historial .day-head');
+  await page.waitForSelector('#tab-historial .day-body .fold');
+  const folds = await page.$$eval('#tab-historial .day-body .fold', (els) => els.map((e) => [e.open, e.querySelector('summary').textContent.trim()]));
   check('el detalle del día agrupa los picks por nivel, plegados', folds.length > 0 && folds.every(([open, t]) => !open && /^(Alta|Moderada-alta|Moderada|Combinadas|Otros)/.test(t)), folds.map(([, t]) => t).join(' | '));
-  await page.click('.day-body .fold summary');
-  check('un nivel se despliega al tocarlo', await page.isVisible('.day-body .fold[open] .status-pill'));
-  const subs = await page.$$eval('.day-body .fold[open] .league-sub', (els) => els.map((e) => e.textContent.trim()));
+  await page.click('#tab-historial .day-body .fold summary');
+  check('un nivel se despliega al tocarlo', await page.isVisible('#tab-historial .day-body .fold[open] .status-pill'));
+  const subs = await page.$$eval('#tab-historial .day-body .fold[open] .league-sub', (els) => els.map((e) => e.textContent.trim()));
   check('dentro de cada nivel, los picks van por liga', subs.length > 0 && subs.every((t) => /^\S+ .+ · \d+$/.test(t)), subs.join(' | '));
-  await page.click('.day-body .fold[open] summary');
-  check('y se vuelve a plegar', !(await page.$('.day-body .fold[open]')));
-  const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
+  await page.click('#tab-historial .day-body .fold[open] summary');
+  check('y se vuelve a plegar', !(await page.$('#tab-historial .day-body .fold[open]')));
+  const pills = await page.$$eval('#tab-historial .day-body .status-pill', (els) => els.map((e) => e.textContent));
   check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
   const bigFiles = [...repo.entries()].filter(([, f]) => f.text.length > BIG_FILE).map(([p]) => p);
   const trainRows = JSON.parse(repo.get(`docs/data/entrenamiento/${DAY.slice(0, 7)}.json`).text).rows;
@@ -292,6 +342,16 @@ async function withoutExtension(browser, errors) {
     combo.status === 'won' && Math.abs(combo.payout - Math.round(100 * combo.legs[0].price * combo.legs[1].price * 100) / 100) < 0.011 && single.status === 'lost' && single.payout === 0 && /2 apuestas demo liquidadas/.test(toast),
     `${toast} · ${JSON.stringify(demo.bets.map((b) => [b.kind, b.status, b.payout]))}`,
   );
+  check('el selector se liquida con los demás', index.methods.selector?.pending === 0 && index.methods.selector.won + index.methods.selector.lost > 0 && index.methods.selector_lado?.pending === 0, JSON.stringify(index.methods.selector?.byKind));
+  await page.click('.tabs button[data-tab="selector"]');
+  await page.click('#tab-selector .day-head');
+  await page.waitForSelector('#tab-selector .day-body .fold');
+  const selDay = await page.$$eval('#tab-selector .day-body .fold summary', (els) => els.map((e) => e.textContent.trim()));
+  check('el seguimiento del selector va por día, con directas e inversas', selDay.some((t) => t.startsWith('Directas')) && selDay.some((t) => t.startsWith('Elegir inversa')), selDay.join(' | '));
+  const selTotals = await page.$$eval('#tab-selector .grid2 .panel h3', (els) => els.map((e) => e.textContent));
+  check('totales del selector por sección', selTotals.join() === 'Selector general,Selector por lado', selTotals.join(', '));
+  await page.screenshot({ path: path.join(OUT, '7c-celular-selector-seguimiento.png'), fullPage: true });
+  await page.click('.tabs button[data-tab="historial"]');
   check('random bets: se liquidan con los demás y se siguen aparte', index.methods.aleatorio?.n === drawn.length && index.methods.aleatorio.pending === 0 && index.n === index.methods.estadistico.n + index.methods.red_neuronal.n, JSON.stringify(index.methods.aleatorio));
 
   // Resumen pisado con una copia vieja (resultados como pendientes): "Actualizar resultados" lo repara.
@@ -307,19 +367,19 @@ async function withoutExtension(browser, errors) {
   const healed = JSON.parse(repo.get('docs/data/historial/index.json').text).days[DAY].methods.estadistico;
   check('un resumen pisado se repara al actualizar resultados', healed.won === good.days[DAY].methods.estadistico.won && healed.pending === 0, JSON.stringify(healed).slice(0, 120));
   await page.click('#tab-historial [aria-label="Análisis a mostrar en cada día"] button:has-text("Red neuronal")');
-  check('el detalle del día se filtra por método', (await page.$$('.day-body .method-tag.estadistico')).length === 0 && (await page.$$('.day-body .method-tag.red_neuronal')).length === 1);
+  check('el detalle del día se filtra por método', (await page.$$('#tab-historial .day-body .method-tag.estadistico')).length === 0 && (await page.$$('#tab-historial .day-body .method-tag.red_neuronal')).length === 1);
   // Aciertos del día por nivel de confianza: en la cabecera y en la tabla del día abierto.
-  const levelChips = await page.$$eval('.day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
+  const levelChips = await page.$$eval('#tab-historial .day-line .chip.lvl', (els) => els.map((e) => e.textContent.trim()));
   check('cada día cuenta los aciertos por nivel', levelChips.length > 0 && levelChips.every((t) => /^(Alta|Mod-alta|Moderada|Combinadas) \d+\/\d+/.test(t)), levelChips.join(' | '));
   // "29/41 · 71%": el porcentaje de acertadas coincide con la cuenta (sin resueltas, sin porcentaje).
-  const hitChips = await page.$$eval('.day-line .chip', (els) => els.map((e) => e.textContent.trim()).filter((t) => /\d+\/\d+/.test(t)));
+  const hitChips = await page.$$eval('#tab-historial .day-line .chip', (els) => els.map((e) => e.textContent.trim()).filter((t) => /\d+\/\d+/.test(t)));
   const pctMatches = (t) => {
     const [, won, resolved] = t.match(/(\d+)\/(\d+)/).map(Number);
     const shown = t.match(/· (\d+)%/);
     return resolved ? Boolean(shown) && Number(shown[1]) === Math.round((won / resolved) * 100) : !shown;
   };
   check('muestra el porcentaje de acertadas del día y de cada nivel', hitChips.some((t) => / aciertos · \d+%$/.test(t)) && hitChips.every(pctMatches), hitChips.join(' | '));
-  const dayTable = await page.textContent('.day-body .day-table');
+  const dayTable = await page.textContent('#tab-historial .day-body .day-table');
   check('el día abierto muestra la tabla por nivel', /Red neuronal: aciertos del día por nivel/.test(dayTable) && /Total picks/.test(dayTable), dayTable.replace(/\s+/g, ' ').slice(0, 160));
   await page.screenshot({ path: path.join(OUT, '8-celular-historial.png'), fullPage: false });
   await page.click('.tabs button[data-tab="partidos"]');
@@ -416,8 +476,8 @@ async function withoutExtension(browser, errors) {
 
     // 3) Historial
     await page.click('.tabs button[data-tab="historial"]');
-    await page.waitForSelector('.day');
-    check('el historial guarda el día con picks pendientes', (await page.textContent('.day')).includes('pendientes'));
+    await page.waitForSelector('#tab-historial .day');
+    check('el historial guarda el día con picks pendientes', (await page.textContent('#tab-historial .day')).includes('pendientes'));
     check('avisa que se guarda solo en el navegador', (await page.textContent('#tab-historial .banner')).includes('solo en este navegador'));
 
     // 4) Actualizar resultados (se adelanta el reloj para que los partidos hayan terminado)
@@ -425,14 +485,14 @@ async function withoutExtension(browser, errors) {
       const real = Date.now.bind(Date);
       Date.now = () => real() + 36 * 3600000;
     });
-    await page.click('text=Actualizar resultados');
+    await page.click('#tab-historial >> text=Actualizar resultados');
     await page.waitForFunction(() => /Resultados:|No hay partidos|No se pudieron/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
     const toast = await page.textContent('#toast');
     check('liquida las apuestas con los resultados', /Resultados: \d+ apuestas liquidadas/.test(toast), toast);
     await page.waitForTimeout(500);
-    await page.click('.day-head');
-    await page.waitForSelector('.day-body .status-pill.won, .day-body .status-pill.lost', { state: 'attached' });
-    const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
+    await page.click('#tab-historial .day-head');
+    await page.waitForSelector('#tab-historial .day-body .status-pill.won, .day-body .status-pill.lost', { state: 'attached' });
+    const pills = await page.$$eval('#tab-historial .day-body .status-pill', (els) => els.map((e) => e.textContent));
     check('marca ganadas y perdidas', pills.includes('Ganada') && pills.includes('Perdida') && !pills.includes('Pendiente'), `${pills.length} apuestas`);
     const table = await page.textContent('.panel table');
     check('calcula aciertos y ganancia por nivel', /%/.test(table), table.replace(/\s+/g, ' ').slice(0, 160));
@@ -457,10 +517,10 @@ async function withoutExtension(browser, errors) {
     check('se puede volver a ver el análisis estadístico', (await page.textContent('#tab-analisis .summary h2')) === 'Análisis estadístico');
     await page.screenshot({ path: path.join(OUT, '3b-comparacion.png'), fullPage: false });
     await page.click('.tabs button[data-tab="historial"]');
-    await page.waitForSelector('.day-line');
-    const lines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
+    await page.waitForSelector('#tab-historial .day-line');
+    const lines = await page.$$eval('#tab-historial .day-line b', (els) => els.map((e) => e.textContent));
     check('el historial sigue cada método por separado (primero la red neuronal)', lines.join(',') === 'Red neuronal,Estadístico', lines.join(', '));
-    await page.waitForSelector('.day-body .method-tag'); // el día quedó abierto desde el paso 4
+    await page.waitForSelector('#tab-historial .day-body .method-tag'); // el día quedó abierto desde el paso 4
     await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
     const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
     check('resultados por nivel de cada método', panels.includes('Análisis estadístico') && panels.includes('Análisis con red neuronal'), panels.join(', '));
@@ -471,7 +531,7 @@ async function withoutExtension(browser, errors) {
     check('pestaña "Por deporte": cada deporte con sus mercados', /Fútbol/.test(sportTab) && (await page.$$('#tab-historial .sport-view tr.sub')).length > 0 && /%/.test(sportTab) && !(await page.$('#tab-historial .day')), sportTab.replace(/\s+/g, ' ').slice(0, 160));
     await page.click('#tab-historial .sport-view .segmented button:has-text("Red neuronal")');
     check('la pestaña "Por deporte" cambia de método', (await page.textContent('#tab-historial .sport-view .segmented button.active')) === 'Red neuronal');
-    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Ligas")');
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Ligas y mercados")');
     const leagueRows = await page.$$eval('#tab-historial .sport-view tr.league-row td:first-child', (els) => els.map((e) => e.textContent));
     check('la pestaña "Por deporte" desglosa cada deporte por liga', leagueRows.length > 0 && leagueRows.some((t) => /Premier League|Liga 1|NBA|ATP/.test(t)) && !(await page.$('#tab-historial .sport-view tr.sub2')), leagueRows.join(' | '));
     await page.click('#tab-historial .sport-view tr.league-row');
@@ -479,6 +539,12 @@ async function withoutExtension(browser, errors) {
     check('cada liga se despliega con sus mercados', leagueMarkets.length > 0, leagueMarkets.join(' | '));
     await page.click('#tab-historial .sport-view tr.league-row');
     check('y se vuelve a plegar', !(await page.$('#tab-historial .sport-view tr.sub2')));
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Ligas y lados")');
+    await page.click('#tab-historial .sport-view tr.league-row');
+    const sideRows = await page.$$eval('#tab-historial .sport-view tr.sub3 td:first-child', (els) => els.map((e) => e.textContent));
+    check('"Ligas y lados": cada mercado de la liga con sus lados', sideRows.length > 0 && sideRows.every((t) => /^(Más|Menos|Local|Empate|Visitante|1X|X2|12|Sí|No|Impar|Par|Ninguno|Exacto|Otros)/.test(t)), sideRows.join(' | '));
+    await page.screenshot({ path: path.join(OUT, '3d-ligas-y-lados.png'), fullPage: false });
+    await page.click('#tab-historial .sport-view tr.league-row');
     await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Mercados")');
     await page.click(`${dayFilter} button:has-text("Ambos")`);
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));

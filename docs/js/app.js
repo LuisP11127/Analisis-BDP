@@ -10,7 +10,9 @@ import { addDays, clamp, h, limaToday } from './util.js';
 import { ApuestasView } from './views/apuestas.js';
 import { PartidosView } from './views/partidos.js';
 import { analysisText, renderAnalisis } from './views/analisis.js';
-import { RANDOM_MAX, randomText, renderHistorial } from './views/historial.js';
+import { RANDOM_MAX, SPORT_FROM, randomText, renderHistorial } from './views/historial.js';
+import { renderSelector, selectorText } from './views/selector.js';
+import { buildSelector, selectorAnalyses } from './selector.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LS = {
@@ -55,6 +57,8 @@ const app = {
     histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' (todos) o un método
     randomN: LS.get('bdp:random-n', 5), // apuestas por sorteo de random bets
     randomDraw: null, // último sorteo, aún sin guardar: { picks, all, pool, methods, requested }
+    selector: null, // selector del último análisis: { general, lado, methods, saved... }
+    openSelDays: new Set(), // días abiertos en el seguimiento del selector
     index: null,
     network: null,
     openDays: new Set(),
@@ -149,6 +153,7 @@ function render() {
   renderHeader();
   if (app.state.tab === 'partidos') views.partidos.render();
   if (app.state.tab === 'analisis') renderAnalisis($('#tab-analisis'), app);
+  if (app.state.tab === 'selector') renderSelector($('#tab-selector'), app);
   if (app.state.tab === 'historial') renderHistorial($('#tab-historial'), app);
   if (app.state.tab === 'apuestas') views.apuestas.render();
 }
@@ -156,11 +161,13 @@ function render() {
 function showTab(tab) {
   app.state.tab = tab;
   for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('active', b.dataset.tab === tab);
-  for (const t of ['partidos', 'analisis', 'historial', 'apuestas']) $(`#tab-${t}`).hidden = t !== tab;
+  for (const t of ['partidos', 'analisis', 'selector', 'historial', 'apuestas']) $(`#tab-${t}`).hidden = t !== tab;
   document.body.classList.toggle('tab-apuestas', tab === 'apuestas');
   if (tab === 'apuestas' && views.apuestas.s.status === 'idle') return views.apuestas.load();
   render();
 }
+
+app.showTab = (tab) => showTab(tab);
 
 // ---- Partidos y selección ----
 
@@ -267,17 +274,21 @@ app.setDate = setDate;
 
 app.canSave = () => store.canWrite();
 
-// Guarda en el historial los análisis que aún no se guardaron.
+// Guarda en el historial los análisis que aún no se guardaron (y el selector
+// de esos análisis, con sus dos secciones).
 app.saveAnalyses = async (list = Object.values(app.state.analyses)) => {
   const pending = list.filter((a) => a && !a.saved && a.candidates.length);
   if (!pending.length || !store.canWrite()) return;
+  const sel = app.state.selector;
+  const withSel = sel && !sel.saved && sel.date === pending[0].date && pending.some((a) => a.created === sel.created);
   try {
-    await history.saveAnalysis(pending);
+    await history.saveAnalysis(pending, { extra: withSel ? selectorAnalyses(sel) : [] });
     for (const a of pending) a.saved = true;
+    if (withSel) sel.saved = true;
     app.state.index = await history.loadIndex();
     const { date } = pending[0];
     app.state.dayCache.delete(date);
-    if (app.state.openDays.has(date)) loadDay(date); // el día abierto en Historial se vuelve a leer
+    if (app.state.openDays.has(date) || app.state.openSelDays.has(date)) loadDay(date); // el día abierto se vuelve a leer
     const what = pending.length > 1 ? 'Análisis estadístico y de red neuronal guardados' : 'Análisis guardado';
     toast(`${what} ${store.isGithub() ? 'en GitHub' : 'en este navegador'}`);
   } catch (e) {
@@ -305,6 +316,7 @@ async function runAnalysis(methods) {
     });
     Object.assign(app.state.analyses, results);
     app.state.analysisView = methods[0];
+    app.state.selector = await makeSelector(results);
     // Ya analizados: se desmarcan para que la próxima selección empiece limpia.
     for (const e of events) app.state.selected.delete(e.id);
     saveSelection();
@@ -320,6 +332,39 @@ async function runAnalysis(methods) {
     idle();
   }
 }
+
+// Selector de los análisis recién hechos, con las cifras de "Por deporte"
+// (todos los días guardados hasta ahora, de cada método).
+async function makeSelector(results) {
+  try {
+    app.state.index ||= await history.loadIndex();
+    const days = Object.fromEntries(Object.entries(app.state.index.days || {}).filter(([d]) => d >= SPORT_FROM));
+    const sel = buildSelector(results, history.totals({ days }).methods);
+    return sel && { ...sel, saved: false };
+  } catch (e) {
+    toast(`No se pudo armar el selector: ${e.message}`, 6000);
+    return null;
+  }
+}
+
+app.copySelector = async () => {
+  try {
+    await navigator.clipboard.writeText(selectorText(app.state.selector));
+    toast('Selector copiado');
+  } catch {
+    toast('No se pudo copiar');
+  }
+};
+
+app.toggleSelDay = (date) => {
+  const { openSelDays, dayCache } = app.state;
+  if (openSelDays.has(date)) openSelDays.delete(date);
+  else {
+    openSelDays.add(date);
+    if (!dayCache.has(date)) loadDay(date);
+  }
+  render();
+};
 
 app.toggleLeagueRow = (key) => {
   const s = app.state.openLeagues;
@@ -370,7 +415,7 @@ app.reloadHistory = async () => {
   } catch (e) {
     toast(`No se pudo leer el historial: ${e.message}`, 6000);
   }
-  for (const date of app.state.openDays) loadDay(date);
+  for (const date of new Set([...app.state.openDays, ...app.state.openSelDays])) loadDay(date);
   if (views.apuestas?.s.walletLoaded) await views.apuestas.loadWallet(); // saldo y apuestas demo al día
   render();
 };
@@ -382,7 +427,7 @@ async function loadDay(date) {
     app.state.dayCache.set(date, null);
     toast(e.message);
   }
-  if (app.state.tab === 'historial') render();
+  if (app.state.tab === 'historial' || app.state.tab === 'selector') render();
 }
 
 app.toggleDay = (date) => {
