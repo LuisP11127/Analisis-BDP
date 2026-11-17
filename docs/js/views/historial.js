@@ -120,6 +120,13 @@ const MARKET_NAME = {
 };
 const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
 const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
+// "Premier League|Inglaterra" -> "Premier League · Inglaterra".
+const leagueName = (k) => {
+  const [league, country] = k.split('|');
+  if (league === 'sin liga') return 'Sin liga';
+  const c = country && country === country.toUpperCase() ? country.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (x) => x.toUpperCase()).replace(/ (Y|De|Del|La|Las|Los) /g, (x) => x.toLowerCase()) : country;
+  return c ? `${league} · ${c}` : league;
+};
 // Pestaña "Por deporte" del detalle: cada deporte con sus tipos de mercado
 // (todos los días; solo picks, las combinadas mezclan deportes y mercados).
 function sportView(app, t, methods) {
@@ -127,6 +134,7 @@ function sportView(app, t, methods) {
   if (!list.length) return h('div', { class: 'empty' }, 'Todavía no hay picks.');
   const method = list.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : list[0][0];
   const m = t.methods[method];
+  const by = app.state.breakdownBy === 'liga' ? 'liga' : 'mercado';
   const resolved = (st) => st.won + st.lost;
   const sports = Object.entries(m.bySport || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
   return h(
@@ -137,16 +145,22 @@ function sportView(app, t, methods) {
       { class: 'toolbar' },
       h('span', { class: 'note' }, 'Método:'),
       h('div', { class: 'segmented', role: 'group', 'aria-label': 'Método' }, list.map(([id, , short]) => h('button', { class: id === method ? 'active' : '', onclick: () => app.setBreakdown(id) }, short))),
+      h('span', { class: 'note' }, 'Ver:'),
+      h(
+        'div',
+        { class: 'segmented', role: 'group', 'aria-label': 'Desglose de cada deporte' },
+        [['mercado', 'Mercados'], ['liga', 'Ligas']].map(([id, name]) => h('button', { class: id === by ? 'active' : '', onclick: () => app.setBreakdownBy(id) }, name)),
+      ),
     ),
     statsTable(
       sports.flatMap(([sp, st]) => [
         statsRow(`${sportOf(sp).icon} ${sportOf(sp).name}`, st, 'sport-total'),
-        ...Object.entries(m.bySportMarket?.[sp] || {})
+        ...Object.entries((by === 'liga' ? m.bySportLeague : m.bySportMarket)?.[sp] || {})
           .sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n)
-          .map(([k, v]) => statsRow(marketName(k), v, 'sub')),
+          .map(([k, v]) => statsRow(by === 'liga' ? leagueName(k) : marketName(k), v, 'sub')),
       ]),
     ),
-    h('p', { class: 'note' }, 'Todos los días · solo picks (las combinadas mezclan deportes y mercados).'),
+    h('p', { class: 'note' }, `Todos los días · solo picks (las combinadas mezclan deportes y ${by === 'liga' ? 'ligas' : 'mercados'}).`),
   );
 }
 

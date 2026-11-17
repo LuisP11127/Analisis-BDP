@@ -468,6 +468,10 @@ async function withoutExtension(browser, errors) {
     check('pestaña "Por deporte": cada deporte con sus mercados', /Fútbol/.test(sportTab) && (await page.$$('#tab-historial .sport-view tr.sub')).length > 0 && /%/.test(sportTab) && !(await page.$('#tab-historial .day')), sportTab.replace(/\s+/g, ' ').slice(0, 160));
     await page.click('#tab-historial .sport-view .segmented button:has-text("Red neuronal")');
     check('la pestaña "Por deporte" cambia de método', (await page.textContent('#tab-historial .sport-view .segmented button.active')) === 'Red neuronal');
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Ligas")');
+    const leagueRows = await page.$$eval('#tab-historial .sport-view tr.sub td:first-child', (els) => els.map((e) => e.textContent));
+    check('la pestaña "Por deporte" desglosa cada deporte por liga', leagueRows.length > 0 && leagueRows.some((t) => /Premier League|Liga 1|NBA|ATP/.test(t)), leagueRows.join(' | '));
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Mercados")');
     await page.click(`${dayFilter} button:has-text("Ambos")`);
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);
