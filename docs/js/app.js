@@ -50,6 +50,8 @@ const app = {
     analyses: { estadistico: null, red_neuronal: null }, // último análisis de cada método
     analysisView: 'estadistico', // método que se ve en la pestaña Análisis
     breakdownMethod: 'estadistico', // método del panel por deporte y tipo de mercado
+    breakdownBy: 'mercado', // desglose de cada deporte: mercado o liga
+    openLeagues: new Set(), // ligas desplegadas (con sus mercados) en "Por deporte"
     histMethod: 'ambos', // detalle de cada día en Historial: 'ambos' (todos) o un método
     randomN: LS.get('bdp:random-n', 5), // apuestas por sorteo de random bets
     randomDraw: null, // último sorteo, aún sin guardar: { picks, all, pool, methods, requested }
@@ -318,6 +320,17 @@ async function runAnalysis(methods) {
     idle();
   }
 }
+
+app.toggleLeagueRow = (key) => {
+  const s = app.state.openLeagues;
+  s.has(key) ? s.delete(key) : s.add(key);
+  render();
+};
+
+app.setBreakdownBy = (by) => {
+  app.state.breakdownBy = by;
+  render();
+};
 
 app.setBreakdown = (method) => {
   app.state.breakdownMethod = method;

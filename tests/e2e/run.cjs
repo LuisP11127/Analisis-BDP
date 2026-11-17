@@ -273,6 +273,8 @@ async function withoutExtension(browser, errors) {
   check('el detalle del día agrupa los picks por nivel, plegados', folds.length > 0 && folds.every(([open, t]) => !open && /^(Alta|Moderada-alta|Moderada|Combinadas|Otros)/.test(t)), folds.map(([, t]) => t).join(' | '));
   await page.click('.day-body .fold summary');
   check('un nivel se despliega al tocarlo', await page.isVisible('.day-body .fold[open] .status-pill'));
+  const subs = await page.$$eval('.day-body .fold[open] .league-sub', (els) => els.map((e) => e.textContent.trim()));
+  check('dentro de cada nivel, los picks van por liga', subs.length > 0 && subs.every((t) => /^\S+ .+ · \d+$/.test(t)), subs.join(' | '));
   await page.click('.day-body .fold[open] summary');
   check('y se vuelve a plegar', !(await page.$('.day-body .fold[open]')));
   const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
@@ -468,6 +470,15 @@ async function withoutExtension(browser, errors) {
     check('pestaña "Por deporte": cada deporte con sus mercados', /Fútbol/.test(sportTab) && (await page.$$('#tab-historial .sport-view tr.sub')).length > 0 && /%/.test(sportTab) && !(await page.$('#tab-historial .day')), sportTab.replace(/\s+/g, ' ').slice(0, 160));
     await page.click('#tab-historial .sport-view .segmented button:has-text("Red neuronal")');
     check('la pestaña "Por deporte" cambia de método', (await page.textContent('#tab-historial .sport-view .segmented button.active')) === 'Red neuronal');
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Ligas")');
+    const leagueRows = await page.$$eval('#tab-historial .sport-view tr.league-row td:first-child', (els) => els.map((e) => e.textContent));
+    check('la pestaña "Por deporte" desglosa cada deporte por liga', leagueRows.length > 0 && leagueRows.some((t) => /Premier League|Liga 1|NBA|ATP/.test(t)) && !(await page.$('#tab-historial .sport-view tr.sub2')), leagueRows.join(' | '));
+    await page.click('#tab-historial .sport-view tr.league-row');
+    const leagueMarkets = await page.$$eval('#tab-historial .sport-view tr.sub2 td:first-child', (els) => els.map((e) => e.textContent));
+    check('cada liga se despliega con sus mercados', leagueMarkets.length > 0, leagueMarkets.join(' | '));
+    await page.click('#tab-historial .sport-view tr.league-row');
+    check('y se vuelve a plegar', !(await page.$('#tab-historial .sport-view tr.sub2')));
+    await page.click('#tab-historial .sport-view [aria-label="Desglose de cada deporte"] button:has-text("Mercados")');
     await page.click(`${dayFilter} button:has-text("Ambos")`);
     const tableOverflow = await page.evaluate(() => [...document.querySelectorAll('.panel')].some((p) => p.scrollWidth > p.clientWidth + 1));
     check('las tablas del historial caben en su panel', !tableOverflow);

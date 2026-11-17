@@ -5,7 +5,7 @@
 import { MIN_SAMPLES } from '../analysis/neural.js';
 import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { STAT_NAME } from '../analysis/catalog.js';
-import { RANDOM, emptyMethodStats, hitRate, roi, totals } from '../history.js';
+import { RANDOM, emptyMethodStats, hitRate, leagueKey, roi, totals } from '../history.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtDay, fmtTime, h, limaDateOf, limaToday, pct } from '../util.js';
 
@@ -120,6 +120,13 @@ const MARKET_NAME = {
 };
 const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
 const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
+// "Premier League|Inglaterra" -> "Premier League · Inglaterra".
+const leagueName = (k) => {
+  const [league, country] = k.split('|');
+  if (league === 'sin liga') return 'Sin liga';
+  const c = country && country === country.toUpperCase() ? country.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (x) => x.toUpperCase()).replace(/ (Y|De|Del|La|Las|Los) /g, (x) => x.toLowerCase()) : country;
+  return c ? `${league} · ${c}` : league;
+};
 // Pestaña "Por deporte" del detalle: cada deporte con sus tipos de mercado
 // (todos los días; solo picks, las combinadas mezclan deportes y mercados).
 function sportView(app, t, methods) {
@@ -127,7 +134,9 @@ function sportView(app, t, methods) {
   if (!list.length) return h('div', { class: 'empty' }, 'Todavía no hay picks.');
   const method = list.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : list[0][0];
   const m = t.methods[method];
+  const by = app.state.breakdownBy === 'liga' ? 'liga' : 'mercado';
   const resolved = (st) => st.won + st.lost;
+  const sorted = (obj) => Object.entries(obj || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
   const sports = Object.entries(m.bySport || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
   return h(
     'div',
@@ -137,16 +146,29 @@ function sportView(app, t, methods) {
       { class: 'toolbar' },
       h('span', { class: 'note' }, 'Método:'),
       h('div', { class: 'segmented', role: 'group', 'aria-label': 'Método' }, list.map(([id, , short]) => h('button', { class: id === method ? 'active' : '', onclick: () => app.setBreakdown(id) }, short))),
+      h('span', { class: 'note' }, 'Ver:'),
+      h(
+        'div',
+        { class: 'segmented', role: 'group', 'aria-label': 'Desglose de cada deporte' },
+        [['mercado', 'Mercados'], ['liga', 'Ligas y mercados']].map(([id, name]) => h('button', { class: id === by ? 'active' : '', onclick: () => app.setBreakdownBy(id) }, name)),
+      ),
     ),
     statsTable(
       sports.flatMap(([sp, st]) => [
         statsRow(`${sportOf(sp).icon} ${sportOf(sp).name}`, st, 'sport-total'),
-        ...Object.entries(m.bySportMarket?.[sp] || {})
-          .sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n)
-          .map(([k, v]) => statsRow(marketName(k), v, 'sub')),
+        ...(by === 'liga'
+          ? sorted(m.bySportLeague?.[sp]).flatMap(([lg, v]) => {
+              const key = `${sp}|${lg}`;
+              const open = app.state.openLeagues.has(key);
+              const row = statsRow(`${open ? '▾' : '▸'} ${leagueName(lg)}`, v, 'sub league-row');
+              row.title = open ? 'Ocultar sus mercados' : 'Ver sus mercados';
+              row.addEventListener('click', () => app.toggleLeagueRow(key));
+              return [row, ...(open ? sorted(m.bySportLeagueMarket?.[sp]?.[lg]).map(([k, x]) => statsRow(marketName(k), x, 'sub2')) : [])];
+            })
+          : sorted(m.bySportMarket?.[sp]).map(([k, v]) => statsRow(marketName(k), v, 'sub'))),
       ]),
     ),
-    h('p', { class: 'note' }, 'Todos los días · solo picks (las combinadas mezclan deportes y mercados).'),
+    h('p', { class: 'note' }, `Todos los días · solo picks (las combinadas mezclan deportes y ${by === 'liga' ? 'ligas' : 'mercados'}).`),
   );
 }
 
@@ -356,6 +378,20 @@ function foldGroup(app, key, title, items, cls, body) {
   return box;
 }
 
+// Picks agrupados por deporte y liga (ligas en orden alfabético; partidos por hora).
+function byLeague(xs, eventInfo) {
+  const groups = new Map();
+  for (const x of xs) {
+    const k = `${x[0].sport || 'otro'}#${leagueKey(eventInfo[x[0].eventId])}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(x);
+  }
+  return [...groups]
+    .map(([k, ys]) => [k.slice(k.indexOf('#') + 1), ys.sort(([a], [b]) => a.start - b.start || a.match.localeCompare(b.match)), k])
+    .sort((a, b) => sportOf(a[1][0][0].sport).name.localeCompare(sportOf(b[1][0][0].sport).name) || leagueName(a[0]).localeCompare(leagueName(b[0])))
+    .map(([lk, ys]) => [lk, ys]);
+}
+
 // Detalle del día: un bloque por método (todas las corridas del día juntas) con
 // los picks agrupados por nivel de confianza y las combinadas, cada grupo plegable.
 function dayBody(app, date, day, filter) {
@@ -371,6 +407,8 @@ function dayBody(app, date, day, filter) {
     const picks = runs.flatMap((a) => a.picks.map((p) => [p, a]));
     const combos = runs.flatMap((a) => (a.combos || []).map((k) => [k, a]));
     const events = new Set(runs.flatMap((a) => Object.keys(a.events || {})));
+    // Datos de cada partido (liga y país) de todos los análisis del día.
+    const eventInfo = Object.assign({}, ...day.analyses.map((a) => a.events || {}));
     const info =
       method === RANDOM
         ? `${picks.length} apuestas sorteadas`
@@ -390,10 +428,17 @@ function dayBody(app, date, day, filter) {
           l.id === 'otro' ? h('span', { class: 'lvl' }, l.name) : levelTag(l.id),
           xs.map(([p]) => p),
           `lvl-${l.id}`,
-          h(
-            'ul',
-            { class: 'leg-list' },
-            xs.map(([p, a]) => legLine(p, [runTag(a), h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`)])),
+          byLeague(xs, eventInfo).map(([lk, ys]) =>
+            h(
+              'div',
+              { class: 'league-group' },
+              h('div', { class: 'league-sub' }, `${sportOf(ys[0][0].sport).icon} ${leagueName(lk)}`, h('span', { class: 'note' }, ` · ${ys.length}`)),
+              h(
+                'ul',
+                { class: 'leg-list' },
+                ys.map(([p, a]) => legLine(p, [runTag(a), h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`)])),
+              ),
+            ),
           ),
         ),
       ),

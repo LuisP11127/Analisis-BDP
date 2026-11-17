@@ -146,11 +146,24 @@ test('random bets: se siguen aparte y no se suman dos veces', async () => {
 test('aciertos por deporte y por tipo de mercado', () => {
   const p = (eventId, market, sport, status) => ({ eventId, key: `${market}|x|`, market, sport, level: 'alta', status, odds: 2 });
   const s = daySummary({
-    analyses: [{ id: 'e', method: 'estadistico', created: 'x', picks: [p(1, '1X2', 'football', 'won'), p(2, 'OU.corners', 'football', 'lost'), p(3, 'ML', 'tennis', 'won')], combos: [] }],
+    analyses: [
+      {
+        id: 'e',
+        method: 'estadistico',
+        created: 'x',
+        events: { 1: { league: 'Premier League', country: 'INGLATERRA' }, 2: { league: 'Premier League', country: 'INGLATERRA' }, 3: { league: 'ATP Tokyo', country: '' } },
+        picks: [p(1, '1X2', 'football', 'won'), p(2, 'OU.corners', 'football', 'lost'), p(3, 'ML', 'tennis', 'won')],
+        combos: [],
+      },
+    ],
   });
   const m = totals({ days: { d: s } }).methods.estadistico;
   assert.equal(m.bySport.football.won + m.bySport.football.lost, 2);
   assert.equal(m.bySport.tennis.won, 1);
   assert.equal(m.byMarket.resultado.won, 2);
   assert.equal(m.byMarket.corners.lost, 1);
+  assert.deepEqual([m.bySportLeague.football['Premier League|INGLATERRA'].won, m.bySportLeague.football['Premier League|INGLATERRA'].lost], [1, 1]);
+  assert.equal(m.bySportLeague.tennis['ATP Tokyo|'].won, 1);
+  assert.equal(m.bySportLeagueMarket.football['Premier League|INGLATERRA'].corners.lost, 1);
+  assert.equal(m.bySportLeagueMarket.football['Premier League|INGLATERRA'].resultado.won, 1);
 });
