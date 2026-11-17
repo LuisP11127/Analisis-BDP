@@ -222,7 +222,7 @@ async function withoutExtension(browser, errors) {
     `${await page.textContent('#toast')} · ${JSON.stringify(randomSaved.map((a) => a.picks.map((p) => p.label)))}`,
   );
   const methodLines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
-  check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Estadístico,Red neuronal,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
+  check('random bets: el día muestra su línea y su tabla', methodLines.join(',') === 'Red neuronal,Estadístico,Random' && (await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent))).includes('Random bets'), methodLines.join(', '));
   check('sin desplazamiento horizontal (historial con random bets, celular)', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)));
 
   // Apuestas demo (celular, sin extensión): cuotas publicadas de Apuesta Total y S/ 10 000 de saldo.
@@ -268,7 +268,13 @@ async function withoutExtension(browser, errors) {
   check('liquida con los resultados publicados', /Resultados: [1-9]\d* apuestas liquidadas/.test(toast), toast);
   await page.waitForTimeout(500);
   await page.click('.day-head');
-  await page.waitForSelector('.day-body .status-pill');
+  await page.waitForSelector('.day-body .fold');
+  const folds = await page.$$eval('.day-body .fold', (els) => els.map((e) => [e.open, e.querySelector('summary').textContent.trim()]));
+  check('el detalle del día agrupa los picks por nivel, plegados', folds.length > 0 && folds.every(([open, t]) => !open && /^(Alta|Moderada-alta|Moderada|Combinadas|Otros)/.test(t)), folds.map(([, t]) => t).join(' | '));
+  await page.click('.day-body .fold summary');
+  check('un nivel se despliega al tocarlo', await page.isVisible('.day-body .fold[open] .status-pill'));
+  await page.click('.day-body .fold[open] summary');
+  check('y se vuelve a plegar', !(await page.$('.day-body .fold[open]')));
   const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
   check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
   const bigFiles = [...repo.entries()].filter(([, f]) => f.text.length > BIG_FILE).map(([p]) => p);
@@ -423,7 +429,7 @@ async function withoutExtension(browser, errors) {
     check('liquida las apuestas con los resultados', /Resultados: \d+ apuestas liquidadas/.test(toast), toast);
     await page.waitForTimeout(500);
     await page.click('.day-head');
-    await page.waitForSelector('.day-body .status-pill.won, .day-body .status-pill.lost');
+    await page.waitForSelector('.day-body .status-pill.won, .day-body .status-pill.lost', { state: 'attached' });
     const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
     check('marca ganadas y perdidas', pills.includes('Ganada') && pills.includes('Perdida') && !pills.includes('Pendiente'), `${pills.length} apuestas`);
     const table = await page.textContent('.panel table');
@@ -451,7 +457,7 @@ async function withoutExtension(browser, errors) {
     await page.click('.tabs button[data-tab="historial"]');
     await page.waitForSelector('.day-line');
     const lines = await page.$$eval('.day-line b', (els) => els.map((e) => e.textContent));
-    check('el historial sigue cada método por separado', lines.join(',') === 'Estadístico,Red neuronal', lines.join(', '));
+    check('el historial sigue cada método por separado (primero la red neuronal)', lines.join(',') === 'Red neuronal,Estadístico', lines.join(', '));
     await page.waitForSelector('.day-body .method-tag'); // el día quedó abierto desde el paso 4
     await page.screenshot({ path: path.join(OUT, '3c-historial-metodos.png'), fullPage: true });
     const panels = await page.$$eval('#tab-historial .panel h3', (els) => els.map((e) => e.textContent));
