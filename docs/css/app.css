@@ -393,3 +393,17 @@ tr.sub2 td:first-child { padding-left: 44px; color: var(--muted); font-size: 13p
 .league-group { padding: 2px 12px 8px; }
 .league-sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 6px 0 4px; padding-bottom: 3px; border-bottom: 1px solid var(--line); }
 .fold > .league-group > .leg-list { padding-left: 4px; }
+tr.sub3 td:first-child { padding-left: 64px; color: var(--muted); font-size: 12px; }
+
+/* Selector */
+.method-tag.selector, .method-tag.selector_lado { background: #b7791f; }
+.src-tag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 0 6px; border: 1px solid var(--line); color: var(--text); white-space: nowrap; }
+.src-tag.both { border-color: var(--nn); color: var(--nn); }
+.inv-tag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 0 6px; color: var(--warn); background: var(--warn-bg); white-space: nowrap; }
+.sel-sections { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.sel-sections .panel h3 { margin-top: 0; }
+.sel-item { overflow-wrap: anywhere; }
+.sel-item .why { display: block; font-size: 12px; color: var(--muted); }
+.sel-rules li { font-size: 13px; overflow-wrap: anywhere; }
+.sel-sections { margin-bottom: 16px; }
+.toolbar h3 { margin: 0; font-size: 16px; }

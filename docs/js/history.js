@@ -20,6 +20,7 @@ import { mergeRecords, recordFromSofascore } from './analysis/records.js';
 import { flashscoreRecords } from './flashscore-link.js';
 import { Corrector, isResult } from './analysis/neural.js';
 import { LEVELS } from './analysis/picks.js';
+import { SELECTOR_METHODS, SEL_GENERAL, SEL_LADO, sideKey } from './selector.js';
 
 export const INDEX = 'data/historial/index.json';
 export const MODEL = 'data/modelo/red-neuronal.json';
@@ -27,10 +28,12 @@ export const dayPath = (date) => `data/historial/${date}.json`;
 export const rowsPath = (month) => `data/entrenamiento/${month}.json`;
 
 export const RANDOM = 'aleatorio'; // random bets: picks sorteados de los otros análisis
-const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets' };
+const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets', [SEL_GENERAL]: 'selector general', [SEL_LADO]: 'selector por lado' };
+// Métodos que repiten picks de los análisis (no se suman al total).
+export const DERIVED = new Set([RANDOM, ...SELECTOR_METHODS]);
 // Resúmenes por método; los de otra versión se recalculan desde el archivo de
 // cada día (3: repara resúmenes pisados con una copia vieja de GitHub).
-const SUMMARY_VERSION = 7; // 5: por deporte y tipo de mercado; 6: por liga; 7: por liga y mercado dentro de cada deporte
+const SUMMARY_VERSION = 8; // 5: por deporte y tipo de mercado; 6: por liga; 7: por liga y mercado dentro de cada deporte; 8: lados de cada mercado y selector
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
 const NO_DATA_MS = 96 * 3600000; // terminado sin los datos de esa apuesta (p. ej. córners): nula tras 4 días
@@ -140,15 +143,16 @@ function mergeRows(oldRows = [], newRows = []) {
 
 // Guarda uno o varios análisis del mismo día (p. ej. estadístico y red
 // neuronal hechos juntos) con un solo cambio por archivo.
-export async function saveAnalysis(input) {
+// extra: análisis ya armados del mismo día (las dos secciones del selector).
+export async function saveAnalysis(input, { extra = [] } = {}) {
   const results = (Array.isArray(input) ? input : [input]).filter(Boolean);
   if (!results.length) return null;
   const { date } = results[0];
-  const stored = results.map(compactAnalysis);
+  const stored = [...results.map(compactAnalysis), ...extra.filter((a) => a.date === date)];
   const ids = new Set(stored.map((a) => a.id));
   const day = (await store.read(dayPath(date), { fresh: true })) || { date, analyses: [] };
   day.analyses = day.analyses.filter((a) => !ids.has(a.id)).concat(stored);
-  const names = results.map((r) => METHOD_NAME[r.method]).join(' y ');
+  const names = stored.map((r) => METHOD_NAME[r.method]).join(', ').replace(/, ([^,]*)$/, ' y $1');
   await store.write(dayPath(date), day, `Historial: análisis ${names} del ${date}`);
 
   for (const [month, rows] of groupBy(results.flatMap(trainingRows), (r) => r.date.slice(0, 7))) {
@@ -175,7 +179,8 @@ function addResult(stats, status, odds) {
     stats.pending++;
     return;
   }
-  if (status !== 'void') {
+  // Sin cuota (p. ej. una inversa que la casa no ofrecía) cuenta el acierto, no la ganancia.
+  if (status !== 'void' && Number.isFinite(odds)) {
     stats.profit += profitOf(status, odds);
     stats.staked++;
   }
@@ -205,12 +210,12 @@ export function latestByMethod(day) {
   return out;
 }
 
-const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {}, bySportMarket: {}, bySportLeague: {}, bySportLeagueMarket: {} });
+const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {}, bySportMarket: {}, bySportLeague: {}, bySportLeagueMarket: {}, bySportLeagueSide: {} });
 // Tipo de mercado de un pick (resultado, total, hándicap, córners...).
 export const marketType = (market) => familyOf(parseMarketId(market));
 
 // Resumen de un día: por método (methods) y la suma de los análisis. Las random
-// bets repiten picks de los otros análisis: no se suman dos veces, pero sus
+// bets y el selector repiten picks de los otros análisis: no se suman dos veces, pero sus
 // pendientes cuentan para liquidarlas.
 // Liga de un partido: "Premier League|Inglaterra" (liga|país).
 export const leagueKey = (e) => (e?.league ? `${e.league}|${e.country || ''}` : 'sin liga|');
@@ -219,10 +224,10 @@ export function daySummary(day) {
   const events = {};
   for (const a of day.analyses || []) Object.assign(events, a.events || {});
   const out = { ...emptyStats(), v: SUMMARY_VERSION, byLevel: {}, byMethod: {}, combos: emptyStats(), methods: {} };
-  let randomPending = 0;
+  let derivedPending = 0;
   for (const [method, { picks, combos }] of latestByMethod(day)) {
     const m = (out.methods[method] = methodStats());
-    const inSum = method !== RANDOM;
+    const inSum = !DERIVED.has(method);
     for (const p of picks.values()) {
       addResult(m, p.status, p.odds);
       addResult((m.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
@@ -232,19 +237,22 @@ export function daySummary(day) {
       const lk = leagueKey(events[p.eventId]);
       addResult(((m.bySportLeague[p.sport || 'otro'] ||= {})[lk] ||= emptyStats()), p.status, p.odds);
       addResult((((m.bySportLeagueMarket[p.sport || 'otro'] ||= {})[lk] ||= {})[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
+      // Selector: apuestas directas e inversas por separado.
+      if (SELECTOR_METHODS.includes(method)) addResult(((m.byKind ||= {})[p.inverse ? 'inversa' : 'directa'] ||= emptyStats()), p.status, p.odds);
+      addResult(((((m.bySportLeagueSide[p.sport || 'otro'] ||= {})[lk] ||= {})[marketType(p.market)] ||= {})[sideKey(p.sel)] ||= emptyStats()), p.status, p.odds);
       if (inSum) {
         addResult(out, p.status, p.odds);
         addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
-      } else if (p.status === 'pending') randomPending++;
+      } else if (p.status === 'pending') derivedPending++;
     }
     for (const k of combos.values()) {
       addResult(m.combos, k.status, k.odds);
       if (inSum) addResult(out.combos, k.status, k.odds);
     }
-    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, bySportMarket: _sm, bySportLeague: _sl, bySportLeagueMarket: _slm, ...plain } = m;
+    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, bySportMarket: _sm, bySportLeague: _sl, bySportLeagueMarket: _slm, bySportLeagueSide: _sls, byKind: _kind, ...plain } = m;
     out.byMethod[method] = plain;
   }
-  out.pendingAll = out.pending + out.combos.pending + randomPending;
+  out.pendingAll = out.pending + out.combos.pending + derivedPending;
   return out;
 }
 
@@ -298,12 +306,16 @@ export function totals(index) {
       add(t, m);
       add(t.combos, m.combos || {});
       for (const [k, v] of Object.entries(m.byLevel || {})) add((t.byLevel[k] ||= emptyStats()), v);
+      for (const [k, v] of Object.entries(m.byKind || {})) add(((t.byKind ||= {})[k] ||= emptyStats()), v);
       for (const [k, v] of Object.entries(m.bySport || {})) add((t.bySport[k] ||= emptyStats()), v);
       for (const [k, v] of Object.entries(m.byMarket || {})) add((t.byMarket[k] ||= emptyStats()), v);
       for (const [sp, fams] of Object.entries(m.bySportMarket || {})) for (const [k, v] of Object.entries(fams)) add(((t.bySportMarket[sp] ||= {})[k] ||= emptyStats()), v);
       for (const [sp, ls] of Object.entries(m.bySportLeague || {})) for (const [k, v] of Object.entries(ls)) add(((t.bySportLeague[sp] ||= {})[k] ||= emptyStats()), v);
       for (const [sp, ls] of Object.entries(m.bySportLeagueMarket || {}))
         for (const [lg, fams] of Object.entries(ls)) for (const [k, v] of Object.entries(fams)) add((((t.bySportLeagueMarket[sp] ||= {})[lg] ||= {})[k] ||= emptyStats()), v);
+      for (const [sp, ls] of Object.entries(m.bySportLeagueSide || {}))
+        for (const [lg, fams] of Object.entries(ls))
+          for (const [k, sides] of Object.entries(fams)) for (const [sd, v] of Object.entries(sides)) add(((((t.bySportLeagueSide[sp] ||= {})[lg] ||= {})[k] ||= {})[sd] ||= emptyStats()), v);
     }
   }
   return out;
@@ -331,6 +343,7 @@ export function randomCandidates(day, now) {
     for (const p of a.picks || []) {
       const key = pickKey(p);
       if (a.method === RANDOM) drawn.add(key);
+      else if (DERIVED.has(a.method)) continue;
       else if (p.status === 'pending' && p.start > now) pool.set(key, { ...p, date: day.date, methods: [...new Set([...(pool.get(key)?.methods || []), a.method])] });
     }
   return [...pool.values()].filter((p) => !drawn.has(pickKey(p)));

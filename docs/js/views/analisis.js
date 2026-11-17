@@ -240,6 +240,13 @@ function renderMethod(root, app, a) {
       'div',
       { class: 'row' },
       h('button', { class: 'btn small', onclick: () => app.copyAnalysis() }, 'Copiar picks'),
+      app.state.selector
+        ? h(
+            'button',
+            { class: 'btn small', title: 'Picks de este análisis en mercados que vienen acertando 67% o más (o 33% o menos, con la inversa)', onclick: () => app.showTab('selector') },
+            `Selector: ${app.state.selector.selector.length} general · ${app.state.selector.selector_lado.length} por lado`,
+          )
+        : null,
       a.saved
         ? h('span', { class: 'chip ok' }, 'Guardado en el historial')
         : app.canSave() && a.candidates.length

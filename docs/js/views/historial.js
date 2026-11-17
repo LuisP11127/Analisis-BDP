@@ -5,7 +5,8 @@
 import { MIN_SAMPLES } from '../analysis/neural.js';
 import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { STAT_NAME } from '../analysis/catalog.js';
-import { RANDOM, emptyMethodStats, hitRate, leagueKey, roi, totals } from '../history.js';
+import { DERIVED, RANDOM, emptyMethodStats, hitRate, leagueKey, roi, totals } from '../history.js';
+import { SIDE_NAME, sideRank } from '../selector.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtDay, fmtTime, h, limaDateOf, limaToday, pct } from '../util.js';
 
@@ -29,7 +30,7 @@ const ZERO = { won: 0, lost: 0, pending: 0, staked: 0, profit: 0 };
 const LEVEL_SHORT = { alta: 'Alta', moderada_alta: 'Mod-alta', moderada: 'Moderada' };
 
 // Porcentaje de acertadas de las resueltas: " · 75%" (nada si aún no hay resueltas).
-const hitPct = (st) => {
+export const hitPct = (st) => {
   const hr = hitRate(st);
   return hr == null ? null : h('span', { class: 'hit-pct' }, ` · ${pct(hr)}`);
 };
@@ -68,10 +69,10 @@ const levelRows = (m, combos = true) => [
   statsRow('Total picks', m, 'total'),
 ];
 
-const money = (x) => h('span', { class: x > 0 ? 'pos' : x < 0 ? 'neg' : '' }, `${x > 0 ? '+' : ''}${x.toFixed(2)} u`);
-const pill = (status) => h('span', { class: `status-pill ${status}` }, STATUS[status] || status);
+export const money = (x) => h('span', { class: x > 0 ? 'pos' : x < 0 ? 'neg' : '' }, `${x > 0 ? '+' : ''}${x.toFixed(2)} u`);
+export const pill = (status) => h('span', { class: `status-pill ${status}` }, STATUS[status] || status);
 
-function statsRow(name, s, cls = '') {
+export function statsRow(name, s, cls = '') {
   const hr = hitRate(s);
   const r = roi(s);
   return h(
@@ -86,7 +87,7 @@ function statsRow(name, s, cls = '') {
   );
 }
 
-function statsTable(rows) {
+export function statsTable(rows) {
   return h('div', { class: 'table-wrap' }, statsTableInner(rows));
 }
 
@@ -119,9 +120,9 @@ const MARKET_NAME = {
   margen: 'Margen de victoria', combinado: 'Combinados de la casa', otro: 'Otros',
 };
 const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
-const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
+export const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
 // "Premier League|Inglaterra" -> "Premier League · Inglaterra".
-const leagueName = (k) => {
+export const leagueName = (k) => {
   const [league, country] = k.split('|');
   if (league === 'sin liga') return 'Sin liga';
   const c = country && country === country.toUpperCase() ? country.toLowerCase().replace(/(^|[\s-])\p{L}/gu, (x) => x.toUpperCase()).replace(/ (Y|De|Del|La|Las|Los) /g, (x) => x.toLowerCase()) : country;
@@ -136,7 +137,7 @@ function sportView(app, t, methods) {
   if (!list.length) return h('div', { class: 'empty' }, 'Todavía no hay picks.');
   const method = list.some(([id]) => id === app.state.breakdownMethod) ? app.state.breakdownMethod : list[0][0];
   const m = t.methods[method];
-  const by = app.state.breakdownBy === 'liga' ? 'liga' : 'mercado';
+  const by = ['liga', 'lado'].includes(app.state.breakdownBy) ? app.state.breakdownBy : 'mercado';
   const resolved = (st) => st.won + st.lost;
   const sorted = (obj) => Object.entries(obj || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
   const sports = Object.entries(m.bySport || {}).sort(([, a], [, b]) => resolved(b) - resolved(a) || b.n - a.n);
@@ -152,25 +153,37 @@ function sportView(app, t, methods) {
       h(
         'div',
         { class: 'segmented', role: 'group', 'aria-label': 'Desglose de cada deporte' },
-        [['mercado', 'Mercados'], ['liga', 'Ligas y mercados']].map(([id, name]) => h('button', { class: id === by ? 'active' : '', onclick: () => app.setBreakdownBy(id) }, name)),
+        [['mercado', 'Mercados'], ['liga', 'Ligas y mercados'], ['lado', 'Ligas y lados']].map(([id, name]) => h('button', { class: id === by ? 'active' : '', onclick: () => app.setBreakdownBy(id) }, name)),
       ),
     ),
     statsTable(
       sports.flatMap(([sp, st]) => [
         statsRow(`${sportOf(sp).icon} ${sportOf(sp).name}`, st, 'sport-total'),
-        ...(by === 'liga'
+        ...(by !== 'mercado'
           ? sorted(m.bySportLeague?.[sp]).flatMap(([lg, v]) => {
               const key = `${sp}|${lg}`;
               const open = app.state.openLeagues.has(key);
               const row = statsRow(`${open ? '▾' : '▸'} ${leagueName(lg)}`, v, 'sub league-row');
               row.title = open ? 'Ocultar sus mercados' : 'Ver sus mercados';
               row.addEventListener('click', () => app.toggleLeagueRow(key));
-              return [row, ...(open ? sorted(m.bySportLeagueMarket?.[sp]?.[lg]).map(([k, x]) => statsRow(marketName(k), x, 'sub2')) : [])];
+              if (!open) return [row];
+              const markets = sorted(m.bySportLeagueMarket?.[sp]?.[lg]);
+              if (by === 'liga') return [row, ...markets.map(([k, x]) => statsRow(marketName(k), x, 'sub2'))];
+              // Cada mercado con sus lados (más/menos, local/visitante, sí/no...).
+              return [
+                row,
+                ...markets.flatMap(([k, x]) => [
+                  statsRow(marketName(k), x, 'sub2'),
+                  ...Object.entries(m.bySportLeagueSide?.[sp]?.[lg]?.[k] || {})
+                    .sort(([a], [b]) => sideRank(a) - sideRank(b))
+                    .map(([sd, y]) => statsRow(SIDE_NAME[sd] || sd, y, 'sub3')),
+                ]),
+              ];
             })
           : sorted(m.bySportMarket?.[sp]).map(([k, v]) => statsRow(marketName(k), v, 'sub'))),
       ]),
     ),
-    h('p', { class: 'note' }, `Desde el ${fmtDay(SPORT_FROM).split(', ').pop()} · solo picks (las combinadas mezclan deportes y ${by === 'liga' ? 'ligas' : 'mercados'}).`),
+    h('p', { class: 'note' }, `Desde el ${fmtDay(SPORT_FROM).split(', ').pop()} · solo picks (las combinadas mezclan deportes y ${by === 'mercado' ? 'mercados' : 'ligas'}).${by === 'mercado' ? '' : ' Toca una liga para ver sus mercados.'}`),
   );
 }
 
@@ -274,7 +287,7 @@ function randomPanel(app) {
   );
 }
 
-function storageBanner(app) {
+export function storageBanner(app) {
   const { mode, info, tokenError } = app.storage;
   if (mode === 'github-web' || mode === 'github')
     return h(
@@ -332,7 +345,7 @@ function networkPanel(app) {
   );
 }
 
-function legLine(l, extra = []) {
+export function legLine(l, extra = []) {
   const sport = sportOf(l.sport);
   const score = l.score ? ` · ${l.score.homeNT ?? l.score.home}-${l.score.awayNT ?? l.score.away}` : '';
   return h(
@@ -360,7 +373,7 @@ function tally(items) {
 }
 
 // Sección plegable ("Alta · 12 picks · 7/10 · 70%"); recuerda si estaba abierta.
-function foldGroup(app, key, title, items, cls, body) {
+export function foldGroup(app, key, title, items, cls, body) {
   const t = tally(items);
   const resolved = t.won + t.lost;
   const box = h(
@@ -398,7 +411,7 @@ function byLeague(xs, eventInfo) {
 // los picks agrupados por nivel de confianza y las combinadas, cada grupo plegable.
 function dayBody(app, date, day, filter) {
   if (!day) return h('div', { class: 'note' }, 'No se encontró el detalle de este día.');
-  const list = day.analyses.filter((a) => filter === 'ambos' || a.method === filter);
+  const list = day.analyses.filter((a) => (filter === 'ambos' ? !DERIVED.has(a.method) || a.method === RANDOM : a.method === filter));
   if (!list.length) return h('div', { class: 'note' }, filter === RANDOM ? 'Sin random bets este día.' : `Sin análisis ${SHORT[filter]?.toLowerCase() || ''} este día.`);
   const methods = [...new Set(list.map((a) => a.method))].sort((a, b) => dayRank(a) - dayRank(b));
   return methods.map((method) => {
