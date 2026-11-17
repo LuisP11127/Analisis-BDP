@@ -129,6 +129,8 @@ const leagueName = (k) => {
 };
 // Pestaña "Por deporte" del detalle: cada deporte con sus tipos de mercado
 // (todos los días; solo picks, las combinadas mezclan deportes y mercados).
+// "Por deporte" solo cuenta los días desde esta fecha.
+export const SPORT_FROM = '2026-10-31';
 function sportView(app, t, methods) {
   const list = methods.filter(([id]) => t.methods[id]);
   if (!list.length) return h('div', { class: 'empty' }, 'Todavía no hay picks.');
@@ -168,7 +170,7 @@ function sportView(app, t, methods) {
           : sorted(m.bySportMarket?.[sp]).map(([k, v]) => statsRow(marketName(k), v, 'sub'))),
       ]),
     ),
-    h('p', { class: 'note' }, `Todos los días · solo picks (las combinadas mezclan deportes y ${by === 'liga' ? 'ligas' : 'mercados'}).`),
+    h('p', { class: 'note' }, `Desde el ${fmtDay(SPORT_FROM).split(', ').pop()} · solo picks (las combinadas mezclan deportes y ${by === 'liga' ? 'ligas' : 'mercados'}).`),
   );
 }
 
@@ -515,7 +517,8 @@ export function renderHistorial(root, app) {
     ),
   );
   if (filter === 'deportes') {
-    root.append(sportView(app, t, methods));
+    const days = Object.fromEntries(Object.entries(index.days).filter(([d]) => d >= SPORT_FROM));
+    root.append(sportView(app, totals({ days }), methods));
     return;
   }
   for (const date of dates) {
