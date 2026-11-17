@@ -30,7 +30,7 @@ export const RANDOM = 'aleatorio'; // random bets: picks sorteados de los otros 
 const METHOD_NAME = { estadistico: 'estadístico', red_neuronal: 'red neuronal', [RANDOM]: 'random bets' };
 // Resúmenes por método; los de otra versión se recalculan desde el archivo de
 // cada día (3: repara resúmenes pisados con una copia vieja de GitHub).
-const SUMMARY_VERSION = 6; // 5: por deporte y tipo de mercado; 6: también por liga dentro de cada deporte
+const SUMMARY_VERSION = 7; // 5: por deporte y tipo de mercado; 6: por liga; 7: por liga y mercado dentro de cada deporte
 const GRACE_MS = 2.5 * 3600000; // se consulta el resultado 2,5 h después del inicio
 const CANCEL_FINAL_MS = 48 * 3600000; // aplazado/cancelado: nula tras 48 h
 const NO_DATA_MS = 96 * 3600000; // terminado sin los datos de esa apuesta (p. ej. córners): nula tras 4 días
@@ -205,7 +205,7 @@ export function latestByMethod(day) {
   return out;
 }
 
-const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {}, bySportMarket: {}, bySportLeague: {} });
+const methodStats = () => ({ ...emptyStats(), byLevel: {}, combos: emptyStats(), bySport: {}, byMarket: {}, bySportMarket: {}, bySportLeague: {}, bySportLeagueMarket: {} });
 // Tipo de mercado de un pick (resultado, total, hándicap, córners...).
 export const marketType = (market) => familyOf(parseMarketId(market));
 
@@ -229,7 +229,9 @@ export function daySummary(day) {
       addResult((m.bySport[p.sport || 'otro'] ||= emptyStats()), p.status, p.odds);
       addResult((m.byMarket[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
       addResult(((m.bySportMarket[p.sport || 'otro'] ||= {})[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
-      addResult(((m.bySportLeague[p.sport || 'otro'] ||= {})[leagueKey(events[p.eventId])] ||= emptyStats()), p.status, p.odds);
+      const lk = leagueKey(events[p.eventId]);
+      addResult(((m.bySportLeague[p.sport || 'otro'] ||= {})[lk] ||= emptyStats()), p.status, p.odds);
+      addResult((((m.bySportLeagueMarket[p.sport || 'otro'] ||= {})[lk] ||= {})[marketType(p.market)] ||= emptyStats()), p.status, p.odds);
       if (inSum) {
         addResult(out, p.status, p.odds);
         addResult((out.byLevel[p.level] ||= emptyStats()), p.status, p.odds);
@@ -239,7 +241,7 @@ export function daySummary(day) {
       addResult(m.combos, k.status, k.odds);
       if (inSum) addResult(out.combos, k.status, k.odds);
     }
-    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, bySportMarket: _sm, bySportLeague: _sl, ...plain } = m;
+    const { byLevel: _levels, combos: _combos, bySport: _sports, byMarket: _markets, bySportMarket: _sm, bySportLeague: _sl, bySportLeagueMarket: _slm, ...plain } = m;
     out.byMethod[method] = plain;
   }
   out.pendingAll = out.pending + out.combos.pending + randomPending;
@@ -300,6 +302,8 @@ export function totals(index) {
       for (const [k, v] of Object.entries(m.byMarket || {})) add((t.byMarket[k] ||= emptyStats()), v);
       for (const [sp, fams] of Object.entries(m.bySportMarket || {})) for (const [k, v] of Object.entries(fams)) add(((t.bySportMarket[sp] ||= {})[k] ||= emptyStats()), v);
       for (const [sp, ls] of Object.entries(m.bySportLeague || {})) for (const [k, v] of Object.entries(ls)) add(((t.bySportLeague[sp] ||= {})[k] ||= emptyStats()), v);
+      for (const [sp, ls] of Object.entries(m.bySportLeagueMarket || {}))
+        for (const [lg, fams] of Object.entries(ls)) for (const [k, v] of Object.entries(fams)) add((((t.bySportLeagueMarket[sp] ||= {})[lg] ||= {})[k] ||= emptyStats()), v);
     }
   }
   return out;

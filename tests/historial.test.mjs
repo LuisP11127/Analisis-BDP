@@ -164,4 +164,6 @@ test('aciertos por deporte y por tipo de mercado', () => {
   assert.equal(m.byMarket.corners.lost, 1);
   assert.deepEqual([m.bySportLeague.football['Premier League|INGLATERRA'].won, m.bySportLeague.football['Premier League|INGLATERRA'].lost], [1, 1]);
   assert.equal(m.bySportLeague.tennis['ATP Tokyo|'].won, 1);
+  assert.equal(m.bySportLeagueMarket.football['Premier League|INGLATERRA'].corners.lost, 1);
+  assert.equal(m.bySportLeagueMarket.football['Premier League|INGLATERRA'].resultado.won, 1);
 });
