@@ -318,46 +318,98 @@ function legLine(l, extra = []) {
   );
 }
 
-function dayBody(day, filter) {
+// Acertadas / resueltas / pendientes de una lista de apuestas.
+function tally(items) {
+  const t = { won: 0, lost: 0, pending: 0 };
+  for (const x of items) {
+    if (x.status === 'won' || x.status === 'half_won') t.won++;
+    else if (x.status === 'lost' || x.status === 'half_lost') t.lost++;
+    else if (!x.status || x.status === 'pending') t.pending++;
+  }
+  return t;
+}
+
+// Sección plegable ("Alta · 12 picks · 7/10 · 70%"); recuerda si estaba abierta.
+function foldGroup(app, key, title, items, cls, body) {
+  const t = tally(items);
+  const resolved = t.won + t.lost;
+  const box = h(
+    'details',
+    { class: `fold ${cls}`, open: app.state.openGroups.has(key) },
+    h(
+      'summary',
+      {},
+      h('span', { class: 'fold-title' }, title),
+      h('span', { class: 'chip' }, `${items.length} ${items.length === 1 ? 'apuesta' : 'apuestas'}`),
+      resolved ? h('span', { class: t.won >= t.lost ? 'chip ok' : 'chip err' }, `${t.won}/${resolved}`, hitPct(t)) : null,
+      t.pending ? h('span', { class: 'chip' }, `${t.pending} pendientes`) : null,
+    ),
+    body,
+  );
+  box.addEventListener('toggle', () => (box.open ? app.state.openGroups.add(key) : app.state.openGroups.delete(key)));
+  return box;
+}
+
+// Detalle del día: un bloque por método (todas las corridas del día juntas) con
+// los picks agrupados por nivel de confianza y las combinadas, cada grupo plegable.
+function dayBody(app, date, day, filter) {
   if (!day) return h('div', { class: 'note' }, 'No se encontró el detalle de este día.');
   const list = day.analyses.filter((a) => filter === 'ambos' || a.method === filter);
   if (!list.length) return h('div', { class: 'note' }, filter === RANDOM ? 'Sin random bets este día.' : `Sin análisis ${SHORT[filter]?.toLowerCase() || ''} este día.`);
-  return list
-    .slice()
-    .reverse()
-    .map((a) =>
-      h(
-        'div',
-        { class: 'analysis-block' },
-        h(
-          'h4',
-          {},
-          h('span', { class: `method-tag ${a.method}` }, SHORT[a.method] || a.method),
-          ` ${fmtDateTime(Date.parse(a.created))} · `,
-          a.method === RANDOM ? `${a.picks.length} apuestas sorteadas entre ${a.draw?.pool ?? a.picks.length} picks` : `${Object.keys(a.events || {}).length} partidos`,
-        ),
-        a.picks.length
-          ? h(
-              'ul',
-              { class: 'leg-list' },
-              a.picks.map((p) =>
-                legLine(p, [
-                  levelTag(p.level),
-                  h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`),
-                ]),
-              ),
-            )
-          : h('div', { class: 'note' }, 'Sin picks.'),
-        (a.combos || []).map((k) =>
+  const methods = [...new Set(list.map((a) => a.method))].sort((a, b) => rank(a) - rank(b));
+  return methods.map((method) => {
+    const runs = list.filter((a) => a.method === method).sort((a, b) => Date.parse(a.created) - Date.parse(b.created));
+    const multi = runs.length > 1;
+    // Con varias corridas, cada apuesta dice de cuál viene.
+    const runTag = (a) => (multi ? h('span', { class: 'run-tag', title: 'Corrida del análisis' }, fmtTime(Date.parse(a.created))) : null);
+    const picks = runs.flatMap((a) => a.picks.map((p) => [p, a]));
+    const combos = runs.flatMap((a) => (a.combos || []).map((k) => [k, a]));
+    const events = new Set(runs.flatMap((a) => Object.keys(a.events || {})));
+    const info =
+      method === RANDOM
+        ? `${picks.length} apuestas sorteadas`
+        : `${events.size} partidos`;
+    const when = multi ? `${runs.length} corridas (${runs.map((a) => fmtTime(Date.parse(a.created))).join(' y ')})` : fmtDateTime(Date.parse(runs[0].created));
+    const levels = LEVELS.map((l) => [l, picks.filter(([p]) => p.level === l.id)]).filter(([, xs]) => xs.length);
+    const other = picks.filter(([p]) => !LEVELS.some((l) => l.id === p.level));
+    return h(
+      'div',
+      { class: 'analysis-block' },
+      h('h4', {}, h('span', { class: `method-tag ${method}` }, SHORT[method] || method), ` ${when} · ${info}`),
+      picks.length || combos.length ? null : h('div', { class: 'note' }, 'Sin picks.'),
+      [...levels, ...(other.length ? [[{ id: 'otro', name: 'Otros' }, other]] : [])].map(([l, xs]) =>
+        foldGroup(
+          app,
+          `${date}|${method}|${l.id}`,
+          l.id === 'otro' ? h('span', { class: 'lvl' }, l.name) : levelTag(l.id),
+          xs.map(([p]) => p),
+          `lvl-${l.id}`,
           h(
-            'div',
-            {},
-            h('div', { class: 'note' }, pill(k.status), ` Combinada ${BOOKMAKERS[k.source]} · cuota ${k.odds.toFixed(2)} · prob. ${pct(k.p)}`),
-            h('ul', { class: 'leg-list' }, k.legs.map((l) => legLine(l, [h('span', { class: 'note' }, `@ ${l.price.toFixed(2)}`)]))),
+            'ul',
+            { class: 'leg-list' },
+            xs.map(([p, a]) => legLine(p, [runTag(a), h('span', { class: 'note' }, `@ ${p.odds.toFixed(2)} ${BOOKMAKERS[p.source]} · ${pct(p.p)}`)])),
           ),
         ),
       ),
+      combos.length
+        ? foldGroup(
+            app,
+            `${date}|${method}|combo`,
+            h('span', { class: 'lvl' }, 'Combinadas'),
+            combos.map(([k]) => k),
+            'lvl-combo',
+            combos.map(([k, a]) =>
+              h(
+                'div',
+                { class: 'combo-item' },
+                h('div', { class: 'note' }, pill(k.status), runTag(a), ` Combinada ${BOOKMAKERS[k.source]} · cuota ${k.odds.toFixed(2)} · prob. ${pct(k.p)}`),
+                h('ul', { class: 'leg-list' }, k.legs.map((l) => legLine(l, [h('span', { class: 'note' }, `@ ${l.price.toFixed(2)}`)]))),
+              ),
+            ),
+          )
+        : null,
     );
+  });
 }
 
 export function renderHistorial(root, app) {
@@ -441,7 +493,7 @@ export function renderHistorial(root, app) {
       ),
     );
     const box = h('div', { class: 'day' }, head);
-    if (open) box.append(h('div', { class: 'day-body' }, dayTables(s, filter), state.dayCache.has(date) ? dayBody(state.dayCache.get(date), filter) : h('div', { class: 'note' }, 'Cargando…')));
+    if (open) box.append(h('div', { class: 'day-body' }, dayTables(s, filter), state.dayCache.has(date) ? dayBody(app, date, state.dayCache.get(date), filter) : h('div', { class: 'note' }, 'Cargando…')));
     root.append(box);
   }
 }

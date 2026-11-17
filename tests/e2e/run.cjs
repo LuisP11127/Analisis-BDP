@@ -268,7 +268,13 @@ async function withoutExtension(browser, errors) {
   check('liquida con los resultados publicados', /Resultados: [1-9]\d* apuestas liquidadas/.test(toast), toast);
   await page.waitForTimeout(500);
   await page.click('.day-head');
-  await page.waitForSelector('.day-body .status-pill');
+  await page.waitForSelector('.day-body .fold');
+  const folds = await page.$$eval('.day-body .fold', (els) => els.map((e) => [e.open, e.querySelector('summary').textContent.trim()]));
+  check('el detalle del día agrupa los picks por nivel, plegados', folds.length > 0 && folds.every(([open, t]) => !open && /^(Alta|Moderada-alta|Moderada|Combinadas|Otros)/.test(t)), folds.map(([, t]) => t).join(' | '));
+  await page.click('.day-body .fold summary');
+  check('un nivel se despliega al tocarlo', await page.isVisible('.day-body .fold[open] .status-pill'));
+  await page.click('.day-body .fold[open] summary');
+  check('y se vuelve a plegar', !(await page.$('.day-body .fold[open]')));
   const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
   check('sin apuestas pendientes tras liquidar', pills.length > 0 && !pills.includes('Pendiente'), pills.join(', '));
   const bigFiles = [...repo.entries()].filter(([, f]) => f.text.length > BIG_FILE).map(([p]) => p);
@@ -423,7 +429,7 @@ async function withoutExtension(browser, errors) {
     check('liquida las apuestas con los resultados', /Resultados: \d+ apuestas liquidadas/.test(toast), toast);
     await page.waitForTimeout(500);
     await page.click('.day-head');
-    await page.waitForSelector('.day-body .status-pill.won, .day-body .status-pill.lost');
+    await page.waitForSelector('.day-body .status-pill.won, .day-body .status-pill.lost', { state: 'attached' });
     const pills = await page.$$eval('.day-body .status-pill', (els) => els.map((e) => e.textContent));
     check('marca ganadas y perdidas', pills.includes('Ganada') && pills.includes('Perdida') && !pills.includes('Pendiente'), `${pills.length} apuestas`);
     const table = await page.textContent('.panel table');

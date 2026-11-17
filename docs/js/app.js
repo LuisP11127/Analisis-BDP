@@ -56,6 +56,7 @@ const app = {
     index: null,
     network: null,
     openDays: new Set(),
+    openGroups: new Set(), // grupos por nivel abiertos en el detalle de cada día
     dayCache: new Map(),
     localFiles: 0,
     tab: 'partidos',
