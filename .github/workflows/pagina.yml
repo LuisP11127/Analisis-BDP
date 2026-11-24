@@ -47,14 +47,14 @@ jobs:
             echo "::notice title=Página sin publicar::Activa GitHub Pages con «Source: GitHub Actions» (ver README)."
           fi
 
-  deploy:
+  # Arma la página con los datos. El despliegue va en otro job: si se pide
+  # justo después de subir el paquete, a veces GitHub todavía no lo lista
+  # («No artifacts named "github-pages" were found»).
+  build:
     needs: check
     if: needs.check.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,5 +81,22 @@ jobs:
         with:
           path: site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
+    steps:
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      # Si GitHub aún no encuentra el paquete, espera y vuelve a intentar.
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 45
+
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
