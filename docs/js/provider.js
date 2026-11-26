@@ -101,3 +101,31 @@ export async function loadResults(date, { force = false } = {}) {
   results.set(date, { at: Date.now(), data });
   return data;
 }
+
+// Props de jugador de la NBA (ESPN): próximos partidos y últimos partidos de cada jugador.
+let players = null;
+export async function loadPlayers({ force = false } = {}) {
+  if (fresh(players, force)) return players.data;
+  let data = null;
+  try {
+    data = await getJson('jugadores/nba.json');
+  } catch {
+    // sin datos de jugadores
+  }
+  players = { at: Date.now(), data };
+  return data;
+}
+
+// Fichas de los partidos NBA de los últimos días (para liquidar los props de jugador).
+let playerResults = null;
+export async function loadPlayerResults({ force = false } = {}) {
+  if (fresh(playerResults, force)) return playerResults.data;
+  let data = [];
+  try {
+    data = (await getJson('jugadores/nba-resultados.json'))?.games || [];
+  } catch {
+    // sin fichas publicadas
+  }
+  playerResults = { at: Date.now(), data };
+  return data;
+}

@@ -3,6 +3,9 @@
 //   indice.json                     cuándo se generó y cuántos partidos hay
 //   AAAA-MM-DD/<deporte>.json       partidos de hoy y mañana con últimos
 //                                   resultados, H2H, cuotas de Apuesta Total y xG
+//   jugadores/nba.json              próximos partidos de la NBA con lesionados y los
+//                                   últimos partidos de cada jugador (props de jugador)
+//   jugadores/nba-resultados.json   fichas de los partidos NBA de los últimos 7 días
 //   noticias.json                   noticias de Flashscore, ESPN y FotMob (para la
 //                                   red neuronal; se acumulan 3 días en caché)
 //   resultados/AAAA-MM-DD.json      marcadores finales y por periodo (últimos 7
@@ -14,7 +17,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getH2H, getMatchFeeds, getNews as flashscoreNews, getSportDay, SPORT_IDS } from '../extension/sources/flashscore.js';
-import { getAllNews as espnNews } from '../extension/sources/espn.js';
+import { getAllNews as espnNews, getNbaDay, getNbaGame, getNbaTeamGames } from '../extension/sources/espn.js';
+import { compactGame, PLAYER_GAMES, resultOf, teamLogs } from '../docs/js/analysis/players.js';
+import { playerSlug } from '../docs/js/analysis/catalog.js';
 import { getNews as fotmobNews } from '../extension/sources/fotmob.js';
 import { compactNews } from '../docs/js/analysis/news.js';
 import { getEventList, getMarkets } from '../extension/sources/apuestatotal.js';
@@ -30,6 +35,7 @@ const OUT = path.resolve(process.argv[2] || 'site', 'data/fuente');
 const CACHE = path.resolve('.cache/h2h-v3'); // subir la versión si cambia getH2H
 const DETAIL_CACHE = path.resolve('.cache/detalle-v1'); // feeds de partidos terminados (no cambian)
 const HISTORY = path.resolve('docs/data/historial');
+const NBA_CACHE = path.resolve('.cache/espn-nba-v1'); // fichas de partidos NBA terminados (no cambian)
 const DEMO_BETS = path.resolve('docs/data/apuestas/demo.json');
 // Deportes con estadísticas por partido en Flashscore (para los mercados de estadísticas).
 const STAT_SPORTS = new Set(['football', 'basketball', 'ice-hockey', 'tennis', 'baseball', 'american-football', 'handball', 'rugby']);
@@ -155,9 +161,79 @@ async function pruneCache(dir, days = 30) {
   }
 }
 
+// Ficha de un partido NBA de ESPN; las de partidos terminados quedan en caché.
+async function nbaGameCached(id) {
+  const file = path.join(NBA_CACHE, `${id}.json`);
+  try {
+    return JSON.parse(await fs.readFile(file, 'utf8'));
+  } catch {
+    // sin caché
+  }
+  const g = compactGame(await getNbaGame({ id }));
+  if (g.state === 'finalizado') await writeJson(file, g);
+  return g;
+}
+
+// Props de jugador (NBA): próximos partidos con lesionados, últimos partidos
+// de cada jugador de esos equipos y fichas de los partidos recientes.
+async function collectNba(today) {
+  const days = [];
+  for (let d = -7; d <= 2; d++) {
+    try {
+      days.push(...(await getNbaDay({ date: addDays(today, d) })));
+    } catch (e) {
+      log(`ESPN NBA ${addDays(today, d)}: ${e.message}`);
+    }
+  }
+  const now = Date.now();
+  const seen = new Set();
+  const all = days.filter((g) => !seen.has(g.id) && seen.add(g.id));
+  const upcoming = all.filter((g) => g.state === 'pendiente' && g.start > now - 3 * 3600000 && g.start < now + 54 * 3600000);
+  const games = [];
+  await pool(upcoming, async (g) => {
+    const injuries = {};
+    try {
+      for (const i of (await getNbaGame({ id: g.id })).injuries) injuries[playerSlug(i.name)] = i.status;
+    } catch {
+      // sin parte médico
+    }
+    games.push({ id: g.id, start: g.start, home: g.home, away: g.away, injuries });
+  });
+  const teams = {};
+  const teamIds = [...new Set(upcoming.flatMap((g) => [g.home.id, g.away.id]))];
+  await pool(
+    teamIds,
+    async (id) => {
+      try {
+        const list = (await getNbaTeamGames({ teamId: id })).slice(0, PLAYER_GAMES);
+        const full = [];
+        for (const x of list) full.push(await nbaGameCached(x.id));
+        teams[id] = teamLogs(id, full);
+      } catch (e) {
+        log(`ESPN NBA equipo ${id}: ${e.message}`);
+      }
+    },
+    4,
+  );
+  const results = [];
+  await pool(
+    all.filter((g) => g.state !== 'pendiente' && g.state !== 'en_vivo' && g.start < now),
+    async (g) => {
+      try {
+        results.push(resultOf(g.state === 'finalizado' ? await nbaGameCached(g.id) : { ...g, players: [] }));
+      } catch (e) {
+        log(`ESPN NBA partido ${g.id}: ${e.message}`);
+      }
+    },
+  );
+  log(`ESPN NBA: ${games.length} próximos partidos, ${Object.keys(teams).length} equipos, ${results.length} fichas para liquidar`);
+  return { games: games.sort((a, b) => a.start - b.start), teams, results: results.sort((a, b) => a.start - b.start) };
+}
+
 async function main() {
   const today = limaToday();
   await pruneCache(DETAIL_CACHE);
+  await pruneCache(NBA_CACHE, 120);
   const started = Date.now();
   const sports = Object.keys(SPORT_IDS);
   const upcoming = {}; // fecha -> deporte -> partidos
@@ -332,6 +408,14 @@ async function main() {
   );
   log(`Registros completos: ${records} de ${analyzed.size} partidos analizados`);
 
+  // 4b2) Props de jugador de la NBA (ESPN).
+  let nba = null;
+  try {
+    nba = await collectNba(today);
+  } catch (e) {
+    log(`ESPN NBA: ${e.message}`);
+  }
+
   // 4c) Noticias (solo para la red neuronal): se acumulan 3 días en caché.
   const newsFile = path.resolve('.cache/noticias.json');
   let news = [];
@@ -378,6 +462,10 @@ async function main() {
   }
   for (const [date, map] of Object.entries(results)) await writeJson(path.join(OUT, 'resultados', `${date}.json`), map);
   await writeJson(path.join(OUT, 'noticias.json'), { generated: index.generated, items: news });
+  if (nba) {
+    await writeJson(path.join(OUT, 'jugadores', 'nba.json'), { generated: index.generated, games: nba.games, teams: nba.teams });
+    await writeJson(path.join(OUT, 'jugadores', 'nba-resultados.json'), { generated: index.generated, games: nba.results });
+  }
   await writeJson(path.join(OUT, 'indice.json'), index);
 
   const total = (d) => Object.values(index.days[d] || {}).reduce((s, x) => s + x.events, 0);

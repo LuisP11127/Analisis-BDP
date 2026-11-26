@@ -14,6 +14,14 @@ import { RANDOM_MAX, SPORT_FROM, randomText, renderHistorial } from './views/his
 import { renderSelector, selectorText } from './views/selector.js';
 import { buildSelector, selectorAnalyses } from './selector.js';
 
+// Ajustes guardados antes de que existiera un grupo de mercados: el grupo nuevo se activa.
+function upgradeSettings(saved) {
+  const s = { ...DEFAULT_SETTINGS, ...saved };
+  if (saved.marketGroups && (saved.marketGroupsVersion || 1) < 2 && !s.marketGroups.includes('jugadores')) s.marketGroups = [...s.marketGroups, 'jugadores'];
+  s.marketGroupsVersion = DEFAULT_SETTINGS.marketGroupsVersion;
+  return s;
+}
+
 const $ = (sel) => document.querySelector(sel);
 const LS = {
   get(key, fallback) {
@@ -66,7 +74,7 @@ const app = {
     dayCache: new Map(),
     localFiles: 0,
     tab: 'partidos',
-    settings: { ...DEFAULT_SETTINGS, ...LS.get('bdp:ajustes', {}) },
+    settings: upgradeSettings(LS.get('bdp:ajustes', {})),
   },
 };
 
@@ -637,6 +645,7 @@ function closeSettings(action) {
       comboMinProb: Number(f.comboMinProb.value) / 100,
       comboMaxLegs: Math.round(Number(f.comboMaxLegs.value)),
       marketGroups: [...f.querySelectorAll('input[name=marketGroup]:checked')].map((x) => x.value),
+      marketGroupsVersion: DEFAULT_SETTINGS.marketGroupsVersion,
       betanoAllMarkets: f.betanoAllMarkets.checked,
     };
     if (!next.marketGroups.length) {

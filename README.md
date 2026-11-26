@@ -20,7 +20,15 @@ resultados. Funciona en el **celular y en la PC**:
   (también asiático), ambos marcan, mitades, cuartos, periodos, sets y entradas,
   córners, tarjetas, tiros, faltas, rebotes, aces, marcador exacto, margen,
   primer/último gol, minuto del gol, descanso/final y los combinados de la casa.
-  No se analizan los de jugador ni los de torneo (campeón, podio...).
+  No se analizan los de torneo (campeón, podio...) ni los de jugador de otros
+  deportes.
+- **Props de jugador de la NBA** (Apuesta Total y Betano): puntos, rebotes,
+  asistencias, triples, combinados (P+R+A, P+R, P+A, R+A), tiros de 2 y tiros
+  libres (anotados/intentados) y double-double. La probabilidad sale de los
+  últimos 12 partidos de cada jugador (ESPN; binomial negativa) mezclada con la
+  de las cuotas; si el parte médico lo da fuera, no se recomienda. Salen además
+  del pick del partido (grupo «Jugadores» en los ajustes) y se liquidan con la
+  ficha del partido de ESPN (si no jugó, nula).
 - **Análisis estadístico** (datos de Sofascore y Flashscore, sin noticias):
   forma reciente, goles/puntos a favor y en contra, H2H, xG, estadísticas de
   cada equipo y la probabilidad que dan las cuotas. Los mercados principales

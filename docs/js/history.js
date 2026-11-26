@@ -18,6 +18,7 @@ import { familyOf, parseMarketId } from './analysis/catalog.js';
 import { comboOdds, comboStatus, profitOf } from './analysis/outcomes.js';
 import { mergeRecords, recordFromSofascore } from './analysis/records.js';
 import { flashscoreRecords } from './flashscore-link.js';
+import { boxesFor } from './analysis/players.js';
 import { Corrector, isResult } from './analysis/neural.js';
 import { LEVELS } from './analysis/picks.js';
 import { SELECTOR_METHODS, SEL_GENERAL, SEL_LADO, sideKey } from './selector.js';
@@ -546,6 +547,32 @@ export async function updateResults({ onProgress = () => {} } = {}) {
     const fsRec = { ...fsRecords[id], state: res.state === 'finalizado' ? 'finalizado' : fsRecords[id].state };
     results[id] = { ...res, state: res.state || fsRec.state, record: mergeRecords(res.record || null, fsRec) };
     if (!results[id].record.final && res.score) results[id].record.final = [res.score.home, res.score.away];
+  }
+
+  // Props de jugador (NBA): fichas de ESPN publicadas cada 2 horas.
+  const isPlayer = (x) => String(x.market).startsWith('PL.');
+  const plLegs = legs.filter((l) => due(l) && isPlayer(l));
+  const plRows = rowFiles.flatMap(({ file }) => file.rows.filter((r) => r.y == null && r.start < now - GRACE_MS && isPlayer(r)));
+  if (plLegs.length || plRows.length) {
+    onProgress('ESPN: fichas de los jugadores', 0.74);
+    const boxes = await provider.loadPlayerResults({ force: true });
+    // Nombre del partido de cada fila de entrenamiento (las filas no lo guardan).
+    const matchOf = new Map(plLegs.map((l) => [l.eventId, l.match]));
+    for (const date of new Set(plRows.filter((r) => !matchOf.has(r.eventId)).map((r) => r.date))) {
+      const day = dayFiles.find((d) => d.date === date) || (await store.read(dayPath(date)).catch(() => null));
+      for (const a of day?.analyses || []) for (const [id, e] of Object.entries(a.events || {})) if (!matchOf.has(id) && e?.home) matchOf.set(id, `${e.home} vs ${e.away}`);
+    }
+    for (const x of [...plLegs, ...plRows]) {
+      if (results[x.eventId]?.players) continue;
+      const g = boxesFor({ match: x.match || matchOf.get(x.eventId), start: x.start }, boxes);
+      if (!g) continue;
+      const prev = results[x.eventId];
+      results[x.eventId] = {
+        ...(prev || { score: g.score ? { home: g.score[0], away: g.score[1] } : null }),
+        state: prev?.state === 'finalizado' ? prev.state : g.state,
+        players: g.p,
+      };
+    }
   }
 
   onProgress('Liquidando apuestas', 0.75);

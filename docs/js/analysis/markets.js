@@ -63,6 +63,12 @@ export function selectionLabel(c, ev, unit = 'goles') {
 // Registro mínimo con el resultado final (cuando no hay detalle del partido).
 export function recordFromResult(result, sport) {
   if (!result) return null;
+  const rec = recordBase(result, sport);
+  // Fichas de los jugadores (props de jugador de básquet).
+  return rec && result.players ? { ...rec, players: result.players } : rec;
+}
+
+function recordBase(result, sport) {
   // Aplazado/cancelado: se anula solo pasado el plazo (result.final === true).
   const voidable = Boolean(result.final === true || result.voidable);
   if (Array.isArray(result.final)) return { sport, ...result };

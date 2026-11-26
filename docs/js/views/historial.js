@@ -117,7 +117,7 @@ function statsTableInner(rows) {
 const MARKET_NAME = {
   resultado: 'Resultado (1X2, doble oportunidad, ganador)', total: 'Más/menos (total)', handicap: 'Hándicap', ambos: 'Ambos marcan',
   periodo: 'Mitades, cuartos, sets y periodos', corners: 'Córners', cards: 'Tarjetas', reds: 'Tarjetas rojas', marcador: 'Marcador exacto',
-  margen: 'Margen de victoria', combinado: 'Combinados de la casa', otro: 'Otros',
+  margen: 'Margen de victoria', combinado: 'Combinados de la casa', otro: 'Otros', jugador: 'Jugadores (puntos, rebotes, asistencias…)',
 };
 const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
 export const marketName = (k) => MARKET_NAME[k] || capital(STAT_NAME[k] || k);
