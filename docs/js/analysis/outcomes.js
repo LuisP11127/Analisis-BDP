@@ -15,7 +15,9 @@
 //   stats   { córners: { ft: [l, v], h1: [...], h2: [...] }, ... } (opcional)
 //   games   tenis: [{ s: set (0..), w: ganador, srv: quien saca }] (opcional)
 //   duration { ft: minutos, s1: minutos } (opcional)
-import { decodeParts, parseMarketId, SET_SPORTS } from './catalog.js';
+//   players { jugador: [min, pts, reb, ast, 3pm, 3pa, fgm, fga, ftm, fta] } (opcional, básquet)
+import { decodeParts, parseMarketId, playerValue, SET_SPORTS } from './catalog.js';
+import { findPlayer } from './players.js';
 
 // Deportes que se liquidan con el tiempo reglamentario ("partido" = 90 minutos).
 const FT_IS_REG = new Set(['football', 'futsal', 'handball', 'rugby', 'waterpolo']);
@@ -229,6 +231,17 @@ function evalSpec(spec, sel, line, rec) {
     if (results.includes('won')) return flip('won');
     if (results.every((r) => r === 'lost')) return flip('lost');
     return neg ? null : 'void';
+  }
+
+  // De jugador: con su ficha del partido. Si no jugó, nula (como en las casas).
+  if (t === 'PL') {
+    const players = rec.players;
+    if (!players || !Object.keys(players).length || line == null) return null;
+    const found = findPlayer(n, players);
+    if (!found || !(Number(found.data[0]) > 0)) return 'void';
+    const v = playerValue(found.data, stat);
+    if (v == null) return null;
+    return v === line ? 'void' : result(s === 'over' ? v > line : v < line);
   }
 
   const q = () => qty(rec, stat, scope);

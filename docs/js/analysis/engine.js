@@ -32,6 +32,8 @@ import { buildCombos, DEFAULT_SETTINGS, selectPicks } from './picks.js';
 import { estimate, fitTennisGames, simParams, statPriors } from './simulate.js';
 import { xgFromTeamStats } from './teamstats.js';
 import { newsFeatures, prepareNews } from './news.js';
+import { playerProbability, playersFor } from './players.js';
+import { labelOf } from './catalog.js';
 
 // Ligas de Understat según el id de torneo de Sofascore.
 const UNDERSTAT_LEAGUES = { 17: 'EPL', 8: 'La_liga', 35: 'Bundesliga', 23: 'Serie_A', 34: 'Ligue_1' };
@@ -313,6 +315,18 @@ export function baseCandidates(ev, d, offers, { xg, simulations = SIMULATIONS } 
   const simModel = expected ? { ...(model || { kind, quality: 0 }), expected } : model;
   const winTarget = targets.find((t) => t.market === 'ML' && t.sel === 'home');
 
+  // Mercados de jugador: sus últimos partidos (ESPN). Sin datos del jugador no se usan.
+  const playerNames = new Map(offers.filter((o) => o.player).map((o) => [o.market, o.player]));
+  for (const [key, c] of keys) {
+    if (!c.market.startsWith('PL.')) continue;
+    const r = playerProbability(parseMarketId(c.market), c.sel, c.line, d?.players);
+    if (!r) {
+      keys.delete(key);
+      continue;
+    }
+    Object.assign(c, { pModel: r.p, via: 'jugador', playerQuality: r.quality, playerFactors: r.factors, player: playerNames.get(c.market) || r.player });
+  }
+
   // Mercados sin modelo propio (y líneas asiáticas): partidos simulados.
   const need = [...keys.entries()].filter(([, c]) => c.pModel == null);
   let simulated = 0;
@@ -339,7 +353,7 @@ export function baseCandidates(ev, d, offers, { xg, simulations = SIMULATIONS } 
     const spec = parseMarketId(c.market);
     const exact = pMarket.get(key) ?? null;
     const pm = exact ?? pLoose.get(key) ?? null;
-    const quality = c.via === 'simulación' ? qualityFor(spec, model, d, calibrated) : model?.quality ?? 0;
+    const quality = c.via === 'jugador' ? c.playerQuality : c.via === 'simulación' ? qualityFor(spec, model, d, calibrated) : model?.quality ?? 0;
     // Sin datos del equipo para esa estadística no se inventa una probabilidad.
     if (exact == null && c.via === 'simulación' && quality < 0.25) continue;
     const pBase = blend(c.pModel, pm, quality, kind, { loose: exact == null });
@@ -364,8 +378,13 @@ export function baseCandidates(ev, d, offers, { xg, simulations = SIMULATIONS } 
       best,
     };
     cand.x = buildFeatures({ ...cand, price: best.price }, { sport: ev.sport, cfg, model, details: d, spec, quality });
-    cand.label = selectionLabel(cand, ev, cfg.unit);
-    cand.factors = factorsFor(ev, d, model, cand);
+    if (c.via === 'jugador') {
+      cand.label = labelOf(c.market, c.sel, c.line, ev.sport, { player: c.player });
+      cand.factors = [...c.playerFactors, ...(cand.pMarket != null ? [`Mercado: ${Math.round(cand.pMarket * 100)}%`] : []), `Modelo del jugador: ${Math.round(c.pModel * 100)}%`];
+    } else {
+      cand.label = selectionLabel(cand, ev, cfg.unit);
+      cand.factors = factorsFor(ev, d, model, cand);
+    }
     out.push(cand);
   }
   return { model, expected, candidates: out, simulated };
@@ -476,6 +495,21 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
     sources.apuestatotal = { ok: true, matched: (at?.ok ? at.matched : 0) + usedPublished, published: true };
   }
   if (auto.some((e) => xg.has(e.id))) sources.understat ||= { ok: true, matched: auto.filter((e) => xg.has(e.id)).length };
+
+  // Props de jugador de la NBA: últimos partidos de cada jugador (ESPN, publicados cada 2 horas).
+  const basket = pending.filter((e) => e.sport === 'basketball' && (offers.get(e.id) || published.get(e.id)?.offers || []).some((o) => o.market.startsWith('PL.')));
+  if (basket.length) {
+    onProgress('ESPN: últimos partidos de los jugadores', 0.83);
+    const data = await provider.loadPlayers().catch(() => null);
+    let withPlayers = 0;
+    for (const ev of basket) {
+      const players = playersFor(ev, data);
+      if (!players) continue;
+      details[ev.id] = { ...(details[ev.id] || {}), players };
+      withPlayers++;
+    }
+    sources.jugadores = data ? { ok: true, matched: withPlayers, generated: data.generated } : { ok: false, error: 'Sin datos de jugadores publicados' };
+  }
 
   // Noticias de cada equipo (para las variables de la red neuronal).
   const articles = pending.length ? await loadArticles(withExt, sources, onProgress) : [];

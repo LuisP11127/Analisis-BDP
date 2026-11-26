@@ -141,7 +141,7 @@ export function buildFeatures(c, ctx) {
     news ? side * (sentiment(nh) - sentiment(na)) : 0,
     news ? clamp(Math.log1p(nh.injuries + na.injuries), 0, 3) : 0,
     group === 'periodos' ? 1 : 0,
-    group === 'estadisticas' ? 1 : 0,
+    group === 'estadisticas' || group === 'jugadores' ? 1 : 0,
     group === 'marcador' ? 1 : 0,
     group === 'combinados' ? 1 : 0,
     group === 'otros' ? 1 : 0,

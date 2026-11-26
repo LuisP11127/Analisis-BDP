@@ -5,11 +5,12 @@ import { BOOKMAKERS, LEVELS } from '../analysis/picks.js';
 import { sportOf } from '../sports.js';
 import { fmtDateTime, fmtTime, h, pct } from '../util.js';
 
-const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat', simulacion: 'Simulación', noticias: 'Noticias' };
+const SOURCE_NAMES = { sofascore: 'Sofascore', flashscore: 'Flashscore', apuestatotal: 'Apuesta Total', betano: 'Betano', understat: 'Understat', jugadores: 'Jugadores NBA (ESPN)', simulacion: 'Simulación', noticias: 'Noticias' };
 const UNITS = { simulacion: 'selecciones', noticias: 'noticias' };
 const TITLES = {
   simulacion: 'Mercados sin modelo propio (mitades, córners, marcador exacto...) estimados simulando el partido',
   noticias: 'Noticias de Flashscore, ESPN y FotMob: solo las usa la red neuronal',
+  jugadores: 'Últimos partidos de cada jugador y parte médico (ESPN, publicados cada 2 horas): props de jugador',
 };
 const MODE = { 'direct-api': 'directo', direct: 'directo', tab: 'pestaña', navigate: 'navegando' };
 const PRICE_SHORT = { apuestatotal: 'AT', betano: 'Betano', sofascore: 'Sofascore' };
@@ -224,7 +225,7 @@ function renderMethod(root, app, a) {
       `${analyzed} partidos analizados · ${a.picks.length} picks · ${a.combos.length} combinadas · ${fmtDateTime(Date.parse(a.created))}`,
       a.skipped ? ` · ${a.skipped} omitidos (ya empezaron)` : '',
     ),
-    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat', 'simulacion', ...(a.method === 'red_neuronal' ? ['noticias'] : [])].map((id) => sourceChip(id, a.sources[id]))),
+    h('div', { class: 'row' }, ['sofascore', 'flashscore', 'apuestatotal', 'betano', 'understat', 'jugadores', 'simulacion', ...(a.method === 'red_neuronal' ? ['noticias'] : [])].map((id) => sourceChip(id, a.sources[id]))),
     a.method === 'red_neuronal'
       ? h(
           'div',

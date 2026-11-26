@@ -16,6 +16,7 @@ export const MARKET_GROUPS = [
   { id: 'marcador', name: 'Marcador exacto y margen de victoria' },
   { id: 'combinados', name: 'Combinados de la casa (descanso/final, resultado y total…)' },
   { id: 'otros', name: 'Otros (primer gol, par/impar, prórroga, carrera a…)' },
+  { id: 'jugadores', name: 'Jugadores de básquet (puntos, rebotes, asistencias, triples…)' },
 ];
 const MAIN = new Set(['resultado', 'total', 'handicap', 'ambos', 'games', 'sets', 'legs', 'maps', 'rounds', 'frames']);
 export function marketGroupOf(family) {
@@ -24,6 +25,7 @@ export function marketGroupOf(family) {
   if (family === 'marcador' || family === 'margen') return 'marcador';
   if (family === 'combinado') return 'combinados';
   if (family === 'otro') return 'otros';
+  if (family === 'jugador') return 'jugadores';
   return 'estadisticas';
 }
 const allowedGroup = (c, s) => !s.marketGroups || s.marketGroups.includes(marketGroupOf(c.family));
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS = {
   comboMinProb: 0.7, // probabilidad mínima de cada selección de una combinada
   comboMaxLegs: 8,
   marketGroups: MARKET_GROUPS.map((g) => g.id), // mercados que pueden salir en picks y combinadas
+  marketGroupsVersion: 2, // 2: grupo "jugadores" (se activa solo en los ajustes guardados antes)
   betanoAllMarkets: true, // abrir la página de cada partido en Betano (todos los mercados; más lento)
 };
 
@@ -52,12 +55,13 @@ export function levelOf(p, s = DEFAULT_SETTINGS) {
 const levelRank = (id) => LEVELS.findIndex((l) => l.id === id);
 
 // Por cada partido y nivel, la selección con mejor valor esperado
-// (probabilidad × cuota) entre las que caen en ese nivel.
+// (probabilidad × cuota) entre las que caen en ese nivel. Los mercados de
+// jugador van aparte: un partido puede dar un pick del partido y otro de jugador.
 export function selectPicks(candidates, s = DEFAULT_SETTINGS) {
   const picks = [];
   for (const list of groupBy(
     candidates.filter((c) => c.best && c.best.price >= s.minOdds && allowedGroup(c, s)),
-    (c) => c.eventId,
+    (c) => `${c.eventId}|${c.family === 'jugador' ? 'jugador' : 'partido'}`,
   ).values()) {
     for (const level of LEVELS) {
       const inLevel = list.filter((c) => levelOf(c.p, s) === level.id);

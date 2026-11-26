@@ -63,6 +63,12 @@ export function selectionLabel(c, ev, unit = 'goles') {
 // Registro mínimo con el resultado final (cuando no hay detalle del partido).
 export function recordFromResult(result, sport) {
   if (!result) return null;
+  const rec = recordBase(result, sport);
+  // Fichas de los jugadores (props de jugador de básquet).
+  return rec && result.players ? { ...rec, players: result.players } : rec;
+}
+
+function recordBase(result, sport) {
   // Aplazado/cancelado: se anula solo pasado el plazo (result.final === true).
   const voidable = Boolean(result.final === true || result.voidable);
   if (Array.isArray(result.final)) return { sport, ...result };
@@ -137,6 +143,7 @@ export function offersFromSofascore(markets, ev) {
 // (p. ej. "Más/Menos 1.5" y "Más/Menos 2.5" vienen juntos pero son apuestas distintas).
 function groupLine(o) {
   const spec = o.spec;
+  if (spec.t === 'PL') return `${spec.n}|${o.line}`; // cada jugador y línea es una apuesta aparte
   if (['OU', 'OU3', 'HCP', 'HCP3', 'ALLPER'].includes(spec.t)) return `${o.line}`;
   if (spec.t === 'AND' || spec.t === 'OR') {
     const lines = decodeParts(String(o.sel).replace(/^!/, '')).map((p) => (p.line == null ? '' : p.line));
@@ -166,7 +173,7 @@ function offersFromBookmaker(source, markets, other, ev, swapped, stats) {
     for (const o of r.outcomes) {
       const x = swapped ? swapSelection(o.spec, o.sel, o.line) : o;
       const market = marketId(x.spec);
-      out.push({ source, market, sel: x.sel, line: x.line ?? null, price: o.price, group: `${source}|${m.name}|${groupLine({ spec: x.spec, sel: x.sel, line: x.line })}` });
+      out.push({ source, market, sel: x.sel, line: x.line ?? null, price: o.price, group: `${source}|${m.name}|${groupLine({ spec: x.spec, sel: x.sel, line: x.line })}`, ...(o.player ? { player: o.player } : {}) });
     }
   }
   return out;
@@ -195,8 +202,9 @@ export function marketProbabilities(offers) {
     const legacy = GROUPS[spec.t] && !list[0].group;
     if (legacy && !GROUPS[spec.t].every((s) => items.some((o) => o.sel === s))) continue;
     // Selecciones "N+" sin su contraria no forman un grupo completo.
-    if (spec.t === 'OU' && !(items.some((o) => o.sel === 'over') && items.some((o) => o.sel === 'under'))) continue;
-    if (spec.t === 'OU' && items.length !== 2) continue;
+    const twoWay = spec.t === 'OU' || spec.t === 'PL';
+    if (twoWay && !(items.some((o) => o.sel === 'over') && items.some((o) => o.sel === 'under'))) continue;
+    if (twoWay && items.length !== 2) continue;
     const inv = items.map((o) => 1 / o.price);
     const covered = spec.t === 'DC' ? 2 : 1; // en doble oportunidad cada resultado está en dos selecciones
     const overround = sum(inv) / covered;
