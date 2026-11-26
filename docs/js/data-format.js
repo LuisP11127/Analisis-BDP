@@ -75,12 +75,13 @@ export function compactOffers(list) {
     if (!index.has(g)) index.set(g, groups.push(g.replace(/^apuestatotal\|/, '')) - 1);
     return index.get(g);
   };
-  return { g: groups, o: list.map((o) => [o.market, o.sel, o.line, o.price, gi(o.group)]) };
+  // Mercados de jugador: el nombre del jugador va al final (para mostrarlo tal cual).
+  return { g: groups, o: list.map((o) => (o.player ? [o.market, o.sel, o.line, o.price, gi(o.group), o.player] : [o.market, o.sel, o.line, o.price, gi(o.group)])) };
 }
 export function expandOffers(c = []) {
   // Versión 1: lista sin grupos.
   if (Array.isArray(c)) return c.map(([market, sel, line, price]) => ({ source: 'apuestatotal', market, sel, line, price }));
-  return (c.o || []).map(([market, sel, line, price, g]) => ({ source: 'apuestatotal', market, sel, line, price, ...(g != null ? { group: `apuestatotal|${c.g[g]}` } : {}) }));
+  return (c.o || []).map(([market, sel, line, price, g, player]) => ({ source: 'apuestatotal', market, sel, line, price, ...(g != null ? { group: `apuestatotal|${c.g[g]}` } : {}), ...(player ? { player } : {}) }));
 }
 
 const r3 = (x) => Math.round(x * 1000) / 1000;

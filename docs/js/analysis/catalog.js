@@ -50,6 +50,7 @@ export const TYPES = {
   SVC1: 'Primer juego de saque',
   AND: 'Combinada de la casa',
   OR: 'Una u otra',
+  PL: 'Más/menos de un jugador (n = jugador)',
 };
 
 // Mercados que se reconocen pero no se pueden modelar ni liquidar con los
@@ -318,6 +319,149 @@ function teamOf(name) {
   return null;
 }
 
+// ---- Mercados de jugador (básquet) ----
+//
+// Especificación: { t: 'PL', stat, n: jugador } con sel over/under y la línea.
+// El double-double es PL.dd con línea 0.5 (over = Sí). La ficha de un jugador
+// en un partido es [min, pts, reb, ast, 3pm, 3pa, fgm, fga, ftm, fta].
+export const BOX = { min: 0, pts: 1, reb: 2, ast: 3, tpm: 4, tpa: 5, fgm: 6, fga: 7, ftm: 8, fta: 9 };
+export const PLAYER_STATS = {
+  pts: 'puntos',
+  reb: 'rebotes',
+  ast: 'asistencias',
+  threes: 'triples anotados',
+  pra: 'puntos, rebotes y asistencias',
+  pr: 'puntos y rebotes',
+  pa: 'puntos y asistencias',
+  ra: 'rebotes y asistencias',
+  twos: 'tiros de 2 anotados',
+  twos_a: 'tiros de 2 intentados',
+  ftm: 'tiros libres anotados',
+  fta: 'tiros libres intentados',
+  dd: 'double-double',
+};
+
+// Valor de la estadística en la ficha de un partido.
+export function playerValue(box, stat) {
+  if (!Array.isArray(box)) return null;
+  const v = (k) => Number(box[BOX[k]]) || 0;
+  switch (stat) {
+    case 'pts':
+      return v('pts');
+    case 'reb':
+      return v('reb');
+    case 'ast':
+      return v('ast');
+    case 'threes':
+      return v('tpm');
+    case 'pra':
+      return v('pts') + v('reb') + v('ast');
+    case 'pr':
+      return v('pts') + v('reb');
+    case 'pa':
+      return v('pts') + v('ast');
+    case 'ra':
+      return v('reb') + v('ast');
+    case 'twos':
+      return v('fgm') - v('tpm');
+    case 'twos_a':
+      return v('fga') - v('tpa');
+    case 'ftm':
+      return v('ftm');
+    case 'fta':
+      return v('fta');
+    case 'dd':
+      return [v('pts'), v('reb'), v('ast')].filter((x) => x >= 10).length >= 2 ? 1 : 0;
+    default:
+      return null;
+  }
+}
+
+// Identificador de un jugador: "Karl-Anthony Towns Jr." -> "karl-anthony_towns".
+export function playerSlug(name) {
+  return clean(name)
+    .replace(/[.()]/g, ' ')
+    .replace(/\b(jr|sr|ii|iii|iv)\b/g, ' ')
+    .replace(/[^a-z0-9\- ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, '_');
+}
+// Nombre legible a partir del identificador (si no se guardó el original).
+export const playerFromSlug = (slug) =>
+  String(slug)
+    .split('_')
+    .map((w) => w.replace(/(^|-)([a-z])/g, (m, a, b) => a + b.toUpperCase()))
+    .join(' ');
+
+// Estadística del mercado según su nombre (ya sin tildes).
+function playerStatOf(name) {
+  if (/h2h|mas puntos en|mas rebotes en|mas asistencias en|mas tiros de|mejor anotador|primer|ultimo|triple[- ]?doble|triple-double|ofensivos|defensivos|robos|bloqueos|tapones|perdidas/.test(name)) return null;
+  if (/doble[- ]?doble|double[- ]?double/.test(name)) return 'dd';
+  const attempted = /intentad/.test(name);
+  if (/tiros? de (3|tres)|triples|tres puntos/.test(name)) return attempted ? null : 'threes';
+  if (/tiros? de (2|dos)|dos puntos/.test(name)) return attempted ? 'twos_a' : 'twos';
+  if (/tiros? libres|lanzamientos libres/.test(name)) return attempted ? 'fta' : 'ftm';
+  const p = /puntos/.test(name);
+  const r = /rebotes/.test(name);
+  const a = /asistencias/.test(name);
+  if (p && r && a) return 'pra';
+  if (p && r) return 'pr';
+  if (p && a) return 'pa';
+  if (r && a) return 'ra';
+  if (p) return 'pts';
+  if (r) return 'reb';
+  if (a) return 'ast';
+  return null;
+}
+
+const stripAccents = (x) => String(x).normalize('NFD').replace(/[̀-ͯ]/g, '');
+// Palabras del nombre del mercado que no son el jugador.
+const PLAYER_NOISE =
+  /\((?:incl|inc)[^)]*\)|\[jugador\]|\b(?:total(?:es)? de|del jugador|por jugador|jugador:?|totales?|puntos|rebotes|asistencias|anotados|intentados|tiros? de (?:2|3|dos|tres)(?: puntos)?|tiros libres|lanzamientos libres|triples|doble[- ]?doble|double[- ]?double|y|de|del|por)\b|[,:–]|\s-\s/gi;
+// Palabras que indican un mercado de equipo o de partido (no de un jugador).
+const NOT_PLAYER = /\b(local|visitante|cuartos?|mitad(es)?|medios?|tiempos?|periodos?|prorroga|partido|equipos?|handicap|par|impar|ganador|gana|ganar|todos|margen|carrera|primer|ultimo|exacto|rango|ambos|cada|mas|menos|h2h|sets?)\b|\d/;
+// ¿El resto del nombre del mercado es un nombre de persona? ("LeBron James")
+const personLike = (x) => /^[a-z][a-z'.\- ]*$/i.test(x) && x.split(' ').filter((w) => /[a-z]{2}/i.test(w)).length >= 2 && !NOT_PLAYER.test(clean(x));
+
+// "Mikal Bridges Más de 12.5" / "Karl-Anthony Towns - Sí" / "Más de 25.5".
+function playerSelection(raw) {
+  const t = stripAccents(raw).replace(/\s+/g, ' ').trim();
+  let m = t.match(/^(.*?)[\s-]*\b(mas de|menos de|mas|menos|over|under)\s*([+-]?\d+(?:[.,]\d+)?)\s*$/i);
+  if (m) return { player: m[1].trim(), sel: /^(mas|over)/i.test(m[2]) ? 'over' : 'under', line: Number(m[3].replace(',', '.')) };
+  m = t.match(/^(.*?)[\s-]*\b(si|no|yes)\s*$/i);
+  if (m) return { player: m[1].trim(), sel: /^no$/i.test(m[2]) ? 'under' : 'over', line: 0.5 };
+  m = t.match(/^(.*?)\s*(\d+)\s*\+\s*$/);
+  if (m) return { player: m[1].trim(), sel: 'over', line: Number(m[2]) - 0.5 };
+  return null;
+}
+
+// Mercados de jugador de básquet: { spec, outcomes } o null (no soportado).
+function parsePlayerMarket(rawName, name, selections, sport) {
+  if (sport !== 'basketball') return null;
+  // Betano pone el jugador en el nombre del mercado; Apuesta Total, en cada selección.
+  const fromName = stripAccents(rawName).replace(PLAYER_NOISE, ' ').replace(/\s+/g, ' ').trim();
+  // Sin "jugador" en el nombre: solo si nombra una estadística de jugador y el resto es una persona.
+  const named = personLike(fromName) && !/\b(local|visitante)\b/.test(name) && /puntos|rebotes|asistencias|tiros|triples|robos|bloqueos|tapones|perdidas|doble|double/.test(name);
+  if (!/jugador/.test(name) && !named) return null;
+  const stat = playerStatOf(clean(rawName));
+  if (!stat) return unsupported('player'); // de jugador, pero sin datos para esa estadística (robos, rebotes ofensivos...)
+  const out = [];
+  for (const s of selections) {
+    const price = Number(s.price);
+    if (!(price > 1)) continue;
+    const x = playerSelection(s.name);
+    if (!x) continue;
+    const player = x.player || (named ? fromName : '');
+    const slug = playerSlug(player);
+    if (!slug || slug.length < 4 || !/_/.test(slug)) continue; // nombre y apellido
+    if (stat === 'dd' && x.line !== 0.5) continue;
+    if (!Number.isFinite(x.line) || x.line < 0 || x.line > 120) continue;
+    const spec = { t: 'PL', stat, scope: 'ft', team: null, n: slug };
+    out.push({ market: marketId(spec), spec, sel: x.sel, line: x.line, price, label: s.name, player });
+  }
+  return out.length ? { spec: out[0].spec, outcomes: out } : unsupported('player');
+}
+
 // ---- Reglas por tipo de mercado ----
 
 const unsupported = (kind) => ({ unsupported: kind, reason: UNSUPPORTED[kind] });
@@ -386,6 +530,10 @@ export function parseMarket(rawName, selections = [], ctx = {}) {
   const name = localize(rawName, ctx.home, ctx.away);
   if (/super ?cuota|supercuota|boost|mejorada|cuota aumentada/.test(name)) return null;
   if (OUTRIGHT.test(name) || ['cricket', 'cycling', 'motorsport'].includes(sport) || (sport === 'snooker' && !sideLike(selections, ctx))) return unsupported('outright');
+  if (sport === 'basketball') {
+    const pl = parsePlayerMarket(rawName, name, selections, sport);
+    if (pl) return pl;
+  }
   if (PLAYER.test(name)) return unsupported('player');
   if (SPECIAL.test(name)) return unsupported('special');
   const sels = selections
@@ -942,6 +1090,7 @@ function parseCombo(name, sels, base, sport, type, out, add) {
 // Descripción corta del tipo para agrupar en la interfaz.
 export function familyOf(spec) {
   if (!spec) return 'otro';
+  if (spec.t === 'PL') return 'jugador';
   if (spec.t === 'AND' || spec.t === 'OR') return 'combinado';
   if (spec.stat && spec.stat !== 'score') return spec.stat;
   if (spec.scope && spec.scope !== 'ft' && spec.scope !== 'reg') return 'periodo';
@@ -996,6 +1145,7 @@ export function swapSelection(spec, sel, line) {
     }
     case 'SEQ':
       return { spec: sp, sel: s.replace(/[ha]/g, (c) => (c === 'h' ? 'a' : 'h')), line };
+    case 'PL':
     case 'PMAX':
     case 'OE':
     case 'OU':
@@ -1066,6 +1216,11 @@ export function labelOf(market, sel, line, sport, names = {}) {
   const fmt = (x) => (x > 0 ? `+${x}` : `${x}`);
   let text;
   switch (spec.t) {
+    case 'PL': {
+      const who = names.player || playerFromSlug(spec.n);
+      if (spec.stat === 'dd') return `${who}: double-double ${s === 'over' ? 'Sí' : 'No'}`;
+      return `${who}: ${s === 'over' ? 'Más' : 'Menos'} de ${line} ${PLAYER_STATS[spec.stat] || spec.stat}`;
+    }
     case 'AND':
     case 'OR': {
       const parts = decodeParts(s).map((p) => labelOf(p.spec, p.sel, p.line, sport, names));
