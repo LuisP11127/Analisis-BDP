@@ -487,6 +487,10 @@ export async function analyzeMany(events, { methods = ['estadistico'], settings 
     if (p.offers.length && !live.some((o) => o.source === 'apuestatotal')) {
       offers.set(ev.id, [...live, ...p.offers]);
       usedPublished++;
+    } else if (!live.some((o) => o.source === 'apuestatotal' && o.market.startsWith('PL.'))) {
+      // Una extensión anterior a la 0.5 no pide los mercados de jugador: se usan los publicados.
+      const props = p.offers.filter((o) => o.market.startsWith('PL.'));
+      if (props.length) offers.set(ev.id, [...live, ...props]);
     }
     if (p.xg) xg.set(ev.id, p.xg);
   }
