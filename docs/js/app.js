@@ -125,7 +125,7 @@ function chip(cls, text, title) {
 }
 
 // Versión de la extensión con todos los mercados de Betano y Flashscore.
-const EXT_LATEST = '0.4.2';
+const EXT_LATEST = '0.5.0';
 function extOutdated(v) {
   if (!v || /prueba/.test(v)) return false;
   const [a, b] = String(v).split('.').map(Number);
@@ -150,7 +150,7 @@ function renderHeader() {
           ),
       app.extOk
         ? extOutdated(app.extVersion)
-          ? chip('warn', 'Extensión: actualizar', `Conector v${app.extVersion}: actualízalo (versión ${EXT_LATEST}) para leer todos los mercados de Betano y las estadísticas de Flashscore. Ver extension/README.md`)
+          ? chip('warn', 'Extensión: actualizar', `Conector v${app.extVersion}: actualízalo (versión ${EXT_LATEST}) para leer los mercados de jugador de Apuesta Total en vivo, todos los mercados de Betano y las estadísticas de Flashscore. Ver extension/README.md`)
           : chip('ok', 'Extensión ✓', `Análisis BDP - Conector v${app.extVersion}: suma Sofascore y Betano`)
         : null,
     ].filter(Boolean),
